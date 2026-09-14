@@ -218,7 +218,7 @@ machine.
   player, and today it's used as ownership (`CatchFalling`, `ForeignInHand`, `TryPickup`).
   - The grace timer and pickup rules become card data or server cvars (`wm_walk_grace`, `wm_round_life`,
     `wm_bounce`).
-- **A gun put straight into a hand** (`WM_System.PutGunInHand`, added 2026-09-14 for catch-to-equip, which is
+- **A gun put straight into a hand** (`WM_System.PutGunInHand`, added 2026-09-14 in RS_VR_Reload 36794c6 for catch-to-equip, which is
   gated off in netgames for now):
   - it swaps the gun for any player, but binds the rigs on the spot for the console player only, as `WorldTick`
     does. **P1:** bind the owner's rigs wherever that owner's hands are worked.

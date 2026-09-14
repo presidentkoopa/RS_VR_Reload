@@ -1,0 +1,115 @@
+--- a/zscript/wm/weapon.zs
++++ b/zscript/wm/weapon.zs
+@@ -331,6 +331,30 @@
+ 	// for a free reload.
+ 	WM_Ammo wmAmmo;
+ 
++	// A GUN'S FIRST LOAD, FROM ITS PICKUP (VANILLA_PARITY G5 / F6). A pickup that brings ammo with the gun offers it
++	// here before handing the gun over: the gun keeps what it holds, the pickup gives the rest to the reserve, and
++	// the gun arrives loaded with the pickup's own rounds and no more -- Doom's economy, where a BFG pickup is 40
++	// cells. A gun given any other way (the start loadout, a console give) never has one set and comes full, as before.
++	bool firstLoadSet;
++	int  firstLoadRounds;
++
++	// HOW MANY OF `offered` ROUNDS THIS GUN TAKES as its first load; the caller gives the rest to the reserve.
++	// Playsim: a pickup calls it on every machine, before CallTryPickup, and it reads only this class's card, which
++	// every machine loads. 0 for a gun that has already been in a hand (its rounds are its own by then) or keeps none.
++	int TakeFirstLoad(int offered)
++	{
++		if (wmAmmo) return 0;
++		let sys = WM_System(EventHandler.Find("WM_System"));
++		let card = sys ? sys.CardForWeapon(GetClassName()) : null;
++		if (!card || card.KeepsNoRounds()) return 0;
++		let full = new("WM_Ammo");
++		full.Init(card.capacity, card);
++		int took = clamp(offered, 0, full.MainRounds(card));
++		firstLoadSet    = true;
++		firstLoadRounds = took;
++		return took;
++	}
++
+ 	int Hand() { return bOffhandWeapon ? 1 : 0; }
+ 
+ 	// ---- FIRE HOLD AND RELEASE --------------------------------------------------------
+--- a/zscript/wm/ammo.zs
++++ b/zscript/wm/ammo.zs
+@@ -601,6 +601,68 @@
+ 		return true;
+ 	}
+ 
++	// ---- A GUN'S FIRST LOAD (WM_Gun.TakeFirstLoad) ---------------------------------
++
++	// THE MAIN BARREL'S OWN STORE? Not a placeholder, never a second barrel's (its ammo is not the gun's).
++	private bool MainStore(WM_Store s, WM_Card card)
++	{
++		return s && !s.placeholder && !(card && card.IsBarrelStore(s.id));
++	}
++
++	// HOW MANY ROUNDS THE MAIN BARREL'S STORES HOLD right now: every counted round and every live slot.
++	int MainRounds(WM_Card card)
++	{
++		int n = 0;
++		for (int i = 0; i < stores.Size(); i++)
++		{
++			let s = stores[i];
++			if (!MainStore(s, card)) continue;
++			if (s.kind == WM_Store.COUNTED) { n += s.rounds; continue; }
++			for (int k = 0; k < s.slots.Size(); k++) if (s.slots[k] == WM_Store.SLOT_LIVE) n++;
++		}
++		return n;
++	}
++
++	// LOADED WITH n ROUNDS INSTEAD OF FULL: the main barrel's stores emptied, then filled chamber first (what a
++	// pull spends), then the magazine, then any other store of the gun's own, each to its capacity. A second
++	// barrel's store is left as Init filled it. The action stays closed: an empty chamber is racked by hand.
++	void LoadFirst(int n, WM_Card card)
++	{
++		for (int i = 0; i < stores.Size(); i++)
++		{
++			let s = stores[i];
++			if (!MainStore(s, card)) continue;
++			if (s.kind == WM_Store.COUNTED) s.rounds = 0;
++			else for (int k = 0; k < s.slots.Size(); k++) s.slots[k] = WM_Store.SLOT_EMPTY;
++		}
++		int left = max(n, 0);
++		left = LoadInto(chamberStore, left, card);
++		left = LoadInto(magStore, left, card);
++		for (int i = 0; i < stores.Size() && left > 0; i++)
++			if (stores[i] != chamberStore && stores[i] != magStore) left = LoadInto(stores[i], left, card);
++		actionLock = false;
++		Sync();
++	}
++
++	// Up to n rounds into one store; what is left over.
++	private int LoadInto(WM_Store s, int n, WM_Card card)
++	{
++		if (n <= 0 || !MainStore(s, card)) return n;
++		if (s.kind == WM_Store.COUNTED)
++		{
++			int put = min(n, s.capacity - s.rounds);
++			s.rounds += put;
++			return n - put;
++		}
++		for (int k = 0; k < s.slots.Size() && n > 0; k++)
++		{
++			if (s.slots[k] != WM_Store.SLOT_EMPTY) continue;
++			s.slots[k] = WM_Store.SLOT_LIVE;
++			n--;
++		}
++		return n;
++	}
++
+ 	// ---- THE MIRROR, RE-DERIVED ---------------------------------------------
+ 	private void Sync()
+ 	{
+--- a/zscript/wm/rig.zs
++++ b/zscript/wm/rig.zs
+@@ -144,6 +144,8 @@
+ 		{
+ 			ammo = new("WM_Ammo");
+ 			ammo.Init(c.capacity, c);
++			// ITS PICKUP'S ROUNDS, not a free full load, when a pickup set one (WM_Gun.TakeFirstLoad).
++			if (g && g.firstLoadSet) ammo.LoadFirst(g.firstLoadRounds, c);
+ 			if (g) g.wmAmmo = ammo;
+ 		}
+ 		else ammo = g.wmAmmo;
