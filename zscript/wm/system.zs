@@ -996,7 +996,9 @@ class WM_System : EventHandler
 		// take it". A squeeze that only meant to tighten a two-handed hold does
 		// no harm -- a magazine taken and not pulled the full stroke springs
 		// back in.
-		if (press)
+		// A FRESH SQUEEZE STARTS NOTHING in a hand another mod holds full (HandHeldByOther): a caught gun, a world
+		// object. A braced, merely closed or pouch-leased hand still draws and takes, exactly as before.
+		if (press && !HandHeldByOther(pmo, h))
 		{
 			if (HandInPouch(pmo, h) >= 0) { DrawFromPouch(ph, pmo, h, rig); return; }
 			int pick = NearestPart(ph, pmo, h, rig, true, false);
@@ -1020,6 +1022,8 @@ class WM_System : EventHandler
 	{
 		int claim = GetClaim(pmo, h);
 		if (claim != GRIPSUBJ_None && !IsOurs(claim)) return false;
+		// Nor a hand another mod holds full -- a caught gun, a world object (HandHeldByOther).
+		if (HandHeldByOther(pmo, h)) return false;
 		// A ROUND TOO, for a hand working a gun with load points (verb.zs LOAD): it is on
 		// its way to one. For every other gun -- both pistols -- a round in the air is
 		// left alone, exactly as it always was.
@@ -2295,6 +2299,42 @@ class WM_System : EventHandler
 		else if (ours) SetClaim(pmo, h, GRIPSUBJ_None);
 	}
 
+	// ---- a hand another mod holds ------------------------------------------------
+	//
+	// IS HAND h HELD BY ANOTHER MOD, CLOSED ON SOMETHING THAT FILLS IT? Asked before a FRESH squeeze starts
+	// anything here (a pouch draw, a part taken) and before a closed hand catches a falling magazine. Some
+	// hands are not free: one closed on a caught gun (RS_VR_Weapons' catch-to-equip), on a world object
+	// (RS_WorldHands' RS_Held: a weapon, a pickup, a barrel, a key) or on a shield's grip. One squeeze must
+	// not start two things. Holds already under way here are never asked (see Claim).
+	//
+	// ONLY A SUBJECT THAT FILLS THE HAND COUNTS, never "someone holds a lease". RS_WorldHands ticks before
+	// this system and can lease a hand on the very squeeze this reacts to; RS_ShieldSaw found that refusing
+	// on grip.held alone refused every draw. Never the two-hand brace (RS_Stabilize: forend, foregrip,
+	// support), the pouch (the arbiter hands a pouch lease to the reload) or a holster, so a braced off hand
+	// still racks the pump and reaches the pouch exactly as before.
+	//
+	// WITHOUT THE ARBITER, the engine's GripClaim is read as CatchFalling reads it: a value that is not one of
+	// ours. IsOurs cannot tell our magazine from another mod's, so there only Grip counts.
+	private bool HandHeldByOther(PlayerPawn pmo, int h)
+	{
+		if (arbiter)
+		{
+			if (arbiter.GetInt("grip.mine", "", h, 0, pmo, 'RS_WeaponMech') == 1) return false;
+			if (arbiter.GetInt("grip.held", "", h, 0, pmo, 'RS_WeaponMech') != 1) return false;
+			return FillsHand(arbiter.GetInt("grip.subject", "", h, 0, pmo, 'RS_WeaponMech'));
+		}
+		int claim = GetClaim(pmo, h);
+		return claim != GRIPSUBJ_None && !IsOurs(claim) && FillsHand(claim);
+	}
+
+	// A SUBJECT THAT MEANS THE HAND IS FULL: a round, a shell, one being pushed home, a magazine (or any pickup
+	// RS_WorldHands holds as one), a gun's grip, a slide. Not None, the brace subjects, a holster or the pouch.
+	static bool FillsHand(int s)
+	{
+		return s == GRIPSUBJ_Round || s == GRIPSUBJ_Shell || s == GRIPSUBJ_Inserting
+			|| s == GRIPSUBJ_Magazine || s == GRIPSUBJ_Grip || s == GRIPSUBJ_Slide;
+	}
+
 	// ---- the grip arbiter, reached by string ------------------------------------
 	//
 	// WITHOUT IT, TWO MODS ACT ON ONE SQUEEZE: RS_WorldHands closes on world
@@ -2322,6 +2362,12 @@ class WM_System : EventHandler
 	// A DENIAL IS ADVICE, NOT A VETO, for a gun's own parts: nothing else
 	// drives them, and making the gun unusable is not the answer to someone
 	// else holding the hand. Said once, then ignored.
+	//
+	// DELIBERATE, AND KEPT (2026-09-14). The fresh-squeeze starts (a pouch draw, a
+	// part taken) and CatchFalling ask HandHeldByOther first, so a denial here meets
+	// a hold already under way -- a part mid-stroke, a magazine mid-guide -- or a
+	// lease that does not fill the hand, such as a brace. Letting go there would drop
+	// what the hand is doing, so the hand is kept.
 	private void Claim(PlayerPawn pmo, int h, int subject)
 	{
 		if (arbiter)
