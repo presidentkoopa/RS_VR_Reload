@@ -1807,6 +1807,17 @@ class WM_Rig play
 		return World(MuzzleModel());
 	}
 
+	// THE SMOKING BARREL (RS_Ballistics' RSB_Barrel), every tic this gun is drawn in the hand, fired or not:
+	// FlashAt's Shot heats it, and the heat is kept per gun actor and cooled by the map clock, so a gun put
+	// away keeps cooling and comes back out still warm. Not while stowed -- its prop is hidden while its hand
+	// works the other gun. Presentation on this machine only, like the flash: +NOINTERACTION particles and
+	// hot air, no playsim RNG, nothing read back. A gun with no heat costs one lookup.
+	void BarrelSmoke()
+	{
+		if (!prop || !resolved || !card || !gunItem || stowed) return;
+		RSB_Barrel.Muzzle(gunItem, MuzzleWorld(), BarrelWorld());
+	}
+
 	// THE MUZZLE, AN RS_BALLISTICS FLASH (RSB_CALL_SITES_HANDOFF.md): light, lit-air cone, bore sparks,
 	// flame and smoke, all from the class's FlashProfile and the player's RS Ballistics settings.
 	// Presentation on this machine only: RSB_Flash is +NOINTERACTION and draws no playsim RNG.
@@ -1827,6 +1838,9 @@ class WM_Rig play
 		// its beam slot cannot blank the new. Which beam slot a hand uses is the rig's (wm_flash_slot).
 		if (lastFlash) lastFlash.Destroy();
 		lastFlash = RSB_Flash.Fire(profile, at, fwd, int(Cvf("wm_flash_slot", 4.0)) + hand, pmo.Vel);
+		// THE BARREL HEATS with the shot, from the same profile (RSB_Barrel, kept per gun actor). A profile with
+		// no `barrelheat` adds none, so a second barrel's flash never heats the main one. BarrelSmoke shows it.
+		RSB_Barrel.Shot(gunItem, profile);
 	}
 
 	private Vector3 EjectDirModel()

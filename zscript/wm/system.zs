@@ -585,6 +585,7 @@ class WM_System : EventHandler
 		for (int h = 0; h < 2; h++) WorkHand(ph, pmo, h);
 		for (int r = 0; r < 2; r++) PutAway(ph, r);
 		for (int r = 0; r < 2; r++) ph.rigs[r].Pose();
+		for (int r = 0; r < 2; r++) ph.rigs[r].BarrelSmoke();
 		for (int h = 0; h < 2; h++) PinHand(ph, pmo, h);
 		for (int h = 0; h < 2; h++) PoseHand(ph, pmo, h);
 		DragPouches(ph, pmo);
