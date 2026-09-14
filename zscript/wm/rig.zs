@@ -1842,6 +1842,61 @@ class WM_Rig play
 		RSB_Barrel.Charge(gunItem, g.FlashProfileOrDefault(), MuzzleWorld(), BarrelWorld(), fraction);
 	}
 
+	// THE RECOIL'S LOOK (RS_Ballistics' RSB_Recoil.ViewJolt, RECOIL_PLAN.md), every tic this gun is drawn. Each new shot
+	// -- the gun's recoilShotTic moving on -- starts a jolt: the drawn gun slides back along its barrel and returns over
+	// the profile's tics, through the prop's FollowHandOfs, the engine's script-owned animation offset (actor.h), which
+	// nothing else writes on a gun prop. X is along the barrel in the model's own axes, so back is -X in either hand.
+	// ONLY WHILE GAMEPLAY RECOIL IS ON (sv_rsb_recoil): off means no recoil at all, the look included.
+	// The climb and roll the drawn gun should carry (RSB_Recoil.View, ViewJolt's rise and roll) wait for an engine
+	// hand-frame rotation beside FollowHandOfs. Presentation on this machine only: no RNG, nothing read back.
+	Actor  recoilSeenGun;
+	int    recoilSeenShotTic;
+	int    recoilJoltLeft;
+	int    recoilJoltTics;
+	double recoilJoltBack;
+
+	void RecoilLook()
+	{
+		if (!prop) return;
+		let g = WM_Gun(gunItem);
+		if (!g || !card || !resolved || stowed)
+		{
+			recoilJoltLeft = 0;
+			prop.FollowHandOfs = (0, 0, 0);
+			return;
+		}
+		// A GUN NEWLY IN THIS HAND (or restored from a save) starts from its own last shot, never a jolt of its past.
+		if (recoilSeenGun != gunItem)
+		{
+			recoilSeenGun     = gunItem;
+			recoilSeenShotTic = g.recoilShotTic;
+			recoilJoltLeft    = 0;
+		}
+		bool on = RSB_Recoil.Enabled();
+		if (g.recoilShotTic != recoilSeenShotTic)
+		{
+			recoilSeenShotTic = g.recoilShotTic;
+			double back, rise, roll;
+			int tics;
+			[back, rise, roll, tics] = RSB_Recoil.ViewJolt(g.bAltFire ? g.altRecoilProfileName : g.recoilProfileName);
+			if (on && back != 0 && tics > 0)
+			{
+				recoilJoltBack = back;
+				recoilJoltTics = tics;
+				recoilJoltLeft = tics;
+			}
+		}
+		double along = 0;
+		if (on && recoilJoltLeft > 0)
+		{
+			// The full jolt on the shot's own tic, easing home over the rest.
+			along = -recoilJoltBack * double(recoilJoltLeft) / double(max(recoilJoltTics, 1));
+			recoilJoltLeft--;
+		}
+		else recoilJoltLeft = 0;
+		prop.FollowHandOfs = (along, 0, 0);
+	}
+
 	// THE MUZZLE, AN RS_BALLISTICS FLASH (RSB_CALL_SITES_HANDOFF.md): light, lit-air cone, bore sparks,
 	// flame and smoke, all from the class's FlashProfile and the player's RS Ballistics settings.
 	// Presentation on this machine only: RSB_Flash is +NOINTERACTION and draws no playsim RNG.

@@ -639,6 +639,7 @@ class WM_System : EventHandler
 		for (int r = 0; r < 2; r++) ph.rigs[r].Pose();
 		for (int r = 0; r < 2; r++) ph.rigs[r].BarrelSmoke();
 		for (int r = 0; r < 2; r++) ph.rigs[r].ChargeLook();
+		for (int r = 0; r < 2; r++) ph.rigs[r].RecoilLook();
 		for (int h = 0; h < 2; h++) PinHand(ph, pmo, h);
 		for (int h = 0; h < 2; h++) PoseHand(ph, pmo, h);
 		DragPouches(ph, pmo);

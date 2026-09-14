@@ -37,7 +37,10 @@ chunks).
 - **A hand busy working the other gun puts its own gun away.** It comes back the moment that hand is free.
 - **Once a map has loaded, check the new weapon sheets.** Type `wm_card check` in the console.
   - It should list only the recoil profile lines: `recoilprofile` on 10 guns, `altrecoilprofile` on the Machine Gun. Those
-    are new, and nothing uses them yet.
+    are new: they give each gun its recoil.
+- **Recoil is ON by default.** Each shot kicks: rounds climb as you hold fire, and fast fire widens the spread. Crouching
+  or standing still kicks less. The drawn gun slides back with each shot, but doesn't tilt with the climb yet (that
+  waits for an engine change). The Recoil page's server switch turns all of it off, the look included.
   - Any other line means a gun's numbers changed. Tell the build lane.
 
 ---

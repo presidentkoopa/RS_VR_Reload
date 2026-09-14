@@ -106,6 +106,26 @@ class WM_Gun : Weapon
 		altRecoilProfileName = (has && s.altRecoilProfileStated) ? s.altRecoilProfileName : def.altRecoilProfileName;
 	}
 
+	// ONE SHOT'S RECOIL (RS_Ballistics' RSB_Recoil, RECOIL_PLAN.md): the turn this shot's rounds take (yaw, pitch, in
+	// degrees) and its extra spread, with the gun's kick moved on for its next shot. Once a shot, before its rounds
+	// leave, in the weapon's own fire action on every machine: the map clock, the shot count, the owner's crouch and
+	// speed -- no RNG, never the console player. With sv_rsb_recoil off, or no profile (the sheet's recoilprofile), it
+	// is all zero, the kick is forgotten, and the shot is exactly what it was without recoil.
+	double, double, double RecoilStep(String profile)
+	{
+		double kp = recoilPitch;
+		double ky = recoilYaw;
+		int    lt = recoilShotTic;
+		int    rs = recoilRunShot;
+		double shotYaw, shotPitch, bloom;
+		[shotYaw, shotPitch, bloom] = RSB_Recoil.Step(profile, Owner, kp, ky, lt, rs);
+		recoilPitch   = kp;
+		recoilYaw     = ky;
+		recoilShotTic = lt;
+		recoilRunShot = rs;
+		return shotYaw, shotPitch, bloom;
+	}
+
 	// ---- THE SHOT ----------------------------------------------------------------
 	//
 	// What one trigger pull puts in the air, said by the WEAPON CLASS in its Default
@@ -248,6 +268,13 @@ class WM_Gun : Weapon
 	// weapon sheet's recoilprofile / altrecoilprofile. Stored only: nothing reads them until the recoil hookup lands.
 	String recoilProfileName;
 	String altRecoilProfileName;
+	// THE GUN'S KICK SO FAR, kept between shots by RS_Ballistics' RSB_Recoil.Step (RecoilStep): its climb and sideways
+	// drift in degrees, the map tic of its last shot, and the shot number of the run. Saved with the gun, alike on
+	// every machine. The second barrel shares them, so a grenade's thump adds to the gun's climb.
+	double recoilPitch;
+	double recoilYaw;
+	int    recoilShotTic;
+	int    recoilRunShot;
 	property ShotPellets: shotPelletCount;
 	property ShotSpread: shotSpreadYaw, shotSpreadPitch;
 	property ShotDamage: shotDamageLo, shotDamageHi;
@@ -708,6 +735,18 @@ class WM_Gun : Weapon
 			sprH = 0;
 			sprV = 0;
 		}
+		// RECOIL (WM_Gun.RecoilStep), once this shot and after the dead-on test: its bloom widens the spread, and each round
+		// below leaves turned by the kick so far. Not for a rail, which aims and scatters itself; a saw returned above.
+		// All zero with sv_rsb_recoil off or no recoilprofile, so the shot is exactly what it was.
+		double kickYaw   = 0;
+		double kickPitch = 0;
+		double kickBloom = 0;
+		if (!invoker.railShotOn)
+		{
+			[kickYaw, kickPitch, kickBloom] = invoker.RecoilStep(invoker.recoilProfileName);
+			sprH += kickBloom;
+			sprV += kickBloom;
+		}
 		for (int i = 0; i < nPellets; i++)
 		{
 			// A RAIL (WM_Gun.ShotRail) instead of a projectile. A_RailAttack leaves the hand
@@ -745,6 +784,7 @@ class WM_Gun : Weapon
 			// a different round comes in at: one call, the class found by name.
 			Actor shot, spare;
 			[shot, spare] = A_FireProjectile(invoker.ShotActor(), 0, false, 0, 0, FPF_NOAUTOAIM);
+			if (shot) RSB_Recoil.Turn(shot, kickYaw, kickPitch);
 			if (shot && (sprH > 0 || sprV > 0)) invoker.ScatterShot(shot, sprH, sprV);
 			invoker.LaunchRound(shot, player, h, true);
 		}
@@ -808,8 +848,12 @@ class WM_Gun : Weapon
 			sys.OnAltDry(pn, h);
 			return ResolveState("Dry");
 		}
+		// RECOIL: the second barrel's own profile (the sheet's altrecoilprofile), on the gun's one kick. All zero when off.
+		double altKickYaw, altKickPitch, altKickBloom;
+		[altKickYaw, altKickPitch, altKickBloom] = invoker.RecoilStep(invoker.altRecoilProfileName);
 		Actor shot, spare;
 		[shot, spare] = A_FireProjectile(invoker.BarrelShotActor(b), 0, false, 0, 0, FPF_NOAUTOAIM);
+		if (shot) RSB_Recoil.Turn(shot, altKickYaw, altKickPitch);
 		invoker.LaunchRound(shot, player, h, false);
 		sys.OnAltShot(pn, h);
 		return ResolveState(null);
