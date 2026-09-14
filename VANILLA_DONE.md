@@ -38,7 +38,7 @@
 | X8 | The grenade and ShieldSaw's first headset try | **OWNER / MISSING** | owner + weapons lane | Folded into RS_VR_Weapons, committed 93ff50e, installed. Both START ON (server switches `rsvg_start` and `rs_ss_start` on the weapon-set page), and are also on the arsenal page. No headset try reported since the fold. |
 | X9 | The launchers' new looks | **IN PROGRESS** | weapons lane | rocket_launcher and rocket_rpg flashes and RSB_RocketRPG are wired but not yet checked or committed; they go in the weapons lane's next check. |
 | X10 | Sound picks heard in the headset (Sound Selection) | **IN PROGRESS** until X1 | weapons lane | A slot's menu default is the card's own sound. Rows 18-19 were never heard. |
-| X11 | Effects the engine hasn't built yet | **OWNER** decides whether Vanilla done waits for any | ballistics lane + build lane | Lasting bullet holes and scorch (#17), debris that bounces and stays (#8, #9), room-filling smoke (smoke volumes 13b), generated flash shapes (particle looks build B), casings as mesh particles, bullet hits on monsters ("later", the owner). |
+| X11 | Effects the engine hasn't built yet | **DECIDED by the owner 09-14: Vanilla done WAITS** for lasting bullet holes and scorch (#17), debris that bounces and stays (#8, #9, #11), and room-filling smoke (smoke volumes 13b-13e). "we're almost at the end, so we may as well wait". | ballistics lane + build lane | NOT waited for (later): casings as mesh particles and bullet hits on monsters. Generated flash shapes (particle looks build B) weren't in the owner's answer. |
 | X12 | Netplay | **AFTER** | build lane | NETPLAY_SPEC P1/P2. Catch-to-equip is single-player only, and an off-hand rail comes from the main hand in a netgame. The owner isn't playing netplay yet. |
 
 **Parity fixes (X7):**
@@ -234,5 +234,5 @@ Columns:
 - The looks are there for every gun. The pistols, shotguns, chainguns and launchers have a first pass to judge in the headset. The plasma guns, BFGs and chainsaws are still placeholders the ballistics lane has next.
 - You've calibrated where your hands sit on each kind of gun, where you grab each part, and where each gun sits in your hand, and we've baked that in as the default.
 - The rocket launchers and BFGs keep firing while you hold the trigger, and that feels right.
-- You've decided whether Vanilla waits for any effect the engine doesn't have yet: lasting bullet holes, debris that stays, room-filling smoke.
+- The engine has its last three effects, and you've seen them: bullet holes and scorch marks that stay on the walls, debris that bounces and stays where it lands, and smoke that fills a room. (You decided Vanilla waits for these.)
 - Netplay comes after, not part of Vanilla done.

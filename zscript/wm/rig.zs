@@ -1825,6 +1825,23 @@ class WM_Rig play
 		RSB_Barrel.Muzzle(gunItem, MuzzleWorld(), BarrelWorld());
 	}
 
+	// THE CHARGE'S LOOK (RS_Ballistics' RSB_Barrel.Charge), every tic this gun is drawn and winding up (a BFG's
+	// WM_Gun.ChargeTics): motes and arcs gather at the muzzle, a light swells, the air bends, and the shot's flash
+	// takes over when the calls stop. How far along is read off the charge itself -- the tic WM_ChargeWait began
+	// it (WM_Gun.chargeBeganTic) against the class's ChargeTics, and only while that hand's psprite is still in the
+	// Charge state -- so it cannot drift from the real wind-up. Presentation on this machine only, like
+	// BarrelSmoke: no RNG, nothing read back. A profile with no charge keys returns at once.
+	void ChargeLook()
+	{
+		if (!prop || !resolved || !card || !gunItem || stowed) return;
+		let g = WM_Gun(gunItem);
+		if (!g || g.ChargeTicsEach() <= 0 || !g.Owner || !g.Owner.player) return;
+		let psp = g.Owner.player.FindPSprite((g.Hand() == 0) ? PSP_WEAPON : PSP_OFFHANDWEAPON);
+		if (!psp || psp.CurState != g.FindState("Charge")) return;
+		double fraction = clamp(double(level.maptime - g.chargeBeganTic) / double(max(g.ChargeTicsEach(), 1)), 0.0, 1.0);
+		RSB_Barrel.Charge(gunItem, g.FlashProfileOrDefault(), MuzzleWorld(), BarrelWorld(), fraction);
+	}
+
 	// THE MUZZLE, AN RS_BALLISTICS FLASH (RSB_CALL_SITES_HANDOFF.md): light, lit-air cone, bore sparks,
 	// flame and smoke, all from the class's FlashProfile and the player's RS Ballistics settings.
 	// Presentation on this machine only: RSB_Flash is +NOINTERACTION and draws no playsim RNG.

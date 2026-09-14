@@ -424,8 +424,11 @@ class WM_System : EventHandler
 		{
 			// A NEW MAP. The old level's actors are gone; the guns and what is
 			// in them are not -- they travel with you. So only the drawn prop is
-			// forgotten, and it is spawned again on the first tic.
+			// forgotten, and it is spawned again on the first tic. A prop made on THIS map before now -- a
+			// PutGunInHand in PlayerSpawned, which the engine fires before WorldLoaded -- is still standing, so it
+			// is destroyed rather than only forgotten, or it would stay drawn in the hand beside the new one.
 			let rig = ph.rigs[h];
+			if (rig.prop) rig.prop.Destroy();
 			rig.prop = null;
 			rig.resolved = false;
 			rig.heldPart = -1;
@@ -586,6 +589,7 @@ class WM_System : EventHandler
 		for (int r = 0; r < 2; r++) PutAway(ph, r);
 		for (int r = 0; r < 2; r++) ph.rigs[r].Pose();
 		for (int r = 0; r < 2; r++) ph.rigs[r].BarrelSmoke();
+		for (int r = 0; r < 2; r++) ph.rigs[r].ChargeLook();
 		for (int h = 0; h < 2; h++) PinHand(ph, pmo, h);
 		for (int h = 0; h < 2; h++) PoseHand(ph, pmo, h);
 		DragPouches(ph, pmo);

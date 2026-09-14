@@ -142,6 +142,10 @@ class WM_Gun : Weapon
 	//                               Weapon.ReadySound / Weapon.UpSound.
 	//   WM_Gun.SawSounds f, h       the saw's running and hitting sounds. "" (unset) is
 	//                               weapons/sawfull and weapons/sawhit.
+	//   WM_Gun.SawPuff "class"      what the saw's cut spawns where it lands, found BY NAME as it
+	//                               cuts. "" (unset) is RS_Ballistics' RSB_SawPuff (the saw impacts);
+	//                               a name that is no actor falls back to it, and without
+	//                               RS_Ballistics to the engine's BulletPuff.
 	//   WM_Gun.ReleaseTics N        A RECOVERY WAIT once a firing run ends: when a shot's cycle
 	//                               ends without firing again -- a full-auto trigger up, or any
 	//                               semi-automatic shot -- no fire and no switch for N tics more.
@@ -178,10 +182,12 @@ class WM_Gun : Weapon
 	int    railCoreRGB;
 	String trailProfileName;
 	int    chargeTicCount;
+	int    chargeBeganTic;   // level.maptime as the Charge state began (WM_ChargeWait); read by the charge's look only
 	String chargeSoundName;
 	bool   sawShotOn;
 	String sawFullSoundName;
 	String sawHitSoundName;
+	String sawPuffName;
 	int    releaseTicCount;
 	String roundProfileName;
 	String flashProfileName;
@@ -203,6 +209,7 @@ class WM_Gun : Weapon
 	property ChargeSound: chargeSoundName;
 	property ShotSaw: sawShotOn;
 	property SawSounds: sawFullSoundName, sawHitSoundName;
+	property SawPuff: sawPuffName;
 	property ReleaseTics: releaseTicCount;
 	property RoundProfile: roundProfileName;
 	property FlashProfile: flashProfileName;
@@ -231,6 +238,23 @@ class WM_Gun : Weapon
 	String SawFullSound()          { return WM_SoundPick.ForActor(Owner, GetClassName(), "sawfull", (sawFullSoundName != "") ? sawFullSoundName : "weapons/sawfull"); }
 	String SawHitSound()           { return WM_SoundPick.ForActor(Owner, GetClassName(), "sawhit", (sawHitSoundName != "") ? sawHitSoundName : "weapons/sawhit"); }
 	int    ReleaseTicsEach() const { return clamp(releaseTicCount, 0, 350); }
+
+	// THE SAW'S PUFF (WM_Gun.SawPuff), found by name as it cuts, so a class from another package is never a
+	// compile-time reference. Unset, or a name that is no actor (said once): RS_Ballistics' RSB_SawPuff; without
+	// RS_Ballistics loaded, the engine's BulletPuff. Read off the class's own Default block, alike on every machine.
+	Class<Actor> SawPuffActor()
+	{
+		if (sawPuffName != "")
+		{
+			Class<Actor> named = (Class<Actor>)(Object.FindClass(sawPuffName, "Actor"));
+			if (named) return named;
+			WM_Log.Once(WM_Log.LV_ERR, "sawpuff:" .. GetClassName(), String.Format(
+				"%s: WM_Gun.SawPuff '%s' is not an actor class -- it cuts with RSB_SawPuff instead", GetClassName(), sawPuffName));
+		}
+		Class<Actor> house = (Class<Actor>)(Object.FindClass("RSB_SawPuff", "Actor"));
+		if (house) return house;
+		return (Class<Actor>)(Object.FindClass("BulletPuff", "Actor"));
+	}
 
 	// THE PROJECTILE A PELLET IS (WM_Gun.ShotClass), found by name as it fires. A name that is
 	// no actor is said once, and the gun fires RSB_Bullet rather than nothing.
@@ -601,8 +625,8 @@ class WM_Gun : Weapon
 		// because vanilla's turns and drags the PLAYER toward what it cuts, which in a headset
 		// yanks the view. A_Saw picks the off hand itself (invoker == player.OffhandWeapon).
 		// ShotDamage, when set, is rolled on a named RNG (SF_NORANDOM keeps it); unset is
-		// vanilla's 2 x 1d10. Its puff is RS_Ballistics' RSB_SawPuff: a BulletPuff with its
-		// sprite hidden that plays the `saw` impact (sparks, embers, a light) where it cuts.
+		// vanilla's 2 x 1d10. Its puff is the class's WM_Gun.SawPuff (SawPuffActor), unset RS_Ballistics'
+		// RSB_SawPuff: a BulletPuff with its sprite hidden that plays the `saw` impact where it cuts.
 		if (invoker.sawShotOn)
 		{
 			int sawDamage = 2;
@@ -612,7 +636,7 @@ class WM_Gun : Weapon
 				sawDamage = random[WMSaw](invoker.shotDamageLo, max(invoker.shotDamageLo, invoker.shotDamageHi));
 				sawFlags |= SF_NORANDOM;
 			}
-			A_Saw(invoker.SawFullSound(), invoker.SawHitSound(), sawDamage, "RSB_SawPuff", sawFlags);
+			A_Saw(invoker.SawFullSound(), invoker.SawHitSound(), sawDamage, invoker.SawPuffActor(), sawFlags);
 			invoker.fireStarted = true;
 			sys.OnShot(pn, h, chambers, rounds);
 			return ResolveState(null);
@@ -802,9 +826,11 @@ class WM_Gun : Weapon
 		return ResolveState("Charge");
 	}
 
-	// The charge's own wait, sized by the class.
+	// The charge's own wait, sized by the class. The tic it began is kept (chargeBeganTic) on the same tic its
+	// length is set, so the charge's look (WM_Rig.ChargeLook) reads how far along it is off the real wait.
 	action void WM_ChargeWait()
 	{
+		invoker.chargeBeganTic = level.maptime;
 		A_SetTics(max(invoker.ChargeTicsEach(), 1));
 	}
 
