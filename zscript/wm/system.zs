@@ -504,7 +504,27 @@ class WM_System : EventHandler
 		}
 	}
 
-	// ---- the tic ------------------------------------------------------------------
+	// ---- the last rail ---------------------------------------------------------------
+	//
+	// WHERE A RAIL REALLY WENT. The engine hands every event handler a rail's start and end point
+	// (p_map.cpp P_RailAttack -> WorldRailgunFired) while A_RailAttack is still running, so a gun
+	// that fires one reads them back straight after the call -- WM_Gun's rail branch, for its
+	// TrailProfile. Playsim: it runs on every machine alike, off the rail's own trace. railsFired
+	// counts every rail, so a gun can tell its rail went from one a handler cancelled.
+	int     railsFired;
+	Actor   lastRailShooter;
+	Vector3 lastRailFrom;
+	Vector3 lastRailTo;
+
+	override void WorldRailgunFired(WorldEvent e)
+	{
+		railsFired++;
+		lastRailShooter = e.Thing;
+		lastRailFrom    = e.AttackPos;
+		lastRailTo      = e.DamagePosition;
+	}
+
+	// ---- the tic------------------------------------------------------------------
 
 	override void WorldTick()
 	{

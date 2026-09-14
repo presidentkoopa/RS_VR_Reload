@@ -36,6 +36,10 @@
 // a pump does between strokes. A class that says WM_Gun.FullAuto keeps firing
 // while held (WM_HoldFire); one that says WM_Gun.ChambersPerPull fires several
 // loaded chambers on one pull (a double's two barrels).
+//
+// VANILLA'S HELD FIRE. A class that says WM_Gun.FullAuto refires while held, as vanilla's A_ReFire;
+// one that also says WM_Gun.FirstShotsAccurate N fires the first N shots of each hold dead on and
+// scatters the rest, as vanilla's pistol (1) and chaingun (2) do.
 // ============================================================================
 
 class WM_Gun : Weapon
@@ -85,6 +89,18 @@ class WM_Gun : Weapon
 	//                               come back. Unset (false) is one pull, one shot.
 	//                               Read off the owner's player cmd (WM_TriggerDown),
 	//                               so every machine in a netgame refires alike.
+	//                               THIS IS VANILLA'S A_ReFire: a Vanilla pistol or
+	//                               chaingun, which refires while held, sets it.
+	//   WM_Gun.FirstShotsAccurate N THE FIRST N SHOTS OF A HOLD FLY DEAD ON, and every
+	//                               later shot of a held run scatters within ShotSpread --
+	//                               vanilla's A_FireBullets, where one bullet and
+	//                               !player.refire is accurate. N is the shots before the
+	//                               first A_ReFire, for a class firing one shot a cycle:
+	//                               vanilla's pistol 1, its chaingun 2 (both A_FireCGun
+	//                               frames of the first cycle). Counted per gun
+	//                               (refireCount), so each hand's run is its own. One
+	//                               pellet a pull only, as vanilla's rule. 0 (unset)
+	//                               scatters every shot, as before.
 	//   WM_Gun.RoundsPerShot N      what one pull SPENDS from a gun that fires from its
 	//                               magazine or the reserve (the card's `firesfrom`). 0
 	//                               (unset) is 1; at most 1000. A chamber gun fires
@@ -107,6 +123,10 @@ class WM_Gun : Weapon
 	//   WM_Gun.RailColors s, c      the rail's spiral and core, 0xRRGGBB. 0 (unset) is the
 	//                               engine's own colour for that part (a blue spiral, a grey
 	//                               core -- p_effect.cpp P_DrawRailTrail).
+	//   WM_Gun.TrailProfile "name"  the rail's TRAIL drawn by RS_Ballistics instead (an RSBDEFS
+	//                               `trail`: "rail" is the Quake 2 one), from the drawn muzzle
+	//                               to where the rail really ended, with the engine's own
+	//                               trail switched off. "" (unset) is the engine's, in RailColors.
 	//   WM_Gun.ChargeTics N         a WAIT of N tics between the pull and the shot, with
 	//                               ChargeSound played as it starts -- the BFG's wind-up
 	//                               (vanilla 30). 0 (unset) fires on the pull. An empty gun
@@ -149,11 +169,13 @@ class WM_Gun : Weapon
 	int    fireTicCount;
 	int    chambersPerPullCount;
 	bool   fullAutoFire;
+	int    firstShotsDeadOn;
 	int    roundsPerShotCount;
 	String shotClassName;
 	bool   railShotOn;
 	int    railSpiralRGB;
 	int    railCoreRGB;
+	String trailProfileName;
 	int    chargeTicCount;
 	String chargeSoundName;
 	bool   sawShotOn;
@@ -170,10 +192,12 @@ class WM_Gun : Weapon
 	property FireTics: fireTicCount;
 	property ChambersPerPull: chambersPerPullCount;
 	property FullAuto: fullAutoFire;
+	property FirstShotsAccurate: firstShotsDeadOn;
 	property RoundsPerShot: roundsPerShotCount;
 	property ShotClass: shotClassName;
 	property ShotRail: railShotOn;
 	property RailColors: railSpiralRGB, railCoreRGB;
+	property TrailProfile: trailProfileName;
 	property ChargeTics: chargeTicCount;
 	property ChargeSound: chargeSoundName;
 	property ShotSaw: sawShotOn;
@@ -236,6 +260,22 @@ class WM_Gun : Weapon
 		return c;
 	}
 
+	// NO RAIL PART: -1 as A_RailAttack's colour, which P_DrawRailTrail reads as "draw none of this
+	// part" -- how a gun with its own TrailProfile switches the engine's trail off.
+	static color RailPartOff() { return Color(255, 255, 255, 255); }
+
+	// A RAIL'S OWN TRAIL (WM_Gun.TrailProfile), laid by RS_Ballistics from the drawn muzzle to where
+	// the rail ended. PRESENTATION ONLY: RSB_Trail.Lay draws and reads nothing back, so the drawn
+	// muzzle -- placed from the local controller -- may start it. With no drawn gun it starts where
+	// the engine's rail did.
+	void LayRailTrail(Vector3 railFrom, Vector3 railTo)
+	{
+		Vector3 muzzle;
+		bool drawn;
+		[muzzle, drawn] = MuzzleToWorld();
+		RSB_Trail.Lay(trailProfileName, Owner, drawn ? muzzle : railFrom, railTo);
+	}
+
 	// For the bind log and wm_dump.
 	String ShotText()
 	{
@@ -245,6 +285,7 @@ class WM_Gun : Weapon
 		{
 			String railHurt = (shotDamageLo > 0) ? String.Format("%d-%d", shotDamageLo, max(shotDamageLo, shotDamageHi)) : "100 (unset)";
 			String railLook = (railSpiralRGB == 0 && railCoreRGB == 0) ? "the engine's own colours" : String.Format("spiral %06x, core %06x", railSpiralRGB, railCoreRGB);
+			if (trailProfileName != "") railLook = String.Format("RS_Ballistics' '%s' trail (the engine's switched off)", trailProfileName);
 			s = s .. String.Format(", each a RAIL (A_RailAttack), damage %s, %s", railHurt, railLook);
 		}
 		else if (shotClassName != "")
@@ -260,6 +301,8 @@ class WM_Gun : Weapon
 			s = s .. String.Format(", per chamber -- a pull fires up to %d loaded chambers at once", ChambersEachPull());
 		if (fullAutoFire)
 			s = s .. String.Format(", FULL AUTO (held, a shot every %d tics)", CycleTics());
+		if (firstShotsDeadOn > 0)
+			s = s .. String.Format(", FIRST %d SHOT%s OF A HOLD DEAD ON (the rest scatter)", firstShotsDeadOn, (firstShotsDeadOn == 1) ? "" : "S");
 		if (sawShotOn)
 			s = s .. String.Format(", a SAW each pull instead (A_Saw, no turn or pull-in, damage %s)",
 				(shotDamageLo > 0) ? String.Format("%d-%d", shotDamageLo, max(shotDamageLo, shotDamageHi)) : "vanilla 2 x 1d10");
@@ -274,6 +317,11 @@ class WM_Gun : Weapon
 	// The trigger has to come back. Set on every pull; cleared once the
 	// button is seen up.
 	bool mustRelease;
+
+	// THE HELD RUN'S REFIRES (WM_Gun.FirstShotsAccurate): vanilla's player.refire, kept per gun so each hand's run is
+	// its own. 0 on the first shot of a pull; counted up each time WM_HoldFire goes round to Fire again; back to 0 in
+	// Ready. Advanced only in this weapon's own states, off the owner's usercmd, so every machine counts alike.
+	int refireCount;
 
 	// THE GUN'S OWN ROUNDS, kept on the weapon rather than on the rig that
 	// draws it. The rig is rebuilt whenever the hand changes what it holds,
@@ -493,6 +541,7 @@ class WM_Gun : Weapon
 	// card has none keeps it blocked, as it always was, so pressing it never enters AltFire.
 	action void WM_Ready()
 	{
+		invoker.refireCount = 0;   // back in Ready, any held run has ended
 		if (invoker.mustRelease && !WM_TriggerDown()) invoker.mustRelease = false;
 		int readyFlags = 0;
 		if (invoker.mustRelease) readyFlags |= WRF_NOPRIMARY;
@@ -562,6 +611,13 @@ class WM_Gun : Weapon
 		int    nPellets = invoker.PelletsPerShot() * chambers;
 		double sprH     = invoker.ShotYawSpread();
 		double sprV     = invoker.ShotPitchSpread();
+		// THE FIRST SHOTS OF A HOLD FLY DEAD ON (WM_Gun.FirstShotsAccurate N): one pellet, and one of the first N shots of a
+		// held run -- vanilla A_FireBullets' own test. Every later shot keeps the class's spread, on the same named RNG.
+		if (invoker.firstShotsDeadOn > 0 && nPellets == 1 && invoker.refireCount < invoker.firstShotsDeadOn)
+		{
+			sprH = 0;
+			sprV = 0;
+		}
 		for (int i = 0; i < nPellets; i++)
 		{
 			// A RAIL (WM_Gun.ShotRail) instead of a projectile. A_RailAttack leaves the hand
@@ -570,11 +626,26 @@ class WM_Gun : Weapon
 			// own rail -- a blue spiral round a grey core (p_effect.cpp P_DrawRailTrail). Its puff is
 			// RS_Ballistics' RSB_RailPuff: a BulletPuff with its sprite hidden that plays the `rail`
 			// impact (a blue-white splash, a glowing ring, a light) where it hits.
+			// ITS TRAIL (WM_Gun.TrailProfile): unset, the engine draws its own in RailColors. Set, the
+			// engine's is switched off (-1 for both parts) and RS_Ballistics lays the profile's from the
+			// drawn muzzle to where the rail ENDED -- the engine's own end point, recorded by
+			// WM_System.WorldRailgunFired while A_RailAttack runs, so the trail meets what the rail
+			// really hit, scatter and all. Switched by the class, never a local setting.
 			if (invoker.railShotOn)
 			{
-				A_RailAttack(invoker.RailDamage(), 0, false,
-					WM_Gun.RailColor(invoker.railSpiralRGB), WM_Gun.RailColor(invoker.railCoreRGB),
-					0, 0, "RSB_RailPuff", sprH, sprV);
+				bool  ownTrail = (invoker.trailProfileName != "");
+				color spiral   = WM_Gun.RailColor(invoker.railSpiralRGB);
+				color core     = WM_Gun.RailColor(invoker.railCoreRGB);
+				if (ownTrail)
+				{
+					spiral = WM_Gun.RailPartOff();
+					core   = WM_Gun.RailPartOff();
+				}
+				int railsBefore = sys.railsFired;
+				A_RailAttack(invoker.RailDamage(), 0, false, spiral, core, 0, 0, "RSB_RailPuff", sprH, sprV);
+				// A rail a handler cancelled (WorldRailgunPreFired) never reaches WorldRailgunFired: no trail.
+				if (ownTrail && sys.railsFired != railsBefore && sys.lastRailShooter == self)
+					invoker.LayRailTrail(sys.lastRailFrom, sys.lastRailTo);
 				continue;
 			}
 			// A REAL ROUND, NOT A HITSCAN LINE: RS_Ballistics' RSB_Bullet unless the class names its
@@ -612,6 +683,7 @@ class WM_Gun : Weapon
 		}
 		if (!invoker.fullAutoFire || !WM_TriggerDown()) return null;
 		invoker.bAltFire = false;
+		invoker.refireCount++;   // vanilla A_ReFire's player.refire++: the next shot is a refire
 		return ResolveState("Fire");
 	}
 
