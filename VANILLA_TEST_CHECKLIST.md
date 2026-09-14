@@ -35,6 +35,10 @@ chunks).
 - **Two-handed guns** (Chaingun, Machine Gun, Rocket Launcher, RPG, BFG, Heavy BFG) fire only while your other hand
   holds the support grip.
 - **A hand busy working the other gun puts its own gun away.** It comes back the moment that hand is free.
+- **Once a map has loaded, check the new weapon sheets.** Type `wm_card check` in the console.
+  - It should list only the recoil profile lines: `recoilprofile` on 10 guns, `altrecoilprofile` on the Machine Gun. Those
+    are new, and nothing uses them yet.
+  - Any other line means a gun's numbers changed. Tell the build lane.
 
 ---
 
