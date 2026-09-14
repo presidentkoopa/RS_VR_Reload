@@ -222,7 +222,7 @@ weapon "WM_Grenade"
   pulloff pin     # part pin, offat 0.9, by hand, needs trigger, arms yes
   release lever   # part lever, heldby grip
   fuse            # tics 105, starts pulloff, blast RSVG_Blast, cookoff player, dud RSVG_Pickup
-  throw           # on trigger, minspeed 1.2, flight WM_ThrownWeapon, spin wrist, spends 1, after next
+  throw           # on trigger, minspeed 1.2, flight WM_ThrownWeapon, spin wrist, spends 1, after empty
 end
 
 weapon "WM_ShieldSaw"
@@ -280,9 +280,10 @@ RS_Grenade and RS_ShieldSaw stay exactly as they are for anyone who loads them o
 - The thrower's machine decides from its hands and sends a command.
 - Every machine applies it to the weapon's state and spawns or steers the same actor.
 - The apply path reads no `consoleplayer`, and draws no RNG except the named RNG of actors spawned on every machine.
-- The shape is NETPLAY_SPEC §4's: the gun by network ID, its expected state stated, and the whole command refused on
-  any mismatch.
-- It uses `SendNetworkCommand` / `NetworkCommandProcess`, which reads typed Vector3s.
+- The shape is NETPLAY_SPEC §4's: its expected state stated, and the whole command refused on any mismatch. **But
+  nothing is named by network ID alone** (§4.2).
+- It uses `EventHandler.SendNetworkCommand` with typed arguments, read back in `NetworkCommandProcess`
+  (events.zs:221, :245).
 
 | Command | Carries | Applied on every machine |
 |---|---|---|
@@ -290,12 +291,12 @@ RS_Grenade and RS_ShieldSaw stay exactly as they are for anyone who loads them o
 | `wm_arm` | gun | the pin is off: armed, and the fuse starts if `starts = pulloff` |
 | `wm_fuse` | gun, tics left | the fuse starts, or is set |
 | `wm_throw` | gun, hand, and then:<br>• the release position and **velocity** (from `RS_ThrowService`);<br>• spin, plane roll, fuse tics left, armed;<br>• the route (a count plus target network IDs) | validate; spawn the flying actor with exactly these; spend the reserve; do `after` |
-| `wm_home` | the flight, the thrower's hand position | **while a returning weapon flies home, every 4 tics** (its re-aim rate): the point it steers to |
-| `wm_catch` | the flight, hand | the thrower's hand closed within `catchat` of it (tested on the thrower's machine): the flight ends and the weapon is back in that hand |
-| `wm_recall` | the flight | it turns home early |
+| `wm_hand` | hand, the owner's hand position | **every 4 tics while something follows that hand** (a returning flight, a held guard): the point it steers to or sits at |
+| `wm_catch` | hand, the flight's serial | the thrower's hand closed within `catchat` of it (tested on the thrower's machine): the flight ends and the weapon is back in that hand |
+| `wm_recall` | the flight's serial | it turns home early |
 
-**Returning to the real hand, in sync.** The flight steers to the last `wm_home` point. The thrower's machine sends
-one every 4 tics while the flight is on its way home, which is one small command. Every machine steers to the same
+**Returning to the real hand, in sync.** The flight steers to the last `wm_hand` point for its hand. The thrower's
+machine sends one every 4 tics while the flight is on its way home, which is one small command. Every machine steers to the same
 point on the same tic, so it comes back to your actual hand.
 - **If the updates stop** (lag, a dropped player), it steers to the last point, then to a point on the player's
   body built from game state.
@@ -307,10 +308,54 @@ point on the same tic, so it comes back to your actual hand.
 - the fuse light and ticking;
 - the mounted prop and the held prop.
 
-**The guard's position** is the one hand-placed gameplay object left. It sits in front of the player's body, or is
-carried by the same kind of update as `wm_home` while it's held.
+**The guard's position** is the one hand-placed gameplay object left. While it's held it sits at the last `wm_hand`
+point for its hand, and before the first one arrives it sits in front of the player's body.
 
-The cook-off blast is at the player, which is deterministic.
+The cook-off blast is at the player, which is deterministic. A thrown grenade that doesn't go off becomes its dud
+pickup by its own rule (at rest, or after a set time), never by how near `consoleplayer` is. Fuse length, throw scale
+and arming come from the card or the command, never a local cvar (NETPLAY_SPEC R7).
+
+### 4.1 The wire format, version 1
+
+Every argument is typed, as `SendNetworkCommand` requires (events.cpp:399). Positions, velocities and angles are
+doubles: every machine reads the same bytes, and a gentle lob isn't rounded away.
+
+```
+wm_throw   INT8 version 1 | INT8 hand (0 main, 1 off) | STRING the weapon class leaving that hand
+           INT serial: this player's throw count including this one; applied only as the last + 1
+           DOUBLE x3 release position, world map units
+           DOUBLE x3 release velocity, map units a tic, after the thrower's own throw scale
+           DOUBLE x3 spin: yaw, pitch, roll, degrees a tic
+           DOUBLE plane roll, degrees
+           INT16 fuse tics left (-1: not lit)
+           INT8 flags: 1 armed, 2 a cast (at or over minspeed; otherwise a drop or a stow)
+           INT8 route count (0-16), then per target: INT network ID, DOUBLE x3 its position at release
+wm_hand    INT8 version 1 | INT8 hand | DOUBLE x3 the hand's position
+wm_catch   INT8 version 1 | INT8 hand | INT serial
+wm_recall  INT8 version 1 | INT serial
+wm_draw    INT8 version 1 | INT8 hand | STRING weapon class | INT8 from (0 mount, 1 pouch)
+wm_stow    INT8 version 1 | INT8 hand | STRING weapon class
+wm_arm     INT8 version 1 | INT8 hand | STRING weapon class
+wm_fuse    INT8 version 1 | INT8 hand | STRING weapon class | INT16 tics
+```
+
+The largest, a `wm_throw` with a 16-target route, is about 560 bytes.
+
+### 4.2 Naming things the same on every machine
+
+**Network IDs can differ between machines today.** The engine gives every actor that isn't client-side an ID as it
+spawns, first come first served from a free list (p_mobj.cpp:5744, dobject.cpp:731). An actor spawned on one machine
+only shifts every later ID there, and the reload rig still spawns its props and markers on the owner's machine only
+(NETPLAY_SPEC §7.1). So:
+- **A gun** is named by player, hand and weapon class: the player's inventory holds the same classes everywhere.
+- **A flight** is named by player and throw serial. Every machine applies the same `wm_throw`s in the same order,
+  so the counts agree.
+- **A route target** carries its ID and its position at release. The apply takes the ID's actor only if it's alive,
+  shootable, not the thrower, and within 64 units of that position. Otherwise it takes the nearest such actor
+  within 64 units, and with none it skips that leg. Either way every machine picks the same actor from the same
+  gameplay things.
+
+Once §7.1's client-side looks land, the IDs line up and the position check just confirms them.
 
 **Against NETPLAY_SPEC §10:** this is approach B's shape (§2). It's a new path, so single-player runs through the
 same commands and it doesn't wait on §10's other answers. If §10 picks approach A, these commands become local
@@ -349,7 +394,16 @@ simulations instead.
 
 ---
 
-## 6. Owner decisions, and what depends on them
+## 6. Decisions
+
+**Decided 2026-09-14** by the build lane (doomwork-5e), which the owner put in charge ("real vr mechanics"). The owner
+can override.
+1. **Slot 9: replace.** The card-driven grenade is the slot 9 grenade, using RS_Grenade's `RSVG_Ammo`, `RSVG_Blast`
+   and `RSVG_Pickup` by name. RS_Grenade itself isn't edited.
+2. **A missed catch: stow** on the mount (`miss = stow`), as RS_ShieldSaw already does.
+3. **After a grenade throw: reach the pouch** for the next one (`after = empty`). No refill in the hand.
+
+The options as they were put:
 
 1. **The grenade: REPLACE or WRAP in slot 9.** The same question applies to the shield saw's weapon.
    - **Replace:** the card sits on a weapons-lane WM_Gun using `RSVG_Ammo`, `RSVG_Blast` and `RSVG_Pickup` by name,
@@ -369,12 +423,12 @@ simulations instead.
 ## 7. Engine
 
 **None required.** Networked hand poses (NETWORK_HAND_INPUT_PLAN N1-N5, already on the build lane's list for the
-owner) would retire `wm_home` and let the guard follow the real hand in a netgame. Until then the commands above do
+owner) would retire `wm_hand` and let the guard follow the real hand in a netgame. Until then the commands above do
 the job.
 
 ---
 
-## 8. Build order, once decisions 1 and 3 are answered
+## 8. Build order (the build lane's go, 2026-09-14)
 
 1. **The parser:**
    - `throw`, `route`, `pulloff`, `release`, `fuse`, `mount` and `pouch = whole`, each with its refusals;

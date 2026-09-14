@@ -149,6 +149,15 @@ Each command is sent by the owner's hand loop and applied to that player's gun (
 pre-state it expects.** For example: "seat loose magazine M into gun G, whose magazine is out"; "stroke verb k of
 gun G home, whose stroke is out".
 
+**Caveat (2026-09-14): a network ID alone can name different actors on different machines.** The engine gives
+every actor that isn't client-side an ID as it spawns, first come first served from a free list (p_mobj.cpp:5744,
+dobject.cpp:731). The rig's props and markers still spawn on the owner's machine only (§7.1), so every later ID there
+shifts. Until §7.1 lands:
+- name a gun by player, hand and weapon class;
+- send a loose actor's ID with its position, and accept the ID only if its actor is where the command says.
+
+THROWABLE_PLAN.md §4.2 does exactly that.
+
 **The apply checks everything before it changes anything:**
 - gun G exists, belongs to `cmd.Player`, and is in the hand named;
 - the gun's state matches the stated pre-state;
