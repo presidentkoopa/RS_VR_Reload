@@ -37,8 +37,8 @@ These are engine rules. They apply to Doom's own guns in a headset as much as to
   None of ours has any: same.
 - **The BFG's spray fans out from the controller,** because the rays are traced from the player (weaponbfg.zs 237).
   Ours fires Doom's own BFGBall: same.
-- **Not checked:** the defaults of `sv_fastweapons` (assumed 0) and the dmflags2 bits `sv_nobfgaim` and
-  `sv_novertspread`.
+- **Defaults, checked afterwards:** `sv_fastweapons` is 0 (p_pspr.cpp 99), and `dmflags2` is 0 (d_main.cpp 759). So
+  `sv_nobfgaim` (799) and `sv_novertspread` (820) are both off, and the vanilla numbers above stand as written.
 
 ---
 

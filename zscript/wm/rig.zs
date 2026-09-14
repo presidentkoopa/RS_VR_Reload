@@ -1394,8 +1394,15 @@ class WM_Rig play
 	// cut is the weapon's own sound. Presentation only, off the owner's usercmd.
 	private void EngineIdle(PlayerPawn pmo)
 	{
-		bool want = !stowed && prop != null && ammo != null && ammo.engineRunning;
+		// A GUN WITH AN IDLE SOUND AND NO START VERB idles whenever it is drawn: nothing starts or stops its engine,
+		// so it runs from the moment it is in the hand (the Heavy and Longbar chainsaws). A gun with a start verb
+		// idles only once its ripcord has caught (StartEngine), exactly as before.
+		bool running = ammo != null && (ammo.engineRunning
+			|| (card && card.idleSound != "" && !card.HasVerbKind(WM_Verb.START)));
+		bool want = !stowed && prop != null && running;
 		if (want && pmo && pmo.player && (pmo.player.cmd.buttons & ((hand == 0) ? BT_ATTACK : BT_OFFHANDATTACK)) != 0) want = false;
+		// Nor for a dead player: the hum stops with you. Neither path had a stop on death before.
+		if (want && pmo && pmo.player && pmo.player.health <= 0) want = false;
 		// The sound is resolved as the loop starts (a pick is heard on its next start). With no pick and no
 		// card idle sound it stays silent, asked again each tic, so a pick made while it runs starts it.
 		if (want && !idleLoopOn)
