@@ -218,6 +218,12 @@ machine.
   player, and today it's used as ownership (`CatchFalling`, `ForeignInHand`, `TryPickup`).
   - The grace timer and pickup rules become card data or server cvars (`wm_walk_grace`, `wm_round_life`,
     `wm_bounce`).
+- **A gun put straight into a hand** (`WM_System.PutGunInHand`, added 2026-09-14 for catch-to-equip, which is
+  gated off in netgames for now):
+  - it swaps the gun for any player, but binds the rigs on the spot for the console player only, as `WorldTick`
+    does. **P1:** bind the owner's rigs wherever that owner's hands are worked.
+  - The fire path's refusal of a rig still bound to another gun (`CanFire`'s `asking`, `RigBoundElsewhere`) is an
+    identity compare on the owner's own hand, with no RNG and no console player. It needs no change at P1.
 
 ### 5.1 P1's state containers, designed up front
 
@@ -424,19 +430,18 @@ setup, and identical gun-state hash logs.
 
 ---
 
-## 10. Decisions for the owner
+## 10. Decisions (DECIDED 2026-09-14, build lane, delegated)
 
-1. **The approach:** B (your machine decides, every machine applies) for gameplay, with A later only for seeing
-   other players' hands. Or A for everything.
-2. **One tic:** is a reload's result landing one tic after the hand, in single-player too, acceptable? (The part
-   still moves at once.)
-3. **Retire the `wm_verbs` switch** (the old role path)? Keeping both paths doubles every netplay change and puts
-   a local cvar on the fire path.
-4. **Until P2 lands, in a netgame:**
-   - carded guns off (vanilla firing);
-   - reload by button only;
-   - or leave it, knowing it desyncs on the first pull.
-5. **Trust:** co-op peers are trusted, and applies only sanity-check. Or do you want stricter validation?
+The owner handed these calls to the build lane and won't play netgames until this is fixed, so there's no rush.
+Priority is unchanged: the vanilla set first, then netplay P1/P2. Every new change still follows §3's rules.
+
+1. **The approach: B.** The owner's machine decides, and every machine applies. A comes later, only for seeing
+   other players' hands.
+2. **One tic: fine.** A reload's result landing one tic after the hand is acceptable, in single player too. The part
+   still moves at once.
+3. **`wm_verbs`: retire it when the netplay work starts, not now,** as its own step.
+4. **Netgame interim: none.** No gate is needed, because the owner won't play netgames until P2 lands.
+5. **Trust:** co-op peers are trusted, and applies only sanity-check.
 
 ---
 

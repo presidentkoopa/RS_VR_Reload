@@ -1682,7 +1682,7 @@ class WM_Rig play
 		level.VRHaptic(hand, 1.0, 22.0);
 		Vector3 mz = BarrelMuzzleModel(b);
 		let g = WM_Gun(gunItem);
-		FlashAt(pmo, mz, b.dir, g ? g.AltFlashProfileOrDefault() : "pistol");
+		FlashAt(pmo, mz, b.dir, g ? g.AltFlashProfileOrDefault() : "default");
 		WM_Log.Info(String.Format("%s gun: barrel %s SHOT -- %s from %s%s; stores now %s", HandName(), b.id,
 			(b.shotClassName != "") ? b.shotClassName : "RSB_Bullet", b.fromStore,
 			spent ? "" : " -- but nothing live was left in it to spend, which CanAltFire had just denied",
@@ -1813,7 +1813,7 @@ class WM_Rig play
 	private void Flash(PlayerPawn pmo)
 	{
 		let g = WM_Gun(gunItem);
-		FlashAt(pmo, MuzzleModel(), card.barrel, g ? g.FlashProfileOrDefault() : "pistol");
+		FlashAt(pmo, MuzzleModel(), card.barrel, g ? g.FlashProfileOrDefault() : "default");
 	}
 
 	// mz, boreModel: a muzzle and the way its bore points, model space -- the card's, or a second
@@ -1849,7 +1849,7 @@ class WM_Rig play
 		// owner's pick or the card's casingsound, and "" (neither) is the profile's own. RS Ballistics'
 		// Casings switch and look settings apply inside Throw. When rigs run per player on every machine:
 		// shared: true, and a constant speed instead of wm_eject_speed.
-		RSB_Ejecta.Throw(g ? g.EjectaProfileOrDefault() : "brass_45", at, wd, pmo.Vel,
+		RSB_Ejecta.Throw(g ? g.EjectaProfileOrDefault() : "default", at, wd, pmo.Vel,
 			Cvf("wm_eject_speed", 4.0), hand * 65536 + (++brassSeq), false, SlotSound("casing", card.casingSound));
 
 		// A BELT LINK WITH THE CASE (card `linkmodel`, G16): out of the same port, a little slower, on its own
@@ -2469,7 +2469,7 @@ class WM_Rig play
 				else if (!throwNoCasing)
 				{
 					// A LOCAL RS_BALLISTICS CASING: see Brass().
-					RSB_Ejecta.Throw(g ? g.EjectaProfileOrDefault() : "brass_45", spawnAt, dir, pmo.Vel,
+					RSB_Ejecta.Throw(g ? g.EjectaProfileOrDefault() : "default", spawnAt, dir, pmo.Vel,
 						speed * kick, seq, false, SlotSound("casing", card.casingSound));
 				}
 			}

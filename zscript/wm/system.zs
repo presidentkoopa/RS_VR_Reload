@@ -237,7 +237,11 @@ class WM_System : EventHandler
 	// 1 for every class that says nothing -- which asks exactly what this always asked.
 	// rounds: what one pull spends from a gun with no chamber (WM_Card.FIRES_MAGAZINE) -- 1
 	// for every class that says nothing. A chamber gun fires chambers and never reads it.
-	bool CanFire(int pn, int h, int chambers = 1, int rounds = 1)
+	// asking: the gun whose trigger was pulled. Given, a hand whose rig is still bound to a DIFFERENT gun
+	// refuses -- a gun put in the hand since the system last bound one is never answered by the gun that
+	// was there before (P_PlayerThink fires before WorldTick binds; see PutGunInHand). null (unset) asks
+	// exactly as it always did.
+	bool CanFire(int pn, int h, int chambers = 1, int rounds = 1, Weapon asking = null)
 	{
 		let ph = HandsIfAny(pn);
 		if (!ph)
@@ -249,6 +253,7 @@ class WM_System : EventHandler
 		}
 		if (h < 0 || h > 1 || !ph.rigs[h]) return false;
 		let rig = ph.rigs[h];
+		if (asking && rig.gunItem && rig.gunItem != asking) return false;
 		if (!rig.card || !rig.prop || !rig.ammo || rig.stowed) return false;
 		// TWO-HANDED (card `hands = 2`): only while the other hand holds this gun's support grip.
 		if (rig.card.NeedsTwoHands() && !SupportHeld(ph, h, rig)) return false;
@@ -317,11 +322,13 @@ class WM_System : EventHandler
 
 	// CAN THE SECOND BARREL FIRE: the gun drawn in this hand, both hands on a two-handed gun, a
 	// live round in the barrel's store, and (wm_verbs on) the open verb it waits on shut.
-	bool CanAltFire(int pn, int h)
+	// asking: as CanFire's -- a rig still bound to a different gun refuses; null asks as always.
+	bool CanAltFire(int pn, int h, Weapon asking = null)
 	{
 		let ph = HandsIfAny(pn);
 		if (!ph || h < 0 || h > 1 || !ph.rigs[h]) return false;
 		let rig = ph.rigs[h];
+		if (asking && rig.gunItem && rig.gunItem != asking) return false;
 		if (!rig.card || !rig.prop || !rig.ammo || rig.stowed) return false;
 		let b = rig.card.AltBarrel();
 		if (!b) return false;
@@ -623,6 +630,39 @@ class WM_System : EventHandler
 		}
 	}
 
+	// PUT A GUN IN A HAND FROM OUTSIDE, AND BIND IT NOW. The one entry point for another package that hands
+	// a gun straight to a hand instead of through a weapon switch: a caught pickup (catch-to-equip), a console
+	// give. The swap is EquipInstantly's. Both hands' rigs are bound, and their props made, on the spot:
+	// P_PlayerThink (psprites and the fire check) runs BEFORE WorldTick (p_tick.cpp), so a bind left to the
+	// next WorldTick came a tic late, and that tic's pull was answered by the gun that was there before.
+	// BindRig lets go as for any change -- the other hand's grip or guide on the old gun ends, a carry stays.
+	// Rigs are the console player's only, as WorldTick works them: another player's gun is swapped and not
+	// bound here (NETPLAY_SPEC section 5, P1).
+	void PutGunInHand(PlayerPawn pmo, Weapon weap, int hand)
+	{
+		if (!pmo || !pmo.player || !weap || hand < 0 || hand > 1) return;
+		EquipInstantly(pmo, weap, hand);
+		if (!set || pmo.PlayerNumber() != consoleplayer) return;
+		let ph = ForPlayer(consoleplayer);
+		if (!ph) return;
+		for (int h = 0; h < 2; h++)
+		{
+			BindRig(ph, pmo, h);
+			ph.rigs[h].EnsureProp(pmo);
+		}
+	}
+
+	// IS HAND h'S RIG STILL BOUND TO ANOTHER GUN than w -- one put in the hand since the system last bound
+	// it. WM_Gun's quiet refusal: no dry click, and no dry told to the gun that was there before. False when
+	// this machine works no hands for pn, or the rig holds nothing, so those pulls go on exactly as before.
+	bool RigBoundElsewhere(int pn, int h, Weapon w)
+	{
+		let ph = HandsIfAny(pn);
+		if (!ph || h < 0 || h > 1 || !ph.rigs[h]) return false;
+		let bound = ph.rigs[h].gunItem;
+		return bound && bound != w;
+	}
+
 	// RS_TestPistol's equipInstantly, which copied the weapon wheel's. Setting
 	// the pointer is not enough -- SetPsprite is what hands the layer to it.
 	private void EquipInstantly(PlayerPawn pmo, Weapon weap, int hand)
@@ -639,7 +679,10 @@ class WM_System : EventHandler
 		if (weap.SisterWeapon) weap.SisterWeapon.bOffhandWeapon = wantOff;
 		if (wantOff) player.OffhandWeapon = weap;
 		else         player.ReadyWeapon   = weap;
-		player.PendingWeapon = WP_NOCHANGE;
+		// A SWITCH PENDING FOR THIS HAND is what this replaces; one pending for the OTHER hand goes on.
+		let pending = player.PendingWeapon;
+		if (pending != WP_NOCHANGE && (!pending || pending == weap || pending.bOffhandWeapon == wantOff))
+			player.PendingWeapon = WP_NOCHANGE;
 		player.SetPsprite(wantOff ? PSP_OFFHANDWEAPON : PSP_WEAPON, weap.GetReadyState());
 	}
 

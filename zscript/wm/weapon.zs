@@ -112,10 +112,11 @@ class WM_Gun : Weapon
 	//                               and BFGBall bring their own speed, damage and death;
 	//                               LaunchRound and ShotDamage touch an RSB_Bullet only.
 	//   WM_Gun.RoundProfile "name"  RS_Ballistics profiles (RSBDEFS) for this class's shot: the
-	//   WM_Gun.FlashProfile "name"  round's ballistics and look ("pistol_45" unset); the muzzle's
-	//   WM_Gun.AltFlashProfile "n"  light, cone, sparks, flame and smoke ("pistol"); a second
+	//   WM_Gun.FlashProfile "name"  round's ballistics and look ("default" unset); the muzzle's
+	//   WM_Gun.AltFlashProfile "n"  light, cone, sparks, flame and smoke ("default"); a second
 	//   WM_Gun.EjectaProfile "name" barrel's muzzle ("" is FlashProfile); what the port throws
-	//                               ("brass_45"). RS_VR_Reload REQUIRES RS_Ballistics, loaded
+	//                               ("default"). Each unset one is RS_Ballistics' plain stand-in,
+	//                               never another gun's look. RS_VR_Reload REQUIRES RS_Ballistics, loaded
 	//                               before it (RSB_CALL_SITES_HANDOFF.md).
 	//   WM_Gun.ShotRail true        a RAIL each pellet instead of a projectile (A_RailAttack):
 	//                               ShotDamage rolled per rail, 100 unset; ShotSpread as its
@@ -208,11 +209,12 @@ class WM_Gun : Weapon
 	property AltFlashProfile: altFlashProfileName;
 	property EjectaProfile: ejectaProfileName;
 
-	// THE RS_BALLISTICS PROFILES THIS CLASS'S SHOT NAMES, each the pistol's when unset.
-	String RoundProfileOrDefault()    const { return (roundProfileName.Length() > 0) ? roundProfileName : "pistol_45"; }
-	String FlashProfileOrDefault()    const { return (flashProfileName.Length() > 0) ? flashProfileName : "pistol"; }
+	// THE RS_BALLISTICS PROFILES THIS CLASS'S SHOT NAMES, each RS_Ballistics' plain "default" when unset --
+	// never a gun's own profile, which RSBDEFS is free to make a showpiece (the pistols' are).
+	String RoundProfileOrDefault()    const { return (roundProfileName.Length() > 0) ? roundProfileName : "default"; }
+	String FlashProfileOrDefault()    const { return (flashProfileName.Length() > 0) ? flashProfileName : "default"; }
 	String AltFlashProfileOrDefault() const { return (altFlashProfileName.Length() > 0) ? altFlashProfileName : FlashProfileOrDefault(); }
-	String EjectaProfileOrDefault()   const { return (ejectaProfileName.Length() > 0) ? ejectaProfileName : "brass_45"; }
+	String EjectaProfileOrDefault()   const { return (ejectaProfileName.Length() > 0) ? ejectaProfileName : "default"; }
 
 	// The whole Fire cycle in tics: the shot's own tic plus the wait after it.
 	int CycleTics() const { return (fireTicCount > 0) ? clamp(fireTicCount, 1, 350) : 19; }
@@ -566,10 +568,17 @@ class WM_Gun : Weapon
 		int most = invoker.ChambersEachPull();
 		// WHAT THIS PULL SPENDS from a gun with no chamber (WM_Gun.RoundsPerShot): 1 unset.
 		int rounds = invoker.RoundsEachShot();
-		if (!sys || !sys.CanFire(pn, h, most, rounds))
+		if (!sys || !sys.CanFire(pn, h, most, rounds, invoker))
 		{
 			// A gun that stops firing stops holding: FireReleased on the next DoEffect.
 			invoker.fireStarted = false;
+			// NOT YET THIS GUN'S RIG (put in the hand since the system last bound one): no click, and no dry told
+			// to the gun that was there before. Back to Ready with the trigger free; the next tic's pull finds it bound.
+			if (sys && sys.RigBoundElsewhere(pn, h, invoker))
+			{
+				invoker.mustRelease = false;
+				return ResolveState("Ready");
+			}
 			if (sys) sys.OnDry(pn, h, rounds);
 			return ResolveState("Dry");
 		}
@@ -707,8 +716,14 @@ class WM_Gun : Weapon
 		if (!b) return ResolveState("Ready");
 		int h = invoker.Hand();
 		int pn = player ? PlayerNumber() : -1;
-		if (!sys.CanAltFire(pn, h))
+		if (!sys.CanAltFire(pn, h, invoker))
 		{
+			// Not yet this gun's rig: no click, as WM_TryFire.
+			if (sys.RigBoundElsewhere(pn, h, invoker))
+			{
+				invoker.altMustRelease = false;
+				return ResolveState("Ready");
+			}
 			sys.OnAltDry(pn, h);
 			return ResolveState("Dry");
 		}
@@ -771,9 +786,15 @@ class WM_Gun : Weapon
 		int h = invoker.Hand();
 		int pn = player ? PlayerNumber() : -1;
 		int rounds = invoker.RoundsEachShot();
-		if (!sys || !sys.CanFire(pn, h, invoker.ChambersEachPull(), rounds))
+		if (!sys || !sys.CanFire(pn, h, invoker.ChambersEachPull(), rounds, invoker))
 		{
 			invoker.fireStarted = false;
+			// Not yet this gun's rig: no charge, no click, as WM_TryFire.
+			if (sys && sys.RigBoundElsewhere(pn, h, invoker))
+			{
+				invoker.mustRelease = false;
+				return ResolveState("Ready");
+			}
 			if (sys) sys.OnDry(pn, h, rounds);
 			return ResolveState("Dry");
 		}
@@ -797,6 +818,10 @@ class WM_Gun : Weapon
 	void LaunchRound(Actor shot, PlayerInfo shooter, int h, bool withDamage)
 	{
 		if (!shot) return;
+		// A BULLET GUN THAT NAMES NO ROUND flies RS_Ballistics' plain "default", and says so once.
+		if (shot is "RSB_Bullet" && roundProfileName == "")
+			WM_Log.Once(WM_Log.LV_WARN, "noround:" .. GetClassName(), String.Format(
+				"%s fires RSB_Bullet but names no WM_Gun.RoundProfile -- it flies as RS_Ballistics' plain \"default\" round", GetClassName()));
 		if (shot is "RSB_Bullet") RSB_Bullet.Launch(shot, shooter, h, RoundProfileOrDefault());
 		if (withDamage) ApplyShotDamage(shot);
 	}
