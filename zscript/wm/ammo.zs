@@ -63,6 +63,9 @@ class WM_Ammo
 	// the weapon for the reason actionLock is, so a rebind is not a free start. Set by the start
 	// verb's pull (WM_Rig.StartEngine), cleared as the gun leaves the hand (WM_Rig.Unbind).
 	bool engineRunning;
+	// HOW THIS GUN FIRES (WM_Card.FIRES_*), copied from its card at every bind (WM_Rig.Bind), so a reader with no card to
+	// hand -- a weapon HUD drawing in ui scope, through RS_WeaponAmmoService -- can tell a chamber gun from a reserve one.
+	int  firesFrom;
 
 	// ---- THE STORES, this gun's own copies ----------------------------------
 	Array<WM_Store> stores;   // every store the gun has, the two below included

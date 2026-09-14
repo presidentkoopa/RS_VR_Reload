@@ -60,6 +60,9 @@ class WM_Store
 	// nothing, and is left out of every store listing. A gun that fires straight from its
 	// magazine gets a placeholder CHAMBER for the same reason (SynthPlaceholderChamber).
 	bool       placeholder;
+	// A SECOND BARREL'S STORE (card.zs WM_Barrel `from`), marked on the gun's own copies at every bind (WM_Rig.Bind), so a
+	// reader with no card -- RS_WeaponAmmoService -- never counts a launcher's grenade as the main barrel's round.
+	bool       barrelStore;
 
 	// ---- WHAT IS IN IT: live, and only ever on a gun's own copy -------------
 	int        rounds;         // COUNTED

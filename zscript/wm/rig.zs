@@ -147,6 +147,11 @@ class WM_Rig play
 			if (g) g.wmAmmo = ammo;
 		}
 		else ammo = g.wmAmmo;
+		// WHAT A WEAPON HUD READS WITHOUT THE CARD (RS_WeaponAmmoService): how this gun fires, and which of its stores are a
+		// second barrel's. Kept on its own ammo at every bind, so a gun from an old save learns them too.
+		ammo.firesFrom = c.firesFrom;
+		for (int i = 0; i < ammo.stores.Size(); i++)
+			if (ammo.stores[i]) ammo.stores[i].barrelStore = c.IsBarrelStore(ammo.stores[i].id);
 
 		resolved = false;
 		heldPart = -1;
@@ -1871,6 +1876,9 @@ class WM_Rig play
 	int    recoilJoltLeft;
 	int    recoilJoltTics;
 	double recoilJoltBack;
+	double recoilJoltRise;
+	double recoilJoltRoll;
+	const RECOIL_TILT_SIGN = 1.0;   // -1 flips the drawn gun's recoil turn, if a headset look says the signs are backward
 
 	void RecoilLook()
 	{
@@ -1880,6 +1888,7 @@ class WM_Rig play
 		{
 			recoilJoltLeft = 0;
 			prop.FollowHandOfs = (0, 0, 0);
+			prop.FollowHandRot = (0, 0, 0);
 			return;
 		}
 		// A GUN NEWLY IN THIS HAND (or restored from a save) starts from its own last shot, never a jolt of its past.
@@ -1896,18 +1905,22 @@ class WM_Rig play
 			double back, rise, roll;
 			int tics;
 			[back, rise, roll, tics] = RSB_Recoil.ViewJolt(g.bAltFire ? g.altRecoilProfileName : g.recoilProfileName);
-			if (on && back != 0 && tics > 0)
+			if (on && (back != 0 || rise != 0 || roll != 0) && tics > 0)
 			{
 				recoilJoltBack = back;
+				recoilJoltRise = rise;
+				recoilJoltRoll = roll;
 				recoilJoltTics = tics;
 				recoilJoltLeft = tics;
 			}
 		}
 		double slide = 0;
+		double joltShare = 0;
 		if (on && recoilJoltLeft > 0)
 		{
 			// The full jolt on the shot's own tic, easing home over the rest.
-			slide = recoilJoltBack * double(recoilJoltLeft) / double(max(recoilJoltTics, 1));
+			joltShare = double(recoilJoltLeft) / double(max(recoilJoltTics, 1));
+			slide = recoilJoltBack * joltShare;
 			recoilJoltLeft--;
 		}
 		else recoilJoltLeft = 0;
@@ -1915,6 +1928,18 @@ class WM_Rig play
 		// hand), Y back along the aim, Z up -- models.cpp step 4 hands it over as (x, z, y), and the build lane's reading of
 		// the OpenXR hand transform agrees. So a slide toward you is +Y, the same in either hand.
 		prop.FollowHandOfs = (0, slide, 0);
+
+		// THE CLIMB AND ROLL (FollowHandRot: the engine's turn of a hand-held model about the grip, X yaw, Y pitch, Z roll,
+		// the same in either hand). The gun's kick as it stands this tic (RSB_Recoil.View, 0 with recoil off) -- so the
+		// drawn gun points where the next round goes -- plus this shot's jolt, rise and roll, easing home with the slide.
+		// Signs, from the build lane's reading of the OpenXR hand transform: + yaw turns the muzzle left (as kickYaw), +
+		// pitch DROPS it (so the climb is negative), + roll tips the top right. RECOIL_TILT_SIGN flips it all at once if the
+		// first headset look says so.
+		double kickPitch = 0;
+		double kickYaw = 0;
+		if (on)
+			[kickPitch, kickYaw] = RSB_Recoil.View(g.bAltFire ? g.altRecoilProfileName : g.recoilProfileName, g.recoilPitch, g.recoilYaw, g.recoilShotTic);
+		prop.FollowHandRot = (kickYaw, -(kickPitch + recoilJoltRise * joltShare), recoilJoltRoll * joltShare) * RECOIL_TILT_SIGN;
 	}
 
 	// THE MUZZLE, AN RS_BALLISTICS FLASH (RSB_CALL_SITES_HANDOFF.md): light, lit-air cone, bore sparks,
