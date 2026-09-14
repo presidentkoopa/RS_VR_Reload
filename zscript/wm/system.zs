@@ -498,14 +498,18 @@ class WM_System : EventHandler
 		// its cards have no type, and every gun's hands would read the uncalibrated seats.
 		// And one from before throwables (WM_CardSet.throwablesRead): its cards have no throw blocks.
 		// And one from before weapon sheets (WM_CardSet.sheetsRead): no sheet was ever laid over its cards.
-		if (set && set.finished && set.typed && set.throwablesRead && set.sheetsRead) return;
-		if (set) WM_Log.Info("the cards came back from a save written before verbs, gun types, throwables or weapon sheets -- reading every WMCARD and WMSHEET lump again");
+		// And one from before borrowed model cards (WM_CardSet.modelsRead): its cards never recorded their lumps.
+		if (set && set.finished && set.typed && set.throwablesRead && set.sheetsRead && set.modelsRead) return;
+		if (set) WM_Log.Info("the cards came back from a save written before verbs, gun types, throwables, weapon sheets or borrowed models -- reading every WMCARD and WMSHEET lump again");
 		set = new("WM_CardSet");
 		int lump = -1;
 		int lumps = 0;
 		while ((lump = Wads.FindLump("WMCARD", lump + 1, Wads.GLOBALNAMESPACE)) >= 0)
 		{
+			int cardsBefore = set.cards.Size();
 			WM_Parser.ParseAll(Wads.ReadLump(lump), "WMCARD", set);
+			// EACH CARD KNOWS ITS LUMP, so a gun that borrows it reads its own copy from there (sheet.zs BorrowModels).
+			for (int c = cardsBefore; c < set.cards.Size(); c++) set.cards[c].sourceLump = lump;
 			lumps++;
 		}
 		if (lumps == 0)
@@ -514,6 +518,7 @@ class WM_System : EventHandler
 			set.typed    = true;
 			set.throwablesRead = true;
 			set.sheetsRead = true;
+			set.modelsRead = true;
 			WM_Log.Err("no WMCARD lump in the load order. The card IS the weapon -- with no card there is nothing to build.");
 			return;
 		}
@@ -527,6 +532,9 @@ class WM_System : EventHandler
 			WM_SheetReader.ParseAll(Wads.ReadLump(lump), "WMSHEET", set);
 			sheetLumps++;
 		}
+		// A GUN THAT NAMES A MODEL CARD gets its own copy of it first, so its sheet's card keys land on that copy.
+		WM_SheetReader.BorrowModels(set);
+		set.modelsRead = true;
 		WM_SheetReader.ApplyToCards(set);
 		set.sheetsRead = true;
 		if (sheetLumps > 0)

@@ -20,6 +20,12 @@
 //     capacity = N                 the gun's rounds -- the card's `capacity`, never a store's
 //     firesfrom = chamber | magazine | reserve | none
 //     firesound = "<sound>"
+//     # WHICH MODEL CARD. Unset: the card named for this gun's own class.
+//     model = <model card id>      the class that card was measured for (WM_Rifle). This gun gets ITS OWN COPY of it.
+//     # THE GUN'S CLASS, for RS_VR_Weapons' class writer at build time. Never read here: skipped to its `end`.
+//     class
+//       slot, selectionorder, ammo, hand, name, pickupmessage, upsound, readysound, pickupsound, maxamount
+//     end
 //     # A SECOND BARREL'S SHOT. Its geometry (input, trigger, from, muzzle, barrel, needs, casing) stays on the card.
 //     barrel <id>
 //       shotclass = "<actor>"   ammo = "<Ammo class>"   firesound = "<sound>"   firetics = N
@@ -104,6 +110,9 @@ class WM_Sheet
 	String fireSound;      bool fireSoundStated;
 	Array<WM_SheetBarrel> barrels;
 
+	// ---- WHICH MODEL CARD (WM_SheetReader.BorrowModels) ------------------------------------------------------
+	String modelId;        bool modelStated;
+
 	// WHAT THE CARD SAID before this sheet was laid over it (WM_SheetReader.ApplyToCards), for `check`.
 	bool   landedOnCard;
 	int    cardCapacity;
@@ -130,6 +139,7 @@ class WM_SheetReader
 		WM_Sheet       sheet   = null;
 		WM_SheetBarrel barrel  = null;
 		bool           refused = false;
+		bool           inClass = false;   // inside a `class` … `end` block, which this reader skips
 
 		for (int ln = 0; ln < lines.Size(); ln++)
 		{
@@ -152,6 +162,7 @@ class WM_SheetReader
 				sheet   = null;
 				barrel  = null;
 				refused = false;
+				inClass = false;
 				String gunWhy = "";
 				String gunClass = Unquote(second);
 				if (words.Size() != 2) gunWhy = "one weapon class per line: `gun \"<weapon class>\"` alone, then its keys, then `end`";
@@ -173,6 +184,26 @@ class WM_SheetReader
 			if (!sheet)
 			{
 				Refuse(sourceName, ln + 1, raw, "nothing here belongs to a `gun` line");
+				continue;
+			}
+
+			// A `class` … `end` block: the gun's class, for RS_VR_Weapons' class writer at build time. Skipped whole.
+			if (inClass)
+			{
+				if (raw.MakeLower() == "end") inClass = false;
+				continue;
+			}
+			if (head == "class" && words.Size() == 1)
+			{
+				if (barrel)
+				{
+					Refuse(sourceName, ln + 1, raw, "a class block goes in the gun, not inside a barrel block");
+					refused = true;
+					sheet   = null;
+					barrel  = null;
+					continue;
+				}
+				inClass = true;
 				continue;
 			}
 
@@ -346,6 +377,12 @@ class WM_SheetReader
 			s.firesFrom = fires;  s.firesFromStated = true;
 		}
 		else if (key == "firesound")       { s.fireSound = word;  s.fireSoundStated = true; }
+		else if (key == "model")
+		{
+			if (word == "" || word.IndexOf(" ") >= 0 || word.IndexOf("\"") >= 0)
+				return "model in a sheet is one model card's id -- the class it was measured for, like WM_Rifle. A mesh path belongs on the card";
+			s.modelId = word;  s.modelStated = true;
+		}
 		else if (key == "pellets" || key == "spread" || key == "damage")
 			return "the shot lives on WM_Gun -- shotpellets, shotspread, shotdamage";
 		else if (IsModelCardKey(key))
@@ -377,7 +414,7 @@ class WM_SheetReader
 	private static bool IsModelCardKey(String key)
 	{
 		static const String cardKeys[] = {
-			"prop", "model", "skin", "type", "handprofile", "hands", "mechanism", "pouch", "casing", "magfamily", "hand",
+			"prop", "skin", "type", "handprofile", "hands", "mechanism", "pouch", "casing", "magfamily", "hand",
 			"muzzle", "barrel", "ejectport", "ejectdir", "magmodel", "magskin", "magskinempty", "magscale", "magcenter",
 			"roundmodel", "roundskin", "roundscale", "linkmodel", "linkskin", "linkscale",
 			"drysound", "magoutsound", "maginsound", "slidebacksound", "slidefwdsound", "rackapexsound", "rackresetsound",
@@ -387,6 +424,57 @@ class WM_SheetReader
 		for (int i = 0; i < cardKeys.Size(); i++)
 			if (cardKeys[i] == key) return true;
 		return false;
+	}
+
+	// ---- BORROWING A MODEL CARD (before ApplyToCards and WM_Parser.Finish) -------------------------------------
+	//
+	// A gun whose sheet says `model = <id>` gets ITS OWN COPY of that card: read afresh from the card's own WMCARD
+	// lump and renamed to the gun's class. The same parts, stores, verbs, meshes and handling sounds, with no live
+	// part state shared with the model's own gun (WM_Part's value, present and spin live on the card -- NETPLAY_SPEC
+	// problem 7), so both can be in hand at once. Its hand is the gun's own (+WEAPON.OFFHANDWEAPON), never the
+	// model's. It runs before ApplyToCards, so the sheet's card keys land on the copy, and before Finish, which checks
+	// the copy like any card. A refusal in that lump is printed a second time as the lump is read again.
+	static void BorrowModels(WM_CardSet cardSet)
+	{
+		for (int i = 0; i < cardSet.sheets.Size(); i++)
+		{
+			let s = cardSet.sheets[i];
+			if (!s.modelStated || s.modelId ~== s.weaponClass) continue;
+			if (FindCard(cardSet, s.weaponClass))
+			{
+				Console.Printf("\c[Red]WM ERROR\c- %s line %d -- the sheet for %s names model %s, and %s has a card of its own. It keeps its own card; remove that card or the model line.",
+					s.sourceName, s.line, s.weaponClass, s.modelId, s.weaponClass);
+				continue;
+			}
+			let model = FindCard(cardSet, s.modelId);
+			if (!model)
+			{
+				Console.Printf("\c[Red]WM ERROR\c- %s line %d -- the sheet for %s names model %s, and no card by that id was read. The gun has no card.",
+					s.sourceName, s.line, s.weaponClass, s.modelId);
+				continue;
+			}
+			// A MODEL THAT IS ITSELF A COPY is read from its own model's lump, under that model's id.
+			String lumpId = (model.modelId != "") ? model.modelId : model.weaponClass;
+			let scratch = new("WM_CardSet");
+			WM_Parser.ParseAll(Wads.ReadLump(model.sourceLump), "WMCARD", scratch);
+			let copy = FindCard(scratch, lumpId);
+			if (!copy)
+			{
+				Console.Printf("\c[Red]WM ERROR\c- the sheet for %s: model %s could not be read again from its WMCARD lump. The gun has no card.",
+					s.weaponClass, lumpId);
+				continue;
+			}
+			copy.weaponClass = s.weaponClass;
+			copy.modelId     = lumpId;
+			copy.sourceLump  = model.sourceLump;
+			Class<Weapon> wc = (Class<Weapon>)(Object.FindClass(s.weaponClass, "Weapon"));
+			if (wc)
+			{
+				let def = GetDefaultByType(wc);
+				if (def) copy.hand = def.bOffhandWeapon ? 1 : 0;
+			}
+			cardSet.cards.Push(copy);
+		}
 	}
 
 	// ---- LANDING ON THE CARDS (before WM_Parser.Finish) ----------------------------------------------------
@@ -508,7 +596,7 @@ class WM_SheetReader
 		}
 
 		Console.Printf("\c[Gold]WM CARD %s\c- -- model card %s; sheet %s; class %s",
-			weaponClass, c ? c.weaponClass .. " (" .. c.sourceName .. ")" : "none",
+			weaponClass, c ? ((c.modelId != "") ? c.modelId .. " (this gun's own copy)" : c.weaponClass .. " (" .. c.sourceName .. ")") : "none",
 			s ? String.Format("%s line %d", s.sourceName, s.line) : "none", gc ? "WM_Gun" : "NOT a WM_Gun class");
 		bool has = (s != null);
 		if (c)
@@ -638,6 +726,13 @@ class WM_SheetReader
 	}
 
 	// ---- SMALL HELPERS (the parser's own are private to WM_Parser) ------------------------------------------
+
+	private static WM_Card FindCard(WM_CardSet cardSet, String cardId)
+	{
+		for (int k = 0; k < cardSet.cards.Size(); k++)
+			if (cardSet.cards[k].weaponClass ~== cardId) return cardSet.cards[k];
+		return null;
+	}
 
 	private static void Refuse(String src, int line, String what, String why)
 	{

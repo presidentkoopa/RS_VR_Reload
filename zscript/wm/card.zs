@@ -274,6 +274,11 @@ class WM_Barrel
 class WM_Card
 {
 	String weaponClass;
+	// THE MODEL CARD THIS ONE IS A COPY OF: a weapon sheet's `model = <id>` (sheet.zs BorrowModels), or "" for a gun's
+	// own card. The copy is this gun's alone, so no live part state is shared with the model's own gun.
+	String modelId;
+	// The WMCARD lump this card was read from (WM_System.LoadCards), so a gun that borrows it can read its own copy.
+	int    sourceLump;
 	// WHICH MAGAZINES FIT. A family, not a gun: every gun in "pistol" takes every
 	// "pistol" magazine. The magazine mesh is shared across guns, so a rule that
 	// only let a magazine back into the gun it came out of could not be followed
@@ -799,6 +804,9 @@ class WM_CardSet
 	// WM_System.LoadCards read the WMSHEET lumps and laid them over the cards. A set restored from a save written
 	// before weapon sheets has not, and is read again the same way.
 	bool                sheetsRead;
+	// LoadCards recorded each card's lump and gave every gun that names a model its own copy (sheet.zs BorrowModels).
+	// A set restored from a save written before that has not, and is read again the same way.
+	bool                modelsRead;
 
 	WM_Archetype FindArchetype(String archId)
 	{
