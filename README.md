@@ -90,3 +90,4 @@ These are working documents, kept as written. Several are from when this package
 | `PASSING.md`, `GESTURES-INTEGRATION.md`, `SHOTGUN_CANDIDATES.md` | notes on neighbouring work |
 | `HANDOFF.md`, `BUILD-1-3.md` | superseded handoff notes |
 | `PUBLISH_CHECKLIST.md` | what making this repo public needed |
+| `THROWABLE_PLAN.md` | the design for throwable weapons: a grenade and a returning shield saw |
