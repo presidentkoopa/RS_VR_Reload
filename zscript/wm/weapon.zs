@@ -55,6 +55,57 @@ class WM_Gun : Weapon
 		Inventory.PickupMessage "Weapon";
 	}
 
+	// ITS WEAPON SHEET (sheet.zs, WM_System.ApplySheet), for a gun made once the cards are loaded -- a pickup, a
+	// drop, a give. A gun made before them (a map's own, a start item) takes it at WorldLoaded instead.
+	// Playsim, alike on every machine.
+	override void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		let sys = WM_System(EventHandler.Find("WM_System"));
+		if (sys) sys.ApplySheet(self);
+	}
+
+	// TAKING A WEAPON SHEET: every shot field set back to this class's Default, then the sheet laid over them, so a
+	// key taken out of a sheet does not linger in a saved game. s may be null: the gun then holds its class's
+	// Default, exactly what it held before sheets existed. Only WM_System.ApplySheet calls it.
+	void TakeSheet(WM_Sheet s)
+	{
+		Class<WM_Gun> gc = (Class<WM_Gun>)(GetClass());
+		if (!gc) return;
+		let def = GetDefaultByType(gc);
+		if (!def) return;
+		bool has = (s != null);
+
+		shotPelletCount      = (has && s.shotPelletsStated)      ? s.shotPelletCount      : def.shotPelletCount;
+		shotSpreadYaw        = (has && s.shotSpreadStated)       ? s.shotSpreadYaw        : def.shotSpreadYaw;
+		shotSpreadPitch      = (has && s.shotSpreadStated)       ? s.shotSpreadPitch      : def.shotSpreadPitch;
+		shotDamageLo         = (has && s.shotDamageStated)       ? s.shotDamageLo         : def.shotDamageLo;
+		shotDamageHi         = (has && s.shotDamageStated)       ? s.shotDamageHi         : def.shotDamageHi;
+		fireTicCount         = (has && s.fireTicsStated)         ? s.fireTicCount         : def.fireTicCount;
+		chambersPerPullCount = (has && s.chambersStated)         ? s.chambersPerPullCount : def.chambersPerPullCount;
+		fullAutoFire         = (has && s.fullAutoStated)         ? s.fullAutoFire         : def.fullAutoFire;
+		firstShotsDeadOn     = (has && s.firstShotsStated)       ? s.firstShotsDeadOn     : def.firstShotsDeadOn;
+		roundsPerShotCount   = (has && s.roundsPerShotStated)    ? s.roundsPerShotCount   : def.roundsPerShotCount;
+		shotClassName        = (has && s.shotClassStated)        ? s.shotClassName        : def.shotClassName;
+		railShotOn           = (has && s.shotRailStated)         ? s.railShotOn           : def.railShotOn;
+		railSpiralRGB        = (has && s.railColorsStated)       ? s.railSpiralRGB        : def.railSpiralRGB;
+		railCoreRGB          = (has && s.railColorsStated)       ? s.railCoreRGB          : def.railCoreRGB;
+		trailProfileName     = (has && s.trailProfileStated)     ? s.trailProfileName     : def.trailProfileName;
+		chargeTicCount       = (has && s.chargeTicsStated)       ? s.chargeTicCount       : def.chargeTicCount;
+		chargeSoundName      = (has && s.chargeSoundStated)      ? s.chargeSoundName      : def.chargeSoundName;
+		sawShotOn            = (has && s.shotSawStated)          ? s.sawShotOn            : def.sawShotOn;
+		sawFullSoundName     = (has && s.sawSoundsStated)        ? s.sawFullSoundName     : def.sawFullSoundName;
+		sawHitSoundName      = (has && s.sawSoundsStated)        ? s.sawHitSoundName      : def.sawHitSoundName;
+		sawPuffName          = (has && s.sawPuffStated)          ? s.sawPuffName          : def.sawPuffName;
+		releaseTicCount      = (has && s.releaseTicsStated)      ? s.releaseTicCount      : def.releaseTicCount;
+		roundProfileName     = (has && s.roundProfileStated)     ? s.roundProfileName     : def.roundProfileName;
+		flashProfileName     = (has && s.flashProfileStated)     ? s.flashProfileName     : def.flashProfileName;
+		altFlashProfileName  = (has && s.altFlashProfileStated)  ? s.altFlashProfileName  : def.altFlashProfileName;
+		ejectaProfileName    = (has && s.ejectaProfileStated)    ? s.ejectaProfileName    : def.ejectaProfileName;
+		recoilProfileName    = (has && s.recoilProfileStated)    ? s.recoilProfileName    : def.recoilProfileName;
+		altRecoilProfileName = (has && s.altRecoilProfileStated) ? s.altRecoilProfileName : def.altRecoilProfileName;
+	}
+
 	// ---- THE SHOT ----------------------------------------------------------------
 	//
 	// What one trigger pull puts in the air, said by the WEAPON CLASS in its Default
@@ -193,6 +244,10 @@ class WM_Gun : Weapon
 	String flashProfileName;
 	String altFlashProfileName;
 	String ejectaProfileName;
+	// RS_Ballistics' recoil profiles, main barrel and second barrel (RS_Ballistics/_staged/RECOIL_PLAN.md), set by a
+	// weapon sheet's recoilprofile / altrecoilprofile. Stored only: nothing reads them until the recoil hookup lands.
+	String recoilProfileName;
+	String altRecoilProfileName;
 	property ShotPellets: shotPelletCount;
 	property ShotSpread: shotSpreadYaw, shotSpreadPitch;
 	property ShotDamage: shotDamageLo, shotDamageHi;
@@ -215,6 +270,8 @@ class WM_Gun : Weapon
 	property FlashProfile: flashProfileName;
 	property AltFlashProfile: altFlashProfileName;
 	property EjectaProfile: ejectaProfileName;
+	property RecoilProfile: recoilProfileName;
+	property AltRecoilProfile: altRecoilProfileName;
 
 	// THE RS_BALLISTICS PROFILES THIS CLASS'S SHOT NAMES, each RS_Ballistics' plain "default" when unset --
 	// never a gun's own profile, which RSBDEFS is free to make a showpiece (the pistols' are).

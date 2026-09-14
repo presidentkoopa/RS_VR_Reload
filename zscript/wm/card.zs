@@ -794,11 +794,23 @@ class WM_CardSet
 	// Finish read the throwable grammar (throw.zs). A set restored from a save written before it has no
 	// throw, route, fuse or mount on its cards, and is read again the same way.
 	bool                throwablesRead;
+	// Every weapon sheet from every WMSHEET lump (sheet.zs), one a gun, found by its weapon class.
+	Array<WM_Sheet>     sheets;
+	// WM_System.LoadCards read the WMSHEET lumps and laid them over the cards. A set restored from a save written
+	// before weapon sheets has not, and is read again the same way.
+	bool                sheetsRead;
 
 	WM_Archetype FindArchetype(String archId)
 	{
 		for (int i = 0; i < archetypes.Size(); i++)
 			if (archetypes[i].id ~== archId) return archetypes[i];
+		return null;
+	}
+
+	WM_Sheet SheetFor(String weaponClass)
+	{
+		for (int i = 0; i < sheets.Size(); i++)
+			if (sheets[i].weaponClass ~== weaponClass) return sheets[i];
 		return null;
 	}
 }

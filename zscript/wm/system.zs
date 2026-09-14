@@ -212,6 +212,29 @@ class WM_System : EventHandler
 		return null;
 	}
 
+	// A GUN TAKES ITS WEAPON SHEET (sheet.zs): its shot fields set back to its class's Default, then the sheet
+	// laid over them. Called at WorldLoaded for every gun in the level and from WM_Gun.PostBeginPlay for a gun
+	// made after -- both playsim, alike on every machine. Never from a rebind, which is the console player's
+	// only. Before the cards are loaded it does nothing, and WorldLoaded reaches that gun.
+	void ApplySheet(WM_Gun g)
+	{
+		if (!g || !set) return;
+		g.TakeSheet(set.SheetFor(g.GetClassName()));
+	}
+
+	private void ApplySheetsToAllGuns()
+	{
+		if (!set) return;
+		let it = ThinkerIterator.Create("WM_Gun");
+		Thinker t = it.Next();
+		while (t)
+		{
+			let g = WM_Gun(t);
+			if (g) ApplySheet(g);
+			t = it.Next();
+		}
+	}
+
 	// ---- what the weapons ask ------------------------------------------------
 
 	// THE CHAMBER DECIDES, and a gun that is put away does not fire.
@@ -418,6 +441,7 @@ class WM_System : EventHandler
 		spoken.Clear();
 		toldOnce = false;
 		LoadCards();
+		ApplySheetsToAllGuns();
 
 		let ph = ForPlayer(consoleplayer);   // makes both rigs if they are not there yet
 		for (int h = 0; h < 2; h++)
@@ -473,8 +497,9 @@ class WM_System : EventHandler
 		// A SET FROM A SAVE WRITTEN BEFORE GUN TYPES (WM_CardSet.typed) is read afresh too:
 		// its cards have no type, and every gun's hands would read the uncalibrated seats.
 		// And one from before throwables (WM_CardSet.throwablesRead): its cards have no throw blocks.
-		if (set && set.finished && set.typed && set.throwablesRead) return;
-		if (set) WM_Log.Info("the cards came back from a save written before verbs, gun types or throwables -- reading every WMCARD lump again");
+		// And one from before weapon sheets (WM_CardSet.sheetsRead): no sheet was ever laid over its cards.
+		if (set && set.finished && set.typed && set.throwablesRead && set.sheetsRead) return;
+		if (set) WM_Log.Info("the cards came back from a save written before verbs, gun types, throwables or weapon sheets -- reading every WMCARD and WMSHEET lump again");
 		set = new("WM_CardSet");
 		int lump = -1;
 		int lumps = 0;
@@ -488,9 +513,25 @@ class WM_System : EventHandler
 			set.finished = true;
 			set.typed    = true;
 			set.throwablesRead = true;
+			set.sheetsRead = true;
 			WM_Log.Err("no WMCARD lump in the load order. The card IS the weapon -- with no card there is nothing to build.");
 			return;
 		}
+		// THE WEAPON SHEETS (sheet.zs): every WMSHEET lump in the load order, laid over the cards' own capacity,
+		// firesfrom, firesound and barrel shots BEFORE Finish, so Finish checks each card as its sheet leaves it.
+		// Their shot keys reach the guns themselves at WorldLoaded and as each gun is made (ApplySheet).
+		int sheetLumps = 0;
+		lump = -1;
+		while ((lump = Wads.FindLump("WMSHEET", lump + 1, Wads.GLOBALNAMESPACE)) >= 0)
+		{
+			WM_SheetReader.ParseAll(Wads.ReadLump(lump), "WMSHEET", set);
+			sheetLumps++;
+		}
+		WM_SheetReader.ApplyToCards(set);
+		set.sheetsRead = true;
+		if (sheetLumps > 0)
+			WM_Log.Info(String.Format("%d weapon sheet(s) from %d WMSHEET lump(s)", set.sheets.Size(), sheetLumps));
+
 		// MECHANISMS, SYNTHESIS AND EVERY VERB CHECKED -- only now, with every lump
 		// read, because an archetype may live in a later one.
 		WM_Parser.Finish(set);
@@ -3269,7 +3310,7 @@ class WM_System : EventHandler
 		// machine of the player who sent them. Another player's copy of the event, arriving here, does nothing.
 		if (e.Name ~== "rs_body_edit" || e.Name ~== "rs_body_grab_main" || e.Name ~== "rs_body_grab_off"
 			|| e.Name ~== "wm_bake_ofs" || e.Name ~== "wm_bake_shape" || e.Name ~== "wm_bake_go"
-			|| e.Name ~== "wm_dump" || e.Name ~== "wm_selftest")
+			|| e.Name ~== "wm_dump" || e.Name ~== "wm_selftest" || e.Name.Left(8) ~== "wm_card:")
 		{
 			if (e.Player == consoleplayer) LocalUiEvent(e, pmo);
 			return;
@@ -3329,5 +3370,8 @@ class WM_System : EventHandler
 		if (e.Name ~== "wm_bake_go")    { BakePrint(ph, e.Args[0], e.Args[1] % 100, e.Args[1] / 100, e.Args[2] / 1000.0, true); return; }
 		if (e.Name ~== "wm_dump")     { Dump(); return; }
 		if (e.Name ~== "wm_selftest") { SelfTest(); return; }
+		// THE CARD AND SHEET PRINTOUT (sheet.zs): `wm_card <weapon class> | all | check`, KEYCONF's alias for
+		// `netevent wm_card:<arg>`. Prints only.
+		if (e.Name.Left(8) ~== "wm_card:") { WM_SheetReader.Print(set, e.Name.Mid(8)); return; }
 	}
 }

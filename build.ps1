@@ -32,7 +32,7 @@ $out   = Join-Path $stage 'RS_VR_Reload.pk3'
 & python 'E:\DOOMWork\tools\menu_lint.py' $root --prefix wm_
 if ($LASTEXITCODE -ne 0) { throw "menu lint failed -- a slider would be dead. See above." }
 
-$rootLumps = @('zscript.txt', 'WMCARD.txt', 'MAPINFO.txt', 'MODELDEF.txt', 'CVARINFO.txt', 'MENUDEF.txt', 'SNDINFO.txt')
+$rootLumps = @('zscript.txt', 'WMCARD.txt', 'MAPINFO.txt', 'MODELDEF.txt', 'CVARINFO.txt', 'MENUDEF.txt', 'SNDINFO.txt', 'KEYCONF.txt')
 $files = @()
 foreach ($l in $rootLumps) {
     $p = Join-Path $root $l
@@ -63,8 +63,8 @@ $check.Dispose()
 # NO GUN ASSETS. The pistols' meshes, skins and sounds moved to RS_VR_Weapons on
 # 2026-09-12; what is left is the system's own: the wire marker, placeholder and
 # effect sprites, and the sounds no gun owns (dry click, brass, magazine drop, impact).
-$must = @('zscript.txt','WMCARD.txt','MODELDEF.txt','CVARINFO.txt','MENUDEF.txt','SNDINFO.txt','MAPINFO.txt',
-          'zscript/wm/jitter.zs',
+$must = @('zscript.txt','WMCARD.txt','MODELDEF.txt','CVARINFO.txt','MENUDEF.txt','SNDINFO.txt','MAPINFO.txt','KEYCONF.txt',
+          'zscript/wm/jitter.zs','zscript/wm/sheet.zs',
           'models/rs_wiresphere.obj','models/rs_wire_hot.png','models/rs_wire_idle.png','models/rs_wire_pouch.png',
           'sprites/WMPRA0.png','sprites/WMMGA0.png','sprites/WMRDA0.png','sprites/WMMKA0.png',
           'sprites/WMCSA0.png',
