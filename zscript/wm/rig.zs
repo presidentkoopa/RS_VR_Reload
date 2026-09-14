@@ -1286,6 +1286,7 @@ class WM_Rig play
 		}
 		Spin(pmo);
 		EngineIdle(pmo);
+		ExhaustLook(pmo);
 		Meter();
 		LatchesTick();
 		// THE A/B SWITCH. Each path zeroes only the other's clock, which the path
@@ -1392,6 +1393,22 @@ class WM_Rig play
 
 	// ITS IDLE, LOOPED on the prop while it runs with the trigger up -- while the trigger is down the
 	// cut is the weapon's own sound. Presentation only, off the owner's usercmd.
+	// THE ENGINE'S EXHAUST (RS_Ballistics' RSB_Exhaust.Run), every tic a gun with an exhaust port (card `exhaustport`,
+	// `exhaustdir`) has its engine running -- EngineIdle's own rule: a ripcord that caught, or an idle-sound gun with no
+	// start verb -- drawn, not put away, its owner alive. The throttle is the holding hand's trigger: 1 while held (the
+	// saw cutting), 0 at idle. The puffs, the blip, the room smoke and the hot air are the gun's flash profile's exhaust
+	// keys; a tic without a call is the engine off. Presentation on this machine only: no RNG, nothing read back.
+	private void ExhaustLook(PlayerPawn pmo)
+	{
+		if (!card || !card.exhaustStated || !prop || !resolved || stowed || !ammo) return;
+		let g = WM_Gun(gunItem);
+		if (!g || !pmo || !pmo.player || pmo.player.health <= 0) return;
+		bool running = ammo.engineRunning || (card.idleSound != "" && !card.HasVerbKind(WM_Verb.START));
+		if (!running) return;
+		double throttle = ((pmo.player.cmd.buttons & ((hand == 0) ? BT_ATTACK : BT_OFFHANDATTACK)) != 0) ? 1.0 : 0.0;
+		RSB_Exhaust.Run(gunItem, g.FlashProfileOrDefault(), World(card.exhaustPort), WorldDir(card.exhaustPort, card.exhaustDir), throttle);
+	}
+
 	private void EngineIdle(PlayerPawn pmo)
 	{
 		// A GUN WITH AN IDLE SOUND AND NO START VERB idles whenever it is drawn: nothing starts or stops its engine,
@@ -1845,7 +1862,7 @@ class WM_Rig play
 	// THE RECOIL'S LOOK (RS_Ballistics' RSB_Recoil.ViewJolt, RECOIL_PLAN.md), every tic this gun is drawn. Each new shot
 	// -- the gun's recoilShotTic moving on -- starts a jolt: the drawn gun slides back along its barrel and returns over
 	// the profile's tics, through the prop's FollowHandOfs, the engine's script-owned animation offset (actor.h), which
-	// nothing else writes on a gun prop. X is along the barrel in the model's own axes, so back is -X in either hand.
+	// nothing else writes on a gun prop. It is in the hand's frame, where +Y is back toward you (see the write below).
 	// ONLY WHILE GAMEPLAY RECOIL IS ON (sv_rsb_recoil): off means no recoil at all, the look included.
 	// The climb and roll the drawn gun should carry (RSB_Recoil.View, ViewJolt's rise and roll) wait for an engine
 	// hand-frame rotation beside FollowHandOfs. Presentation on this machine only: no RNG, nothing read back.
@@ -1886,15 +1903,18 @@ class WM_Rig play
 				recoilJoltLeft = tics;
 			}
 		}
-		double along = 0;
+		double slide = 0;
 		if (on && recoilJoltLeft > 0)
 		{
 			// The full jolt on the shot's own tic, easing home over the rest.
-			along = -recoilJoltBack * double(recoilJoltLeft) / double(max(recoilJoltTics, 1));
+			slide = recoilJoltBack * double(recoilJoltLeft) / double(max(recoilJoltTics, 1));
 			recoilJoltLeft--;
 		}
 		else recoilJoltLeft = 0;
-		prop.FollowHandOfs = (along, 0, 0);
+		// Y IS BACK. FollowHandOfs lands in the HAND's frame, not the mesh's: X the hand's right (which mirrors in the off
+		// hand), Y back along the aim, Z up -- models.cpp step 4 hands it over as (x, z, y), and the build lane's reading of
+		// the OpenXR hand transform agrees. So a slide toward you is +Y, the same in either hand.
+		prop.FollowHandOfs = (0, slide, 0);
 	}
 
 	// THE MUZZLE, AN RS_BALLISTICS FLASH (RSB_CALL_SITES_HANDOFF.md): light, lit-air cone, bore sparks,

@@ -1377,6 +1377,9 @@ class WM_Parser
 		else if (key == "barrel")     c.barrel    = Unit(ReadTriple(val));
 		else if (key == "ejectport")  c.ejectPort = ReadTriple(val);
 		else if (key == "ejectdir")   c.ejectDir  = Unit(ReadTriple(val));
+		// AN ENGINE'S EXHAUST PORT (WM_Card.exhaustPort, WM_Rig.ExhaustLook): the port states it; unset dir blows up.
+		else if (key == "exhaustport") { c.exhaustPort = ReadTriple(val); c.exhaustStated = true; if (c.exhaustDir.Length() < 0.5) c.exhaustDir = (0, 0, 1); }
+		else if (key == "exhaustdir")  c.exhaustDir  = Unit(ReadTriple(val));
 		else if (key == "magmodel")   ReadPair(val, c.magModelPath, c.magModelFile);
 		else if (key == "magskin")    ReadPair(val, c.magSkinPath,  c.magSkinFile);
 		else if (key == "magskinempty") ReadPair(val, c.magSkinEmptyPath, c.magSkinEmptyFile);

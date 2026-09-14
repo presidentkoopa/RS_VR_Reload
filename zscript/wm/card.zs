@@ -279,6 +279,13 @@ class WM_Card
 	String modelId;
 	// The WMCARD lump this card was read from (WM_System.LoadCards), so a gun that borrows it can read its own copy.
 	int    sourceLump;
+
+	// AN ENGINE'S EXHAUST PORT (card `exhaustport = x, y, z`, `exhaustdir = x, y, z`, model space like ejectport): where
+	// a motor's smoke leaves the gun and the way it blows, for RS_Ballistics' RSB_Exhaust while the engine runs
+	// (WM_Rig.ExhaustLook). Unstated, the gun has no exhaust.
+	Vector3 exhaustPort;
+	Vector3 exhaustDir;
+	bool    exhaustStated;
 	// WHICH MAGAZINES FIT. A family, not a gun: every gun in "pistol" takes every
 	// "pistol" magazine. The magazine mesh is shared across guns, so a rule that
 	// only let a magazine back into the gun it came out of could not be followed

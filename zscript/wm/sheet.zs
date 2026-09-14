@@ -416,7 +416,7 @@ class WM_SheetReader
 		static const String cardKeys[] = {
 			"prop", "skin", "type", "handprofile", "hands", "mechanism", "pouch", "casing", "magfamily", "hand",
 			"muzzle", "barrel", "ejectport", "ejectdir", "magmodel", "magskin", "magskinempty", "magscale", "magcenter",
-			"roundmodel", "roundskin", "roundscale", "linkmodel", "linkskin", "linkscale",
+			"roundmodel", "roundskin", "roundscale", "linkmodel", "linkskin", "linkscale", "exhaustport", "exhaustdir",
 			"drysound", "magoutsound", "maginsound", "slidebacksound", "slidefwdsound", "rackapexsound", "rackresetsound",
 			"magdropsound", "casingsound", "cycleoutsound", "cyclehomesound", "loadsound", "ejectsound", "opensound",
 			"closesound", "spinupsound", "spinsound", "spindownsound", "pullsound", "startsound", "idlesound", "stopsound"
