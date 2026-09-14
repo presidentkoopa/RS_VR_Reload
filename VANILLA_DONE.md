@@ -31,7 +31,7 @@
 | X1 | The headset pass on VANILLA_TEST_CHECKLIST.md | **OWNER / MISSING** | owner | Not run yet, so no bug reports exist. Each gun's "a bug" line is the pass or fail. |
 | X2 | Built since 09-13, never played | **IN PROGRESS** until X1 | reload lane | FEEL_PLAN rows 27-33: held fire, the rail trail, catch-to-equip (never tried in a headset), the smoking barrel, the grip gate, the saw idle hum, belt links in the casing cap (committed 4c2699d). Also 13 (grab ovals), 17 (baking), 18-19 (sound picks, eject sound). |
 | X3 | Hand seats (where your hand sits on a part, per kind of gun) | **OWNER / MISSING** | owner | 0 hand-seat values differ from their defaults in any profile. The revolver set already carries the owner's older revolver tuning. The side-load / bottom-load split is parked, so both vanilla pumps and the Bullpup share one shotgun set. |
-| X4 | Grab ovals (where a hand can take each part) | **OWNER / MISSING** | owner | The bake ledger is empty; nothing is baked into a card yet. 16 grab-page values sit unbaked in the ini. ESTIMATE grabs are marked per gun. |
+| X4 | Grab ovals (where a hand can take each part) | **OWNER / MISSING** | owner | The bake ledger is empty; nothing is baked into a card yet. 16 grab-page values sit unbaked in the ini. ESTIMATE grabs are marked per gun; the mesh-measured grab points and sizes went into the cards 09-14 (Super Shotgun, Double Barrel, both plasmas, RPG, both BFGs, Machine Gun). The Bullpup's port and gate and the saws' supports stay ESTIMATE. |
 | X5 | Placement (where each gun sits in your hand) | **OWNER / MISSING** | owner | No tuned placement values are waiting in the ini for RS_VR_Weapons. The weapons lane: placement calibration is the owner's. |
 | X6 | Baking the calibration as the defaults | **MISSING**, after X3-X5 | build lane's go | `tools/bake_defaults.py --write` and the ledger, only on the build lane's go. |
 | X7 | Parity fixes | **DONE** in source, installed; **OWNER** to feel in X1 | weapons, ballistics, reload lanes | See the list below. |
@@ -101,7 +101,7 @@ Columns:
 - **Mechanics: DONE.** 20 pellets over two chambers; firing what's loaded is deliberate.
 - **Sounds: DONE.** Doom's fire, open, load and close.
 - **Looks: FIRST PASS.** shotgun_ssg (a twin fireball, the biggest strobe, a ground kick); buckshot_magnum; hull_12ga_magnum; the barrel smokes every shot.
-- **Owner calibration:** break-action seat on the barrels; the barrels grab (**ESTIMATE**); the breech load zone; placement.
+- **Owner calibration:** break-action seat on the barrels; the barrels grab (size measured 09-14); the breech load zone; placement.
 
 ### Bullpup Pump (off hand; on the Super Shotgun pickup since 09-14)
 - **Reload: IN PROGRESS.** A 4-shell pump loaded from under the stock. Never played.
@@ -115,7 +115,7 @@ Columns:
 - **Mechanics: DONE.**
 - **Sounds: DONE.** Its own set.
 - **Looks: FIRST PASS.** shotgun_doublebarrel (a dirty red fireball, soot, embers, a ground kick); buckshot_magnum; hull_12ga_fouled; a black barrel ribbon. The blast may read big at the new size (owner check).
-- **Owner calibration:** as the Super Shotgun, off-hand side. The barrels grab is an **ESTIMATE**, rescaled with the model.
+- **Owner calibration:** as the Super Shotgun, off-hand side. The barrels grab size was measured 09-14 at the new model size.
 
 ### Chaingun (main hand)
 - **Reload: IN PROGRESS.** Swap the 100-round box; two hands to fire. No headset report.
@@ -133,7 +133,7 @@ Columns:
 - **Mechanics: DONE.** The launcher is kept (F5 parked).
 - **Sounds: flag, borrowed.** It fires the Chaingun's sound, and the launcher's open, close and load are one borrowed sound. No fire sound of its own.
 - **Looks: FIRST PASS.** machinegun_762, tracer every 5th, barrel glow; launcher_40mm alt flash; brass_762. The grenade itself is RS_Grenade's.
-- **Owner calibration:** chaingun seats; grabs on 3 parts (**2 ESTIMATE**); placement.
+- **Owner calibration:** chaingun seats; grabs on 3 parts (launcher tube and support measured 09-14); placement.
 
 ### Rocket Launcher (main hand)
 - **Reload: IN PROGRESS.** Pull the rack, seat a fresh one; two hands. No headset report.
@@ -144,7 +144,7 @@ Columns:
   - a voxel rocket with motor flame, shimmer and a hanging smoke trail;
   - rocket impacts by surface, with 3D slabs and shards.
   - The voxel's orientation and scale are unseen (owner check).
-- **Owner calibration:** launcher seats; grabs on 2 parts (**both ESTIMATE**); placement.
+- **Owner calibration:** launcher seats; grabs on 2 parts (from the hand frames; radius 3.0 is the house reach); placement.
 
 ### RPG (off hand)
 - **Reload: IN PROGRESS.** Pull the drum, seat a fresh one; it turns a step each shot.
@@ -155,49 +155,49 @@ Columns:
   - RSB_RocketRPG: a booster thread, then ignition and a heavy trail;
   - harder impacts.
   - The backblast doesn't follow the RPG's scale setting yet (ballistics lane).
-- **Owner calibration:** launcher seats; grabs on 2 parts (**1 ESTIMATE**); placement.
+- **Owner calibration:** launcher seats; grabs on 2 parts (support measured 09-14); placement.
 
 ### Plasma Rifle (main hand)
 - **Reload: IN PROGRESS.** Swap the cell. No headset report.
 - **Mechanics: DONE.** A shot every 3 tics held, a 20-tic cool-down.
 - **Sounds: flag.** Doom's fire (vanilla) plus its own cell out and in, IDENTICAL to the Carbine's.
 - **Looks: MISSING (placeholder).** A shared plasma flash, Doom's plasma sprite (the owner: vanilla sprites for now) with trail motes, plasma impacts, no smoke. No per-gun identity. Next in the owner's order (ballistics lane).
-- **Owner calibration:** plasma seats; grabs on 2 parts (**1 ESTIMATE**); placement.
+- **Owner calibration:** plasma seats; grabs on 2 parts (support measured 09-14); placement.
 
 ### Plasma Carbine (off hand)
 - **Reload: IN PROGRESS.**
 - **Mechanics: DONE.**
 - **Sounds: flag.** IDENTICAL to the Plasma Rifle's.
 - **Looks: MISSING (placeholder).** As the Plasma Rifle.
-- **Owner calibration:** as the Plasma Rifle (**1 ESTIMATE**).
+- **Owner calibration:** as the Plasma Rifle (support measured 09-14).
 
 ### BFG (main hand)
 - **Reload: IN PROGRESS.** Swing the cover open, swap the cell, shut. It won't fire open; two hands. No headset report.
 - **Mechanics: DONE.** Refires while held on vanilla's clock (F2).
 - **Sounds: MISSING.** The card states none. The charge is Doom's, from the class; dry and the cell drop get the parser's defaults. Cover open and close and cell out and in are silent.
 - **Looks: MISSING (placeholder).** A shared bfg flash, Doom's sprite with a trail, bfg impacts, no smoke. Missing: a charge glow, per-gun identity, anything on the BFG's rays.
-- **Owner calibration:** BFG seats; grabs on 3 parts (**1 ESTIMATE**); placement.
+- **Owner calibration:** BFG seats; grabs on 3 parts (support measured 09-14); placement.
 
 ### Heavy BFG (off hand)
 - **Reload: IN PROGRESS.** Swap the cell; no cover.
 - **Mechanics: DONE.** F2.
 - **Sounds: MISSING.** As the BFG: cell out and in are silent.
 - **Looks: MISSING (placeholder).** As the BFG.
-- **Owner calibration:** BFG seats; grabs on 2 parts (**1 ESTIMATE**); placement.
+- **Owner calibration:** BFG seats; grabs on 2 parts (cell and support measured 09-14); placement.
 
 ### Chainsaw (main hand)
 - **Reload: IN PROGRESS.** Pull the ripcord with the other hand; it catches and idles. No headset report.
 - **Mechanics: DONE.** 2 × 1d10, range 64, 4 tics; no turn or pull-in in VR.
 - **Sounds: DONE.** Its own cord, start, idle, stop, running, hit.
 - **Looks: MISSING (placeholder).** Saw impacts only: sparks off stone and metal, splinters and dust off wood. Missing: exhaust smoke, engine haze, chips off the chain, per-saw identity.
-- **Owner calibration:** chainsaw seats; grabs on 2 parts (the ripcord, support); placement.
+- **Owner calibration:** chainsaw seats; grabs on 2 parts (the ripcord, support; the support point and both radii **ESTIMATE**); placement.
 
 ### Heavy Chainsaw (off hand)
 - **Reload: IN PROGRESS.** No ripcord; hums while drawn with its own heavy idle (F4).
 - **Mechanics: DONE.**
 - **Sounds: DONE.** Its own heavy idle and start; running and hit are the saw pair's.
 - **Looks: MISSING (placeholder).** As the Chainsaw.
-- **Owner calibration:** chainsaw seats; the support grab; placement.
+- **Owner calibration:** chainsaw seats; the support grab (point and radius **ESTIMATE**); placement.
 
 ### Grenade (slot 9; starts on)
 - **Use: IN PROGRESS (X8).**
