@@ -218,6 +218,11 @@ machine.
   player, and today it's used as ownership (`CatchFalling`, `ForeignInHand`, `TryPickup`).
   - The grace timer and pickup rules become card data or server cvars (`wm_walk_grace`, `wm_round_life`,
     `wm_bounce`).
+- **Belt links and the casing cap** (2026-09-14): `WM_BeltLink` is spawned by the local rig, so it exists on the
+  console player's machine only, like the loose objects above. It joins RS_Ballistics' one casing cap
+  (`rsb_casing_max`), which retires the oldest by calling its `Deactivate`, and the link fades from then on.
+  - The fade is looks only: no RNG, nothing read back.
+  - At P1 it needs no change while links stay local presentation.
 - **A gun put straight into a hand** (`WM_System.PutGunInHand`, added 2026-09-14 in RS_VR_Reload 36794c6 for catch-to-equip, which is
   gated off in netgames for now):
   - it swaps the gun for any player, but binds the rigs on the spot for the console player only, as `WorldTick`

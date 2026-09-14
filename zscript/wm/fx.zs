@@ -64,6 +64,7 @@ class WM_BeltLink : Actor
 	double linkScale;
 	private int life;
 	private int tumbleSeq;  // bounces so far, for its tumble's jitter
+	private bool overCap;   // retired by the casing cap (Deactivate): fading from then on, flying or lying
 
 	// ITS GUN'S LINK. Called once, right after it is spawned and thrown. May destroy it.
 	void Wear(WM_Card card)
@@ -96,18 +97,30 @@ class WM_BeltLink : Actor
 		Stop;
 	}
 
+	// RETIRED BY THE CASING CAP. RS_Ballistics keeps one cap for every casing in the world ("Casings in the
+	// world, most", rsb_casing_max) and calls Deactivate on the oldest actor a mod registered with it past the
+	// cap; a link starts fading then. Not Super's: a link has no dormant state to enter. Looks only -- a link
+	// exists on the console player's machine alone, and the fade draws no RNG.
+	override void Deactivate(Actor activator)
+	{
+		overCap = true;
+	}
+
 	override void Tick()
 	{
-		// LYING STILL, it fades once it has lain wm_casing_life tics ("Belt links lie", WM_FireMenu).
+		// FADING: over the casing cap, flying or lying; or LYING STILL past wm_casing_life tics ("Belt links
+		// lie", WM_FireMenu).
+		bool fading = overCap;
 		if (InStateSequence(CurState, ResolveState("Death")))
 		{
 			life++;
-			if (life > int(WM_FX.Cvf("wm_casing_life", 700.0)))
-			{
-				A_SetRenderStyle(Alpha, STYLE_Translucent);
-				Alpha -= 0.05;
-				if (Alpha <= 0) { Destroy(); return; }
-			}
+			if (life > int(WM_FX.Cvf("wm_casing_life", 700.0))) fading = true;
+		}
+		if (fading)
+		{
+			A_SetRenderStyle(Alpha, STYLE_Translucent);
+			Alpha -= 0.05;
+			if (Alpha <= 0) { Destroy(); return; }
 		}
 		Super.Tick();
 	}

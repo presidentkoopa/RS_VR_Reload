@@ -1857,6 +1857,23 @@ class WM_Rig play
 		return d;
 	}
 
+	// RS_BALLISTICS' CASING CAP, found by name once (RSB_Service answering `casing.hello`). Null without it, and a
+	// belt link then fades only by its own wm_casing_life, as before. Looks only, on this machine.
+	private transient Service casingCapService;
+	private transient bool casingCapLooked;
+	private Service CasingCap()
+	{
+		if (!casingCapLooked)
+		{
+			casingCapLooked = true;
+			let it = ServiceIterator.Find("RSB_Service");
+			Service found;
+			while (found = it.Next())
+				if (found.GetInt("casing.hello") == 1) { casingCapService = found; break; }
+		}
+		return casingCapService;
+	}
+
 	private void Brass(PlayerPawn pmo)
 	{
 		// A GUN WITH NO CASES (card `casing = none`) throws none, ever.
@@ -1876,7 +1893,7 @@ class WM_Rig play
 		// A BELT LINK WITH THE CASE (card `linkmodel`, G16): out of the same port, a little slower, on its own
 		// jitter -- a hash, never the playsim RNG, as the brass. It follows RS Ballistics' Casings switch, and
 		// bounces on the casing pick or card sound when one is named, else its own wm/casing. Wear may destroy
-		// it, so nothing touches it after.
+		// it, so only the null-checked casing-cap registration follows.
 		if (card.linkModelFile == "" || !RSB_Settings.Casings()) return;
 		let lk = WM_BeltLink(Actor.Spawn("WM_BeltLink", at, ALLOW_REPLACE));
 		if (!lk) return;
@@ -1886,6 +1903,13 @@ class WM_Rig play
 		String linkSound = SlotSound("casing", card.casingSound);
 		if (linkSound != "") lk.BounceSound = linkSound;
 		lk.Wear(card);
+		// ONE CASING CAP FOR EVERYTHING ON THE FLOOR (RS_Ballistics' rsb_casing_max): the link joins it, so past the
+		// cap the oldest -- a case or a link -- fades (WM_BeltLink.Deactivate).
+		if (lk)
+		{
+			let cap = CasingCap();
+			if (cap) cap.GetInt("casing.keep", "", 0, 0, lk);
+		}
 	}
 
 	// A GOOD ROUND, RACKED OUT. It goes out of the port like the brass, slower,
