@@ -1,0 +1,10 @@
+// The system is an EventHandler and needs registering.
+//
+// NO PLAYER CLASS HERE. The reload system carries no guns, so it has no loadout
+// to give: the player class -- and with it what you spawn holding -- is a weapon
+// package's (RS_VR_Weapons' MAPINFO sets PlayerClasses = "WM_Player"). Loaded
+// alone, you are the engine's own player.
+gameinfo
+{
+    AddEventHandlers = "WM_System"
+}

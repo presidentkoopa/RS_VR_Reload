@@ -1,0 +1,2467 @@
+// ============================================================================
+// EVERY SETTING, AND WHICH ONES THE RENDERER READS.
+//
+// Two kinds, and they behave differently:
+//
+//   PLACEMENT SETS -- <prefix>_ofs_x/_y/_z, _yaw/_pitch/_roll, _scale and
+//   _scale_x/_y/_z. The RENDERER looks these up by name on every frame it draws,
+//   which is the only reason a slider moves the thing while the menu is open
+//   and you are looking at it. A prefix is live when a MODELDEF PlacementCVars
+//   or an actor's PlacementPrefix names it. Sizes must be above zero: the
+//   renderer ignores a zero or negative _scale, so those sliders start at 0.05.
+//
+//   Everything else is read by the playsim every tic.
+//
+// NEW NAMES WHERE THE MEANING CHANGED, ON PURPOSE. A cvar already saved in
+// doomxr.ini outranks any default changed here, forever. wm_grab_radius=6,
+// wm_insert_radius=6 and wm_letgo_radius=11 are saved there and would have
+// overridden every card's own reach and the new well no matter what this file
+// said. So those settings have new names -- and the m4a3 seat you tuned
+// (wm_prop: forward 28.5, up 6.75, yaw -90) is carried INTO wm_main's defaults
+// rather than lost. The hand seats are per kind of gun (wm_hs_*): their section
+// says where each one started.
+//
+// tools/menu_lint.py checks this file against MENUDEF and the ZScript on every
+// build: a slider for a cvar nothing reads, or a read of a cvar nothing
+// declares, fails the build before it ever reaches a headset.
+// ============================================================================
+
+// ---- THE MAIN-HAND GUN, on the controller (renderer) ------------------------
+user float wm_main_ofs_x   = 0.0;
+user float wm_main_ofs_y   = 28.5;
+user float wm_main_ofs_z   = 6.75;
+user float wm_main_yaw     = -90.0;
+user float wm_main_pitch   = 0.0;
+user float wm_main_roll    = 0.0;
+user float wm_main_scale   = 1.0;
+user float wm_main_scale_x = 1.0;
+user float wm_main_scale_y = 1.0;
+user float wm_main_scale_z = 1.0;
+
+// ---- THE OFF-HAND GUN (renderer). Seeded the same way the m4a3's settled:
+// the ModelSwapper offset cancelled, yaw -90.
+user float wm_off_ofs_x   = 0.0;
+user float wm_off_ofs_y   = 31.2;
+user float wm_off_ofs_z   = 2.5;
+user float wm_off_yaw     = -90.0;
+user float wm_off_pitch   = 0.0;
+user float wm_off_roll    = 0.0;
+user float wm_off_scale   = 1.0;
+user float wm_off_scale_x = 1.0;
+user float wm_off_scale_y = 1.0;
+user float wm_off_scale_z = 1.0;
+
+// Where the flash starts, trimmed along the gun's own axes (model units).
+user float wm_main_muzzle_x = 0.0;
+user float wm_main_muzzle_y = 0.0;
+user float wm_main_muzzle_z = 0.0;
+user float wm_off_muzzle_x  = 0.0;
+user float wm_off_muzzle_y  = 0.0;
+user float wm_off_muzzle_z  = 0.0;
+
+// ---- YOUR HAND ON EACH KIND OF GUN (renderer) -------------------------------
+//
+// wm_hs_<profile>_<main|off>_<seat>: a set PER KIND OF GUN, not per hand. They were
+// per hand once -- wm_main_slide and the rest, shared by every gun -- and the
+// revolver's tuning moved the pistol's hand. zscript/wm/handprofile.zs picks the set:
+// the card's handprofile, its type, or the uncalibrated seats (default).
+//
+//   profile  default pistol shotgun breakaction revolver rifle smg chaingun plasma
+//            launcher bfg railgun flamethrower chainsaw -- or a weapon package's own
+//   main|off the GUN's hand: _main_ is a hand on the gun in your main hand (your off hand)
+//   seat     slide (a slide, charging handle, bolt, hammer) | mag (pushing a magazine
+//            home) | support (bracing) | forend (a pump) | foregrip (a barrel, a crane)
+//
+// A weapon package gives one gun seats of its own with the card's `handprofile = <word>`
+// and a set here named wm_hs_<word>_* in ITS CVARINFO; a seat it leaves out falls back
+// to the gun's type, then to default.
+//
+// NOSAVE, NOT USER: 980 cvars. A `user` cvar is userinfo -- sent to every player at a
+// netgame's start and on every change. nosave keeps them in this machine's ini only.
+// The renderer and the sliders read them all the same.
+//
+// WHERE EACH STARTED (read from doomxr.ini, never written; and from git):
+//   pistol      the pistol seats from before the revolver: this file's defaults since
+//               537409f, which are RS_TestPistol's own tuned rs_tp_slide_* / rs_tp_mag_*
+//   revolver    slide and mag carry YOUR REVOLVER TUNING from doomxr.ini -- the stopgap
+//               revolvers (eabd6bb) worked a role = action hammer and a role = feed
+//               speedloader, which read wm_<main|off>_slide and _mag, the pistols' own
+//               sets; that is how tuning the revolver moved the pistol. Its foregrip
+//               (barrel, crane) is the ini's too: still the shipped default.
+//   shotgun     the pistol's, and the pump's shipped estimate (never tuned: the ini
+//               still holds its default)
+//   breakaction the revolver's foregrip (the shipped default) and the pistol's others
+//   the rest    the pistol's, until a gun of that kind is tuned
+//
+// ---- DEFAULT -- from the pistol's seats (below) -- the closest thing to a universal start
+nosave float wm_hs_default_main_slide_ofs_x               = -9.6;
+nosave float wm_hs_default_main_slide_ofs_y               = 2.9;
+nosave float wm_hs_default_main_slide_ofs_z               = 1.1;
+nosave float wm_hs_default_main_slide_yaw                 = -90.0;
+nosave float wm_hs_default_main_slide_pitch               = -90.0;
+nosave float wm_hs_default_main_slide_roll                = -180.0;
+nosave float wm_hs_default_main_slide_scale               = 1.0;
+nosave float wm_hs_default_main_mag_ofs_x                 = 0.0;
+nosave float wm_hs_default_main_mag_ofs_y                 = 0.0;
+nosave float wm_hs_default_main_mag_ofs_z                 = -0.1;
+nosave float wm_hs_default_main_mag_yaw                   = 0.0;
+nosave float wm_hs_default_main_mag_pitch                 = 0.0;
+nosave float wm_hs_default_main_mag_roll                  = 0.0;
+nosave float wm_hs_default_main_mag_scale                 = 1.0;
+nosave float wm_hs_default_main_support_ofs_x             = 0.0;
+nosave float wm_hs_default_main_support_ofs_y             = 0.0;
+nosave float wm_hs_default_main_support_ofs_z             = 0.0;
+nosave float wm_hs_default_main_support_yaw               = 0.0;
+nosave float wm_hs_default_main_support_pitch             = 0.0;
+nosave float wm_hs_default_main_support_roll              = 0.0;
+nosave float wm_hs_default_main_support_scale             = 1.0;
+nosave float wm_hs_default_main_forend_ofs_x              = 0.0;
+nosave float wm_hs_default_main_forend_ofs_y              = 0.0;
+nosave float wm_hs_default_main_forend_ofs_z              = 0.0;
+nosave float wm_hs_default_main_forend_yaw                = -90.0;
+nosave float wm_hs_default_main_forend_pitch              = -90.0;
+nosave float wm_hs_default_main_forend_roll               = 0.0;
+nosave float wm_hs_default_main_forend_scale              = 1.0;
+nosave float wm_hs_default_main_foregrip_ofs_x            = 0.0;
+nosave float wm_hs_default_main_foregrip_ofs_y            = 0.0;
+nosave float wm_hs_default_main_foregrip_ofs_z            = 0.0;
+nosave float wm_hs_default_main_foregrip_yaw              = -90.0;
+nosave float wm_hs_default_main_foregrip_pitch            = -90.0;
+nosave float wm_hs_default_main_foregrip_roll             = 0.0;
+nosave float wm_hs_default_main_foregrip_scale            = 1.0;
+
+nosave float wm_hs_default_off_slide_ofs_x                = 8.4;
+nosave float wm_hs_default_off_slide_ofs_y                = 4.4;
+nosave float wm_hs_default_off_slide_ofs_z                = 3.1;
+nosave float wm_hs_default_off_slide_yaw                  = -90.0;
+nosave float wm_hs_default_off_slide_pitch                = -90.0;
+nosave float wm_hs_default_off_slide_roll                 = 180.0;
+nosave float wm_hs_default_off_slide_scale                = 1.0;
+nosave float wm_hs_default_off_mag_ofs_x                  = 0.0;
+nosave float wm_hs_default_off_mag_ofs_y                  = 0.0;
+nosave float wm_hs_default_off_mag_ofs_z                  = -0.1;
+nosave float wm_hs_default_off_mag_yaw                    = 0.0;
+nosave float wm_hs_default_off_mag_pitch                  = 0.0;
+nosave float wm_hs_default_off_mag_roll                   = 0.0;
+nosave float wm_hs_default_off_mag_scale                  = 1.0;
+nosave float wm_hs_default_off_support_ofs_x              = 0.0;
+nosave float wm_hs_default_off_support_ofs_y              = 0.0;
+nosave float wm_hs_default_off_support_ofs_z              = 0.0;
+nosave float wm_hs_default_off_support_yaw                = 0.0;
+nosave float wm_hs_default_off_support_pitch              = 0.0;
+nosave float wm_hs_default_off_support_roll               = 0.0;
+nosave float wm_hs_default_off_support_scale              = 1.0;
+nosave float wm_hs_default_off_forend_ofs_x               = 0.0;
+nosave float wm_hs_default_off_forend_ofs_y               = 0.0;
+nosave float wm_hs_default_off_forend_ofs_z               = 0.0;
+nosave float wm_hs_default_off_forend_yaw                 = -90.0;
+nosave float wm_hs_default_off_forend_pitch               = -90.0;
+nosave float wm_hs_default_off_forend_roll                = 0.0;
+nosave float wm_hs_default_off_forend_scale               = 1.0;
+nosave float wm_hs_default_off_foregrip_ofs_x             = 0.0;
+nosave float wm_hs_default_off_foregrip_ofs_y             = 0.0;
+nosave float wm_hs_default_off_foregrip_ofs_z             = 0.0;
+nosave float wm_hs_default_off_foregrip_yaw               = -90.0;
+nosave float wm_hs_default_off_foregrip_pitch             = -90.0;
+nosave float wm_hs_default_off_foregrip_roll              = 0.0;
+nosave float wm_hs_default_off_foregrip_scale             = 1.0;
+
+// ---- PISTOL -- from the pistol seats from before the revolver: CVARINFO's defaults since 537409f, which are RS_TestPistol's tuned rs_tp_slide_* / rs_tp_mag_* (the ini holds both, identical)
+nosave float wm_hs_pistol_main_slide_ofs_x                = -9.6;
+nosave float wm_hs_pistol_main_slide_ofs_y                = 2.9;
+nosave float wm_hs_pistol_main_slide_ofs_z                = 1.1;
+nosave float wm_hs_pistol_main_slide_yaw                  = -90.0;
+nosave float wm_hs_pistol_main_slide_pitch                = -90.0;
+nosave float wm_hs_pistol_main_slide_roll                 = -180.0;
+nosave float wm_hs_pistol_main_slide_scale                = 1.0;
+nosave float wm_hs_pistol_main_mag_ofs_x                  = 0.0;
+nosave float wm_hs_pistol_main_mag_ofs_y                  = 0.0;
+nosave float wm_hs_pistol_main_mag_ofs_z                  = -0.1;
+nosave float wm_hs_pistol_main_mag_yaw                    = 0.0;
+nosave float wm_hs_pistol_main_mag_pitch                  = 0.0;
+nosave float wm_hs_pistol_main_mag_roll                   = 0.0;
+nosave float wm_hs_pistol_main_mag_scale                  = 1.0;
+nosave float wm_hs_pistol_main_support_ofs_x              = 0.0;
+nosave float wm_hs_pistol_main_support_ofs_y              = 0.0;
+nosave float wm_hs_pistol_main_support_ofs_z              = 0.0;
+nosave float wm_hs_pistol_main_support_yaw                = 0.0;
+nosave float wm_hs_pistol_main_support_pitch              = 0.0;
+nosave float wm_hs_pistol_main_support_roll               = 0.0;
+nosave float wm_hs_pistol_main_support_scale              = 1.0;
+nosave float wm_hs_pistol_main_forend_ofs_x               = 0.0;
+nosave float wm_hs_pistol_main_forend_ofs_y               = 0.0;
+nosave float wm_hs_pistol_main_forend_ofs_z               = 0.0;
+nosave float wm_hs_pistol_main_forend_yaw                 = -90.0;
+nosave float wm_hs_pistol_main_forend_pitch               = -90.0;
+nosave float wm_hs_pistol_main_forend_roll                = 0.0;
+nosave float wm_hs_pistol_main_forend_scale               = 1.0;
+nosave float wm_hs_pistol_main_foregrip_ofs_x             = 0.0;
+nosave float wm_hs_pistol_main_foregrip_ofs_y             = 0.0;
+nosave float wm_hs_pistol_main_foregrip_ofs_z             = 0.0;
+nosave float wm_hs_pistol_main_foregrip_yaw               = -90.0;
+nosave float wm_hs_pistol_main_foregrip_pitch             = -90.0;
+nosave float wm_hs_pistol_main_foregrip_roll              = 0.0;
+nosave float wm_hs_pistol_main_foregrip_scale             = 1.0;
+
+nosave float wm_hs_pistol_off_slide_ofs_x                 = 8.4;
+nosave float wm_hs_pistol_off_slide_ofs_y                 = 4.4;
+nosave float wm_hs_pistol_off_slide_ofs_z                 = 3.1;
+nosave float wm_hs_pistol_off_slide_yaw                   = -90.0;
+nosave float wm_hs_pistol_off_slide_pitch                 = -90.0;
+nosave float wm_hs_pistol_off_slide_roll                  = 180.0;
+nosave float wm_hs_pistol_off_slide_scale                 = 1.0;
+nosave float wm_hs_pistol_off_mag_ofs_x                   = 0.0;
+nosave float wm_hs_pistol_off_mag_ofs_y                   = 0.0;
+nosave float wm_hs_pistol_off_mag_ofs_z                   = -0.1;
+nosave float wm_hs_pistol_off_mag_yaw                     = 0.0;
+nosave float wm_hs_pistol_off_mag_pitch                   = 0.0;
+nosave float wm_hs_pistol_off_mag_roll                    = 0.0;
+nosave float wm_hs_pistol_off_mag_scale                   = 1.0;
+nosave float wm_hs_pistol_off_support_ofs_x               = 0.0;
+nosave float wm_hs_pistol_off_support_ofs_y               = 0.0;
+nosave float wm_hs_pistol_off_support_ofs_z               = 0.0;
+nosave float wm_hs_pistol_off_support_yaw                 = 0.0;
+nosave float wm_hs_pistol_off_support_pitch               = 0.0;
+nosave float wm_hs_pistol_off_support_roll                = 0.0;
+nosave float wm_hs_pistol_off_support_scale               = 1.0;
+nosave float wm_hs_pistol_off_forend_ofs_x                = 0.0;
+nosave float wm_hs_pistol_off_forend_ofs_y                = 0.0;
+nosave float wm_hs_pistol_off_forend_ofs_z                = 0.0;
+nosave float wm_hs_pistol_off_forend_yaw                  = -90.0;
+nosave float wm_hs_pistol_off_forend_pitch                = -90.0;
+nosave float wm_hs_pistol_off_forend_roll                 = 0.0;
+nosave float wm_hs_pistol_off_forend_scale                = 1.0;
+nosave float wm_hs_pistol_off_foregrip_ofs_x              = 0.0;
+nosave float wm_hs_pistol_off_foregrip_ofs_y              = 0.0;
+nosave float wm_hs_pistol_off_foregrip_ofs_z              = 0.0;
+nosave float wm_hs_pistol_off_foregrip_yaw                = -90.0;
+nosave float wm_hs_pistol_off_foregrip_pitch              = -90.0;
+nosave float wm_hs_pistol_off_foregrip_roll               = 0.0;
+nosave float wm_hs_pistol_off_foregrip_scale              = 1.0;
+
+// ---- SHOTGUN -- from the pistol's slide and magazine; its PUMP is the shipped estimate, still untouched in the ini -- never tuned in a headset
+nosave float wm_hs_shotgun_main_slide_ofs_x               = -9.6;
+nosave float wm_hs_shotgun_main_slide_ofs_y               = 2.9;
+nosave float wm_hs_shotgun_main_slide_ofs_z               = 1.1;
+nosave float wm_hs_shotgun_main_slide_yaw                 = -90.0;
+nosave float wm_hs_shotgun_main_slide_pitch               = -90.0;
+nosave float wm_hs_shotgun_main_slide_roll                = -180.0;
+nosave float wm_hs_shotgun_main_slide_scale               = 1.0;
+nosave float wm_hs_shotgun_main_mag_ofs_x                 = 0.0;
+nosave float wm_hs_shotgun_main_mag_ofs_y                 = 0.0;
+nosave float wm_hs_shotgun_main_mag_ofs_z                 = -0.1;
+nosave float wm_hs_shotgun_main_mag_yaw                   = 0.0;
+nosave float wm_hs_shotgun_main_mag_pitch                 = 0.0;
+nosave float wm_hs_shotgun_main_mag_roll                  = 0.0;
+nosave float wm_hs_shotgun_main_mag_scale                 = 1.0;
+nosave float wm_hs_shotgun_main_support_ofs_x             = 0.0;
+nosave float wm_hs_shotgun_main_support_ofs_y             = 0.0;
+nosave float wm_hs_shotgun_main_support_ofs_z             = 0.0;
+nosave float wm_hs_shotgun_main_support_yaw               = 0.0;
+nosave float wm_hs_shotgun_main_support_pitch             = 0.0;
+nosave float wm_hs_shotgun_main_support_roll              = 0.0;
+nosave float wm_hs_shotgun_main_support_scale             = 1.0;
+nosave float wm_hs_shotgun_main_forend_ofs_x              = 0.0;
+nosave float wm_hs_shotgun_main_forend_ofs_y              = 0.0;
+nosave float wm_hs_shotgun_main_forend_ofs_z              = 0.0;
+nosave float wm_hs_shotgun_main_forend_yaw                = -90.0;
+nosave float wm_hs_shotgun_main_forend_pitch              = -90.0;
+nosave float wm_hs_shotgun_main_forend_roll               = 0.0;
+nosave float wm_hs_shotgun_main_forend_scale              = 1.0;
+nosave float wm_hs_shotgun_main_foregrip_ofs_x            = 0.0;
+nosave float wm_hs_shotgun_main_foregrip_ofs_y            = 0.0;
+nosave float wm_hs_shotgun_main_foregrip_ofs_z            = 0.0;
+nosave float wm_hs_shotgun_main_foregrip_yaw              = -90.0;
+nosave float wm_hs_shotgun_main_foregrip_pitch            = -90.0;
+nosave float wm_hs_shotgun_main_foregrip_roll             = 0.0;
+nosave float wm_hs_shotgun_main_foregrip_scale            = 1.0;
+
+nosave float wm_hs_shotgun_off_slide_ofs_x                = 8.4;
+nosave float wm_hs_shotgun_off_slide_ofs_y                = 4.4;
+nosave float wm_hs_shotgun_off_slide_ofs_z                = 3.1;
+nosave float wm_hs_shotgun_off_slide_yaw                  = -90.0;
+nosave float wm_hs_shotgun_off_slide_pitch                = -90.0;
+nosave float wm_hs_shotgun_off_slide_roll                 = 180.0;
+nosave float wm_hs_shotgun_off_slide_scale                = 1.0;
+nosave float wm_hs_shotgun_off_mag_ofs_x                  = 0.0;
+nosave float wm_hs_shotgun_off_mag_ofs_y                  = 0.0;
+nosave float wm_hs_shotgun_off_mag_ofs_z                  = -0.1;
+nosave float wm_hs_shotgun_off_mag_yaw                    = 0.0;
+nosave float wm_hs_shotgun_off_mag_pitch                  = 0.0;
+nosave float wm_hs_shotgun_off_mag_roll                   = 0.0;
+nosave float wm_hs_shotgun_off_mag_scale                  = 1.0;
+nosave float wm_hs_shotgun_off_support_ofs_x              = 0.0;
+nosave float wm_hs_shotgun_off_support_ofs_y              = 0.0;
+nosave float wm_hs_shotgun_off_support_ofs_z              = 0.0;
+nosave float wm_hs_shotgun_off_support_yaw                = 0.0;
+nosave float wm_hs_shotgun_off_support_pitch              = 0.0;
+nosave float wm_hs_shotgun_off_support_roll               = 0.0;
+nosave float wm_hs_shotgun_off_support_scale              = 1.0;
+nosave float wm_hs_shotgun_off_forend_ofs_x               = 0.0;
+nosave float wm_hs_shotgun_off_forend_ofs_y               = 0.0;
+nosave float wm_hs_shotgun_off_forend_ofs_z               = 0.0;
+nosave float wm_hs_shotgun_off_forend_yaw                 = -90.0;
+nosave float wm_hs_shotgun_off_forend_pitch               = -90.0;
+nosave float wm_hs_shotgun_off_forend_roll                = 0.0;
+nosave float wm_hs_shotgun_off_forend_scale               = 1.0;
+nosave float wm_hs_shotgun_off_foregrip_ofs_x             = 0.0;
+nosave float wm_hs_shotgun_off_foregrip_ofs_y             = 0.0;
+nosave float wm_hs_shotgun_off_foregrip_ofs_z             = 0.0;
+nosave float wm_hs_shotgun_off_foregrip_yaw               = -90.0;
+nosave float wm_hs_shotgun_off_foregrip_pitch             = -90.0;
+nosave float wm_hs_shotgun_off_foregrip_roll              = 0.0;
+nosave float wm_hs_shotgun_off_foregrip_scale             = 1.0;
+
+// ---- BREAKACTION -- from the revolver's barrel seat (wm_*_foregrip, still its shipped default in the ini) and the pistol's slide and magazine
+nosave float wm_hs_breakaction_main_slide_ofs_x           = -9.6;
+nosave float wm_hs_breakaction_main_slide_ofs_y           = 2.9;
+nosave float wm_hs_breakaction_main_slide_ofs_z           = 1.1;
+nosave float wm_hs_breakaction_main_slide_yaw             = -90.0;
+nosave float wm_hs_breakaction_main_slide_pitch           = -90.0;
+nosave float wm_hs_breakaction_main_slide_roll            = -180.0;
+nosave float wm_hs_breakaction_main_slide_scale           = 1.0;
+nosave float wm_hs_breakaction_main_mag_ofs_x             = 0.0;
+nosave float wm_hs_breakaction_main_mag_ofs_y             = 0.0;
+nosave float wm_hs_breakaction_main_mag_ofs_z             = -0.1;
+nosave float wm_hs_breakaction_main_mag_yaw               = 0.0;
+nosave float wm_hs_breakaction_main_mag_pitch             = 0.0;
+nosave float wm_hs_breakaction_main_mag_roll              = 0.0;
+nosave float wm_hs_breakaction_main_mag_scale             = 1.0;
+nosave float wm_hs_breakaction_main_support_ofs_x         = 0.0;
+nosave float wm_hs_breakaction_main_support_ofs_y         = 0.0;
+nosave float wm_hs_breakaction_main_support_ofs_z         = 0.0;
+nosave float wm_hs_breakaction_main_support_yaw           = 0.0;
+nosave float wm_hs_breakaction_main_support_pitch         = 0.0;
+nosave float wm_hs_breakaction_main_support_roll          = 0.0;
+nosave float wm_hs_breakaction_main_support_scale         = 1.0;
+nosave float wm_hs_breakaction_main_forend_ofs_x          = 0.0;
+nosave float wm_hs_breakaction_main_forend_ofs_y          = 0.0;
+nosave float wm_hs_breakaction_main_forend_ofs_z          = 0.0;
+nosave float wm_hs_breakaction_main_forend_yaw            = -90.0;
+nosave float wm_hs_breakaction_main_forend_pitch          = -90.0;
+nosave float wm_hs_breakaction_main_forend_roll           = 0.0;
+nosave float wm_hs_breakaction_main_forend_scale          = 1.0;
+nosave float wm_hs_breakaction_main_foregrip_ofs_x        = 0.0;
+nosave float wm_hs_breakaction_main_foregrip_ofs_y        = 0.0;
+nosave float wm_hs_breakaction_main_foregrip_ofs_z        = 0.0;
+nosave float wm_hs_breakaction_main_foregrip_yaw          = -90.0;
+nosave float wm_hs_breakaction_main_foregrip_pitch        = -90.0;
+nosave float wm_hs_breakaction_main_foregrip_roll         = 0.0;
+nosave float wm_hs_breakaction_main_foregrip_scale        = 1.0;
+
+nosave float wm_hs_breakaction_off_slide_ofs_x            = 8.4;
+nosave float wm_hs_breakaction_off_slide_ofs_y            = 4.4;
+nosave float wm_hs_breakaction_off_slide_ofs_z            = 3.1;
+nosave float wm_hs_breakaction_off_slide_yaw              = -90.0;
+nosave float wm_hs_breakaction_off_slide_pitch            = -90.0;
+nosave float wm_hs_breakaction_off_slide_roll             = 180.0;
+nosave float wm_hs_breakaction_off_slide_scale            = 1.0;
+nosave float wm_hs_breakaction_off_mag_ofs_x              = 0.0;
+nosave float wm_hs_breakaction_off_mag_ofs_y              = 0.0;
+nosave float wm_hs_breakaction_off_mag_ofs_z              = -0.1;
+nosave float wm_hs_breakaction_off_mag_yaw                = 0.0;
+nosave float wm_hs_breakaction_off_mag_pitch              = 0.0;
+nosave float wm_hs_breakaction_off_mag_roll               = 0.0;
+nosave float wm_hs_breakaction_off_mag_scale              = 1.0;
+nosave float wm_hs_breakaction_off_support_ofs_x          = 0.0;
+nosave float wm_hs_breakaction_off_support_ofs_y          = 0.0;
+nosave float wm_hs_breakaction_off_support_ofs_z          = 0.0;
+nosave float wm_hs_breakaction_off_support_yaw            = 0.0;
+nosave float wm_hs_breakaction_off_support_pitch          = 0.0;
+nosave float wm_hs_breakaction_off_support_roll           = 0.0;
+nosave float wm_hs_breakaction_off_support_scale          = 1.0;
+nosave float wm_hs_breakaction_off_forend_ofs_x           = 0.0;
+nosave float wm_hs_breakaction_off_forend_ofs_y           = 0.0;
+nosave float wm_hs_breakaction_off_forend_ofs_z           = 0.0;
+nosave float wm_hs_breakaction_off_forend_yaw             = -90.0;
+nosave float wm_hs_breakaction_off_forend_pitch           = -90.0;
+nosave float wm_hs_breakaction_off_forend_roll            = 0.0;
+nosave float wm_hs_breakaction_off_forend_scale           = 1.0;
+nosave float wm_hs_breakaction_off_foregrip_ofs_x         = 0.0;
+nosave float wm_hs_breakaction_off_foregrip_ofs_y         = 0.0;
+nosave float wm_hs_breakaction_off_foregrip_ofs_z         = 0.0;
+nosave float wm_hs_breakaction_off_foregrip_yaw           = -90.0;
+nosave float wm_hs_breakaction_off_foregrip_pitch         = -90.0;
+nosave float wm_hs_breakaction_off_foregrip_roll          = 0.0;
+nosave float wm_hs_breakaction_off_foregrip_scale         = 1.0;
+
+// ---- REVOLVER -- YOUR REVOLVER TUNING, read from doomxr.ini: the stopgap revolvers' hands read wm_<main|off>_slide (the hammer) and _mag (the speedloader), so those carry your numbers; its barrel/crane seat (foregrip) is the ini's, still the shipped default
+nosave float wm_hs_revolver_main_slide_ofs_x              = -4.1;
+nosave float wm_hs_revolver_main_slide_ofs_y              = -8.85;
+nosave float wm_hs_revolver_main_slide_ofs_z              = 3.85;
+nosave float wm_hs_revolver_main_slide_yaw                = 0.0;
+nosave float wm_hs_revolver_main_slide_pitch              = -90.0;
+nosave float wm_hs_revolver_main_slide_roll               = -180.0;
+nosave float wm_hs_revolver_main_slide_scale              = 1.0;
+nosave float wm_hs_revolver_main_mag_ofs_x                = 0.0;
+nosave float wm_hs_revolver_main_mag_ofs_y                = -12.0;
+nosave float wm_hs_revolver_main_mag_ofs_z                = -9.1;
+nosave float wm_hs_revolver_main_mag_yaw                  = 180.0;
+nosave float wm_hs_revolver_main_mag_pitch                = 0.0;
+nosave float wm_hs_revolver_main_mag_roll                 = 0.0;
+nosave float wm_hs_revolver_main_mag_scale                = 1.0;
+nosave float wm_hs_revolver_main_support_ofs_x            = 0.0;
+nosave float wm_hs_revolver_main_support_ofs_y            = 0.0;
+nosave float wm_hs_revolver_main_support_ofs_z            = 0.0;
+nosave float wm_hs_revolver_main_support_yaw              = 0.0;
+nosave float wm_hs_revolver_main_support_pitch            = 0.0;
+nosave float wm_hs_revolver_main_support_roll             = 0.0;
+nosave float wm_hs_revolver_main_support_scale            = 1.0;
+nosave float wm_hs_revolver_main_forend_ofs_x             = 0.0;
+nosave float wm_hs_revolver_main_forend_ofs_y             = 0.0;
+nosave float wm_hs_revolver_main_forend_ofs_z             = 0.0;
+nosave float wm_hs_revolver_main_forend_yaw               = -90.0;
+nosave float wm_hs_revolver_main_forend_pitch             = -90.0;
+nosave float wm_hs_revolver_main_forend_roll              = 0.0;
+nosave float wm_hs_revolver_main_forend_scale             = 1.0;
+nosave float wm_hs_revolver_main_foregrip_ofs_x           = 0.0;
+nosave float wm_hs_revolver_main_foregrip_ofs_y           = 0.0;
+nosave float wm_hs_revolver_main_foregrip_ofs_z           = 0.0;
+nosave float wm_hs_revolver_main_foregrip_yaw             = -90.0;
+nosave float wm_hs_revolver_main_foregrip_pitch           = -90.0;
+nosave float wm_hs_revolver_main_foregrip_roll            = 0.0;
+nosave float wm_hs_revolver_main_foregrip_scale           = 1.0;
+
+nosave float wm_hs_revolver_off_slide_ofs_x               = -4.1;
+nosave float wm_hs_revolver_off_slide_ofs_y               = 7.9;
+nosave float wm_hs_revolver_off_slide_ofs_z               = 3.85;
+nosave float wm_hs_revolver_off_slide_yaw                 = -90.0;
+nosave float wm_hs_revolver_off_slide_pitch               = -89.0;
+nosave float wm_hs_revolver_off_slide_roll                = -90.0;
+nosave float wm_hs_revolver_off_slide_scale               = 0.99;
+nosave float wm_hs_revolver_off_mag_ofs_x                 = -13.25;
+nosave float wm_hs_revolver_off_mag_ofs_y                 = 12.0;
+nosave float wm_hs_revolver_off_mag_ofs_z                 = -12.85;
+nosave float wm_hs_revolver_off_mag_yaw                   = -45.0;
+nosave float wm_hs_revolver_off_mag_pitch                 = 0.0;
+nosave float wm_hs_revolver_off_mag_roll                  = 0.0;
+nosave float wm_hs_revolver_off_mag_scale                 = 1.0;
+nosave float wm_hs_revolver_off_support_ofs_x             = 0.0;
+nosave float wm_hs_revolver_off_support_ofs_y             = 0.0;
+nosave float wm_hs_revolver_off_support_ofs_z             = 0.0;
+nosave float wm_hs_revolver_off_support_yaw               = 0.0;
+nosave float wm_hs_revolver_off_support_pitch             = 0.0;
+nosave float wm_hs_revolver_off_support_roll              = 0.0;
+nosave float wm_hs_revolver_off_support_scale             = 1.0;
+nosave float wm_hs_revolver_off_forend_ofs_x              = 0.0;
+nosave float wm_hs_revolver_off_forend_ofs_y              = 0.0;
+nosave float wm_hs_revolver_off_forend_ofs_z              = 0.0;
+nosave float wm_hs_revolver_off_forend_yaw                = -90.0;
+nosave float wm_hs_revolver_off_forend_pitch              = -90.0;
+nosave float wm_hs_revolver_off_forend_roll               = 0.0;
+nosave float wm_hs_revolver_off_forend_scale              = 1.0;
+nosave float wm_hs_revolver_off_foregrip_ofs_x            = 0.0;
+nosave float wm_hs_revolver_off_foregrip_ofs_y            = 0.0;
+nosave float wm_hs_revolver_off_foregrip_ofs_z            = 0.0;
+nosave float wm_hs_revolver_off_foregrip_yaw              = -90.0;
+nosave float wm_hs_revolver_off_foregrip_pitch            = -90.0;
+nosave float wm_hs_revolver_off_foregrip_roll             = 0.0;
+nosave float wm_hs_revolver_off_foregrip_scale            = 1.0;
+
+// ---- RIFLE -- from the pistol's slide and magazine (a charging handle reads the slide seat)
+nosave float wm_hs_rifle_main_slide_ofs_x                 = -9.6;
+nosave float wm_hs_rifle_main_slide_ofs_y                 = 2.9;
+nosave float wm_hs_rifle_main_slide_ofs_z                 = 1.1;
+nosave float wm_hs_rifle_main_slide_yaw                   = -90.0;
+nosave float wm_hs_rifle_main_slide_pitch                 = -90.0;
+nosave float wm_hs_rifle_main_slide_roll                  = -180.0;
+nosave float wm_hs_rifle_main_slide_scale                 = 1.0;
+nosave float wm_hs_rifle_main_mag_ofs_x                   = 0.0;
+nosave float wm_hs_rifle_main_mag_ofs_y                   = 0.0;
+nosave float wm_hs_rifle_main_mag_ofs_z                   = -0.1;
+nosave float wm_hs_rifle_main_mag_yaw                     = 0.0;
+nosave float wm_hs_rifle_main_mag_pitch                   = 0.0;
+nosave float wm_hs_rifle_main_mag_roll                    = 0.0;
+nosave float wm_hs_rifle_main_mag_scale                   = 1.0;
+nosave float wm_hs_rifle_main_support_ofs_x               = 0.0;
+nosave float wm_hs_rifle_main_support_ofs_y               = 0.0;
+nosave float wm_hs_rifle_main_support_ofs_z               = 0.0;
+nosave float wm_hs_rifle_main_support_yaw                 = 0.0;
+nosave float wm_hs_rifle_main_support_pitch               = 0.0;
+nosave float wm_hs_rifle_main_support_roll                = 0.0;
+nosave float wm_hs_rifle_main_support_scale               = 1.0;
+nosave float wm_hs_rifle_main_forend_ofs_x                = 0.0;
+nosave float wm_hs_rifle_main_forend_ofs_y                = 0.0;
+nosave float wm_hs_rifle_main_forend_ofs_z                = 0.0;
+nosave float wm_hs_rifle_main_forend_yaw                  = -90.0;
+nosave float wm_hs_rifle_main_forend_pitch                = -90.0;
+nosave float wm_hs_rifle_main_forend_roll                 = 0.0;
+nosave float wm_hs_rifle_main_forend_scale                = 1.0;
+nosave float wm_hs_rifle_main_foregrip_ofs_x              = 0.0;
+nosave float wm_hs_rifle_main_foregrip_ofs_y              = 0.0;
+nosave float wm_hs_rifle_main_foregrip_ofs_z              = 0.0;
+nosave float wm_hs_rifle_main_foregrip_yaw                = -90.0;
+nosave float wm_hs_rifle_main_foregrip_pitch              = -90.0;
+nosave float wm_hs_rifle_main_foregrip_roll               = 0.0;
+nosave float wm_hs_rifle_main_foregrip_scale              = 1.0;
+
+nosave float wm_hs_rifle_off_slide_ofs_x                  = 8.4;
+nosave float wm_hs_rifle_off_slide_ofs_y                  = 4.4;
+nosave float wm_hs_rifle_off_slide_ofs_z                  = 3.1;
+nosave float wm_hs_rifle_off_slide_yaw                    = -90.0;
+nosave float wm_hs_rifle_off_slide_pitch                  = -90.0;
+nosave float wm_hs_rifle_off_slide_roll                   = 180.0;
+nosave float wm_hs_rifle_off_slide_scale                  = 1.0;
+nosave float wm_hs_rifle_off_mag_ofs_x                    = 0.0;
+nosave float wm_hs_rifle_off_mag_ofs_y                    = 0.0;
+nosave float wm_hs_rifle_off_mag_ofs_z                    = -0.1;
+nosave float wm_hs_rifle_off_mag_yaw                      = 0.0;
+nosave float wm_hs_rifle_off_mag_pitch                    = 0.0;
+nosave float wm_hs_rifle_off_mag_roll                     = 0.0;
+nosave float wm_hs_rifle_off_mag_scale                    = 1.0;
+nosave float wm_hs_rifle_off_support_ofs_x                = 0.0;
+nosave float wm_hs_rifle_off_support_ofs_y                = 0.0;
+nosave float wm_hs_rifle_off_support_ofs_z                = 0.0;
+nosave float wm_hs_rifle_off_support_yaw                  = 0.0;
+nosave float wm_hs_rifle_off_support_pitch                = 0.0;
+nosave float wm_hs_rifle_off_support_roll                 = 0.0;
+nosave float wm_hs_rifle_off_support_scale                = 1.0;
+nosave float wm_hs_rifle_off_forend_ofs_x                 = 0.0;
+nosave float wm_hs_rifle_off_forend_ofs_y                 = 0.0;
+nosave float wm_hs_rifle_off_forend_ofs_z                 = 0.0;
+nosave float wm_hs_rifle_off_forend_yaw                   = -90.0;
+nosave float wm_hs_rifle_off_forend_pitch                 = -90.0;
+nosave float wm_hs_rifle_off_forend_roll                  = 0.0;
+nosave float wm_hs_rifle_off_forend_scale                 = 1.0;
+nosave float wm_hs_rifle_off_foregrip_ofs_x               = 0.0;
+nosave float wm_hs_rifle_off_foregrip_ofs_y               = 0.0;
+nosave float wm_hs_rifle_off_foregrip_ofs_z               = 0.0;
+nosave float wm_hs_rifle_off_foregrip_yaw                 = -90.0;
+nosave float wm_hs_rifle_off_foregrip_pitch               = -90.0;
+nosave float wm_hs_rifle_off_foregrip_roll                = 0.0;
+nosave float wm_hs_rifle_off_foregrip_scale               = 1.0;
+
+// ---- SMG -- from the pistol's slide and magazine (a bolt reads the slide seat)
+nosave float wm_hs_smg_main_slide_ofs_x                   = -9.6;
+nosave float wm_hs_smg_main_slide_ofs_y                   = 2.9;
+nosave float wm_hs_smg_main_slide_ofs_z                   = 1.1;
+nosave float wm_hs_smg_main_slide_yaw                     = -90.0;
+nosave float wm_hs_smg_main_slide_pitch                   = -90.0;
+nosave float wm_hs_smg_main_slide_roll                    = -180.0;
+nosave float wm_hs_smg_main_slide_scale                   = 1.0;
+nosave float wm_hs_smg_main_mag_ofs_x                     = 0.0;
+nosave float wm_hs_smg_main_mag_ofs_y                     = 0.0;
+nosave float wm_hs_smg_main_mag_ofs_z                     = -0.1;
+nosave float wm_hs_smg_main_mag_yaw                       = 0.0;
+nosave float wm_hs_smg_main_mag_pitch                     = 0.0;
+nosave float wm_hs_smg_main_mag_roll                      = 0.0;
+nosave float wm_hs_smg_main_mag_scale                     = 1.0;
+nosave float wm_hs_smg_main_support_ofs_x                 = 0.0;
+nosave float wm_hs_smg_main_support_ofs_y                 = 0.0;
+nosave float wm_hs_smg_main_support_ofs_z                 = 0.0;
+nosave float wm_hs_smg_main_support_yaw                   = 0.0;
+nosave float wm_hs_smg_main_support_pitch                 = 0.0;
+nosave float wm_hs_smg_main_support_roll                  = 0.0;
+nosave float wm_hs_smg_main_support_scale                 = 1.0;
+nosave float wm_hs_smg_main_forend_ofs_x                  = 0.0;
+nosave float wm_hs_smg_main_forend_ofs_y                  = 0.0;
+nosave float wm_hs_smg_main_forend_ofs_z                  = 0.0;
+nosave float wm_hs_smg_main_forend_yaw                    = -90.0;
+nosave float wm_hs_smg_main_forend_pitch                  = -90.0;
+nosave float wm_hs_smg_main_forend_roll                   = 0.0;
+nosave float wm_hs_smg_main_forend_scale                  = 1.0;
+nosave float wm_hs_smg_main_foregrip_ofs_x                = 0.0;
+nosave float wm_hs_smg_main_foregrip_ofs_y                = 0.0;
+nosave float wm_hs_smg_main_foregrip_ofs_z                = 0.0;
+nosave float wm_hs_smg_main_foregrip_yaw                  = -90.0;
+nosave float wm_hs_smg_main_foregrip_pitch                = -90.0;
+nosave float wm_hs_smg_main_foregrip_roll                 = 0.0;
+nosave float wm_hs_smg_main_foregrip_scale                = 1.0;
+
+nosave float wm_hs_smg_off_slide_ofs_x                    = 8.4;
+nosave float wm_hs_smg_off_slide_ofs_y                    = 4.4;
+nosave float wm_hs_smg_off_slide_ofs_z                    = 3.1;
+nosave float wm_hs_smg_off_slide_yaw                      = -90.0;
+nosave float wm_hs_smg_off_slide_pitch                    = -90.0;
+nosave float wm_hs_smg_off_slide_roll                     = 180.0;
+nosave float wm_hs_smg_off_slide_scale                    = 1.0;
+nosave float wm_hs_smg_off_mag_ofs_x                      = 0.0;
+nosave float wm_hs_smg_off_mag_ofs_y                      = 0.0;
+nosave float wm_hs_smg_off_mag_ofs_z                      = -0.1;
+nosave float wm_hs_smg_off_mag_yaw                        = 0.0;
+nosave float wm_hs_smg_off_mag_pitch                      = 0.0;
+nosave float wm_hs_smg_off_mag_roll                       = 0.0;
+nosave float wm_hs_smg_off_mag_scale                      = 1.0;
+nosave float wm_hs_smg_off_support_ofs_x                  = 0.0;
+nosave float wm_hs_smg_off_support_ofs_y                  = 0.0;
+nosave float wm_hs_smg_off_support_ofs_z                  = 0.0;
+nosave float wm_hs_smg_off_support_yaw                    = 0.0;
+nosave float wm_hs_smg_off_support_pitch                  = 0.0;
+nosave float wm_hs_smg_off_support_roll                   = 0.0;
+nosave float wm_hs_smg_off_support_scale                  = 1.0;
+nosave float wm_hs_smg_off_forend_ofs_x                   = 0.0;
+nosave float wm_hs_smg_off_forend_ofs_y                   = 0.0;
+nosave float wm_hs_smg_off_forend_ofs_z                   = 0.0;
+nosave float wm_hs_smg_off_forend_yaw                     = -90.0;
+nosave float wm_hs_smg_off_forend_pitch                   = -90.0;
+nosave float wm_hs_smg_off_forend_roll                    = 0.0;
+nosave float wm_hs_smg_off_forend_scale                   = 1.0;
+nosave float wm_hs_smg_off_foregrip_ofs_x                 = 0.0;
+nosave float wm_hs_smg_off_foregrip_ofs_y                 = 0.0;
+nosave float wm_hs_smg_off_foregrip_ofs_z                 = 0.0;
+nosave float wm_hs_smg_off_foregrip_yaw                   = -90.0;
+nosave float wm_hs_smg_off_foregrip_pitch                 = -90.0;
+nosave float wm_hs_smg_off_foregrip_roll                  = 0.0;
+nosave float wm_hs_smg_off_foregrip_scale                 = 1.0;
+
+// ---- CHAINGUN -- from the pistol's seats -- no gun of this type has been tuned yet
+nosave float wm_hs_chaingun_main_slide_ofs_x              = -9.6;
+nosave float wm_hs_chaingun_main_slide_ofs_y              = 2.9;
+nosave float wm_hs_chaingun_main_slide_ofs_z              = 1.1;
+nosave float wm_hs_chaingun_main_slide_yaw                = -90.0;
+nosave float wm_hs_chaingun_main_slide_pitch              = -90.0;
+nosave float wm_hs_chaingun_main_slide_roll               = -180.0;
+nosave float wm_hs_chaingun_main_slide_scale              = 1.0;
+nosave float wm_hs_chaingun_main_mag_ofs_x                = 0.0;
+nosave float wm_hs_chaingun_main_mag_ofs_y                = 0.0;
+nosave float wm_hs_chaingun_main_mag_ofs_z                = -0.1;
+nosave float wm_hs_chaingun_main_mag_yaw                  = 0.0;
+nosave float wm_hs_chaingun_main_mag_pitch                = 0.0;
+nosave float wm_hs_chaingun_main_mag_roll                 = 0.0;
+nosave float wm_hs_chaingun_main_mag_scale                = 1.0;
+nosave float wm_hs_chaingun_main_support_ofs_x            = 0.0;
+nosave float wm_hs_chaingun_main_support_ofs_y            = 0.0;
+nosave float wm_hs_chaingun_main_support_ofs_z            = 0.0;
+nosave float wm_hs_chaingun_main_support_yaw              = 0.0;
+nosave float wm_hs_chaingun_main_support_pitch            = 0.0;
+nosave float wm_hs_chaingun_main_support_roll             = 0.0;
+nosave float wm_hs_chaingun_main_support_scale            = 1.0;
+nosave float wm_hs_chaingun_main_forend_ofs_x             = 0.0;
+nosave float wm_hs_chaingun_main_forend_ofs_y             = 0.0;
+nosave float wm_hs_chaingun_main_forend_ofs_z             = 0.0;
+nosave float wm_hs_chaingun_main_forend_yaw               = -90.0;
+nosave float wm_hs_chaingun_main_forend_pitch             = -90.0;
+nosave float wm_hs_chaingun_main_forend_roll              = 0.0;
+nosave float wm_hs_chaingun_main_forend_scale             = 1.0;
+nosave float wm_hs_chaingun_main_foregrip_ofs_x           = 0.0;
+nosave float wm_hs_chaingun_main_foregrip_ofs_y           = 0.0;
+nosave float wm_hs_chaingun_main_foregrip_ofs_z           = 0.0;
+nosave float wm_hs_chaingun_main_foregrip_yaw             = -90.0;
+nosave float wm_hs_chaingun_main_foregrip_pitch           = -90.0;
+nosave float wm_hs_chaingun_main_foregrip_roll            = 0.0;
+nosave float wm_hs_chaingun_main_foregrip_scale           = 1.0;
+
+nosave float wm_hs_chaingun_off_slide_ofs_x               = 8.4;
+nosave float wm_hs_chaingun_off_slide_ofs_y               = 4.4;
+nosave float wm_hs_chaingun_off_slide_ofs_z               = 3.1;
+nosave float wm_hs_chaingun_off_slide_yaw                 = -90.0;
+nosave float wm_hs_chaingun_off_slide_pitch               = -90.0;
+nosave float wm_hs_chaingun_off_slide_roll                = 180.0;
+nosave float wm_hs_chaingun_off_slide_scale               = 1.0;
+nosave float wm_hs_chaingun_off_mag_ofs_x                 = 0.0;
+nosave float wm_hs_chaingun_off_mag_ofs_y                 = 0.0;
+nosave float wm_hs_chaingun_off_mag_ofs_z                 = -0.1;
+nosave float wm_hs_chaingun_off_mag_yaw                   = 0.0;
+nosave float wm_hs_chaingun_off_mag_pitch                 = 0.0;
+nosave float wm_hs_chaingun_off_mag_roll                  = 0.0;
+nosave float wm_hs_chaingun_off_mag_scale                 = 1.0;
+nosave float wm_hs_chaingun_off_support_ofs_x             = 0.0;
+nosave float wm_hs_chaingun_off_support_ofs_y             = 0.0;
+nosave float wm_hs_chaingun_off_support_ofs_z             = 0.0;
+nosave float wm_hs_chaingun_off_support_yaw               = 0.0;
+nosave float wm_hs_chaingun_off_support_pitch             = 0.0;
+nosave float wm_hs_chaingun_off_support_roll              = 0.0;
+nosave float wm_hs_chaingun_off_support_scale             = 1.0;
+nosave float wm_hs_chaingun_off_forend_ofs_x              = 0.0;
+nosave float wm_hs_chaingun_off_forend_ofs_y              = 0.0;
+nosave float wm_hs_chaingun_off_forend_ofs_z              = 0.0;
+nosave float wm_hs_chaingun_off_forend_yaw                = -90.0;
+nosave float wm_hs_chaingun_off_forend_pitch              = -90.0;
+nosave float wm_hs_chaingun_off_forend_roll               = 0.0;
+nosave float wm_hs_chaingun_off_forend_scale              = 1.0;
+nosave float wm_hs_chaingun_off_foregrip_ofs_x            = 0.0;
+nosave float wm_hs_chaingun_off_foregrip_ofs_y            = 0.0;
+nosave float wm_hs_chaingun_off_foregrip_ofs_z            = 0.0;
+nosave float wm_hs_chaingun_off_foregrip_yaw              = -90.0;
+nosave float wm_hs_chaingun_off_foregrip_pitch            = -90.0;
+nosave float wm_hs_chaingun_off_foregrip_roll             = 0.0;
+nosave float wm_hs_chaingun_off_foregrip_scale            = 1.0;
+
+// ---- PLASMA -- from the pistol's seats -- no gun of this type has been tuned yet
+nosave float wm_hs_plasma_main_slide_ofs_x                = -9.6;
+nosave float wm_hs_plasma_main_slide_ofs_y                = 2.9;
+nosave float wm_hs_plasma_main_slide_ofs_z                = 1.1;
+nosave float wm_hs_plasma_main_slide_yaw                  = -90.0;
+nosave float wm_hs_plasma_main_slide_pitch                = -90.0;
+nosave float wm_hs_plasma_main_slide_roll                 = -180.0;
+nosave float wm_hs_plasma_main_slide_scale                = 1.0;
+nosave float wm_hs_plasma_main_mag_ofs_x                  = 0.0;
+nosave float wm_hs_plasma_main_mag_ofs_y                  = 0.0;
+nosave float wm_hs_plasma_main_mag_ofs_z                  = -0.1;
+nosave float wm_hs_plasma_main_mag_yaw                    = 0.0;
+nosave float wm_hs_plasma_main_mag_pitch                  = 0.0;
+nosave float wm_hs_plasma_main_mag_roll                   = 0.0;
+nosave float wm_hs_plasma_main_mag_scale                  = 1.0;
+nosave float wm_hs_plasma_main_support_ofs_x              = 0.0;
+nosave float wm_hs_plasma_main_support_ofs_y              = 0.0;
+nosave float wm_hs_plasma_main_support_ofs_z              = 0.0;
+nosave float wm_hs_plasma_main_support_yaw                = 0.0;
+nosave float wm_hs_plasma_main_support_pitch              = 0.0;
+nosave float wm_hs_plasma_main_support_roll               = 0.0;
+nosave float wm_hs_plasma_main_support_scale              = 1.0;
+nosave float wm_hs_plasma_main_forend_ofs_x               = 0.0;
+nosave float wm_hs_plasma_main_forend_ofs_y               = 0.0;
+nosave float wm_hs_plasma_main_forend_ofs_z               = 0.0;
+nosave float wm_hs_plasma_main_forend_yaw                 = -90.0;
+nosave float wm_hs_plasma_main_forend_pitch               = -90.0;
+nosave float wm_hs_plasma_main_forend_roll                = 0.0;
+nosave float wm_hs_plasma_main_forend_scale               = 1.0;
+nosave float wm_hs_plasma_main_foregrip_ofs_x             = 0.0;
+nosave float wm_hs_plasma_main_foregrip_ofs_y             = 0.0;
+nosave float wm_hs_plasma_main_foregrip_ofs_z             = 0.0;
+nosave float wm_hs_plasma_main_foregrip_yaw               = -90.0;
+nosave float wm_hs_plasma_main_foregrip_pitch             = -90.0;
+nosave float wm_hs_plasma_main_foregrip_roll              = 0.0;
+nosave float wm_hs_plasma_main_foregrip_scale             = 1.0;
+
+nosave float wm_hs_plasma_off_slide_ofs_x                 = 8.4;
+nosave float wm_hs_plasma_off_slide_ofs_y                 = 4.4;
+nosave float wm_hs_plasma_off_slide_ofs_z                 = 3.1;
+nosave float wm_hs_plasma_off_slide_yaw                   = -90.0;
+nosave float wm_hs_plasma_off_slide_pitch                 = -90.0;
+nosave float wm_hs_plasma_off_slide_roll                  = 180.0;
+nosave float wm_hs_plasma_off_slide_scale                 = 1.0;
+nosave float wm_hs_plasma_off_mag_ofs_x                   = 0.0;
+nosave float wm_hs_plasma_off_mag_ofs_y                   = 0.0;
+nosave float wm_hs_plasma_off_mag_ofs_z                   = -0.1;
+nosave float wm_hs_plasma_off_mag_yaw                     = 0.0;
+nosave float wm_hs_plasma_off_mag_pitch                   = 0.0;
+nosave float wm_hs_plasma_off_mag_roll                    = 0.0;
+nosave float wm_hs_plasma_off_mag_scale                   = 1.0;
+nosave float wm_hs_plasma_off_support_ofs_x               = 0.0;
+nosave float wm_hs_plasma_off_support_ofs_y               = 0.0;
+nosave float wm_hs_plasma_off_support_ofs_z               = 0.0;
+nosave float wm_hs_plasma_off_support_yaw                 = 0.0;
+nosave float wm_hs_plasma_off_support_pitch               = 0.0;
+nosave float wm_hs_plasma_off_support_roll                = 0.0;
+nosave float wm_hs_plasma_off_support_scale               = 1.0;
+nosave float wm_hs_plasma_off_forend_ofs_x                = 0.0;
+nosave float wm_hs_plasma_off_forend_ofs_y                = 0.0;
+nosave float wm_hs_plasma_off_forend_ofs_z                = 0.0;
+nosave float wm_hs_plasma_off_forend_yaw                  = -90.0;
+nosave float wm_hs_plasma_off_forend_pitch                = -90.0;
+nosave float wm_hs_plasma_off_forend_roll                 = 0.0;
+nosave float wm_hs_plasma_off_forend_scale                = 1.0;
+nosave float wm_hs_plasma_off_foregrip_ofs_x              = 0.0;
+nosave float wm_hs_plasma_off_foregrip_ofs_y              = 0.0;
+nosave float wm_hs_plasma_off_foregrip_ofs_z              = 0.0;
+nosave float wm_hs_plasma_off_foregrip_yaw                = -90.0;
+nosave float wm_hs_plasma_off_foregrip_pitch              = -90.0;
+nosave float wm_hs_plasma_off_foregrip_roll               = 0.0;
+nosave float wm_hs_plasma_off_foregrip_scale              = 1.0;
+
+// ---- LAUNCHER -- from the pistol's seats -- no gun of this type has been tuned yet
+nosave float wm_hs_launcher_main_slide_ofs_x              = -9.6;
+nosave float wm_hs_launcher_main_slide_ofs_y              = 2.9;
+nosave float wm_hs_launcher_main_slide_ofs_z              = 1.1;
+nosave float wm_hs_launcher_main_slide_yaw                = -90.0;
+nosave float wm_hs_launcher_main_slide_pitch              = -90.0;
+nosave float wm_hs_launcher_main_slide_roll               = -180.0;
+nosave float wm_hs_launcher_main_slide_scale              = 1.0;
+nosave float wm_hs_launcher_main_mag_ofs_x                = 0.0;
+nosave float wm_hs_launcher_main_mag_ofs_y                = 0.0;
+nosave float wm_hs_launcher_main_mag_ofs_z                = -0.1;
+nosave float wm_hs_launcher_main_mag_yaw                  = 0.0;
+nosave float wm_hs_launcher_main_mag_pitch                = 0.0;
+nosave float wm_hs_launcher_main_mag_roll                 = 0.0;
+nosave float wm_hs_launcher_main_mag_scale                = 1.0;
+nosave float wm_hs_launcher_main_support_ofs_x            = 0.0;
+nosave float wm_hs_launcher_main_support_ofs_y            = 0.0;
+nosave float wm_hs_launcher_main_support_ofs_z            = 0.0;
+nosave float wm_hs_launcher_main_support_yaw              = 0.0;
+nosave float wm_hs_launcher_main_support_pitch            = 0.0;
+nosave float wm_hs_launcher_main_support_roll             = 0.0;
+nosave float wm_hs_launcher_main_support_scale            = 1.0;
+nosave float wm_hs_launcher_main_forend_ofs_x             = 0.0;
+nosave float wm_hs_launcher_main_forend_ofs_y             = 0.0;
+nosave float wm_hs_launcher_main_forend_ofs_z             = 0.0;
+nosave float wm_hs_launcher_main_forend_yaw               = -90.0;
+nosave float wm_hs_launcher_main_forend_pitch             = -90.0;
+nosave float wm_hs_launcher_main_forend_roll              = 0.0;
+nosave float wm_hs_launcher_main_forend_scale             = 1.0;
+nosave float wm_hs_launcher_main_foregrip_ofs_x           = 0.0;
+nosave float wm_hs_launcher_main_foregrip_ofs_y           = 0.0;
+nosave float wm_hs_launcher_main_foregrip_ofs_z           = 0.0;
+nosave float wm_hs_launcher_main_foregrip_yaw             = -90.0;
+nosave float wm_hs_launcher_main_foregrip_pitch           = -90.0;
+nosave float wm_hs_launcher_main_foregrip_roll            = 0.0;
+nosave float wm_hs_launcher_main_foregrip_scale           = 1.0;
+
+nosave float wm_hs_launcher_off_slide_ofs_x               = 8.4;
+nosave float wm_hs_launcher_off_slide_ofs_y               = 4.4;
+nosave float wm_hs_launcher_off_slide_ofs_z               = 3.1;
+nosave float wm_hs_launcher_off_slide_yaw                 = -90.0;
+nosave float wm_hs_launcher_off_slide_pitch               = -90.0;
+nosave float wm_hs_launcher_off_slide_roll                = 180.0;
+nosave float wm_hs_launcher_off_slide_scale               = 1.0;
+nosave float wm_hs_launcher_off_mag_ofs_x                 = 0.0;
+nosave float wm_hs_launcher_off_mag_ofs_y                 = 0.0;
+nosave float wm_hs_launcher_off_mag_ofs_z                 = -0.1;
+nosave float wm_hs_launcher_off_mag_yaw                   = 0.0;
+nosave float wm_hs_launcher_off_mag_pitch                 = 0.0;
+nosave float wm_hs_launcher_off_mag_roll                  = 0.0;
+nosave float wm_hs_launcher_off_mag_scale                 = 1.0;
+nosave float wm_hs_launcher_off_support_ofs_x             = 0.0;
+nosave float wm_hs_launcher_off_support_ofs_y             = 0.0;
+nosave float wm_hs_launcher_off_support_ofs_z             = 0.0;
+nosave float wm_hs_launcher_off_support_yaw               = 0.0;
+nosave float wm_hs_launcher_off_support_pitch             = 0.0;
+nosave float wm_hs_launcher_off_support_roll              = 0.0;
+nosave float wm_hs_launcher_off_support_scale             = 1.0;
+nosave float wm_hs_launcher_off_forend_ofs_x              = 0.0;
+nosave float wm_hs_launcher_off_forend_ofs_y              = 0.0;
+nosave float wm_hs_launcher_off_forend_ofs_z              = 0.0;
+nosave float wm_hs_launcher_off_forend_yaw                = -90.0;
+nosave float wm_hs_launcher_off_forend_pitch              = -90.0;
+nosave float wm_hs_launcher_off_forend_roll               = 0.0;
+nosave float wm_hs_launcher_off_forend_scale              = 1.0;
+nosave float wm_hs_launcher_off_foregrip_ofs_x            = 0.0;
+nosave float wm_hs_launcher_off_foregrip_ofs_y            = 0.0;
+nosave float wm_hs_launcher_off_foregrip_ofs_z            = 0.0;
+nosave float wm_hs_launcher_off_foregrip_yaw              = -90.0;
+nosave float wm_hs_launcher_off_foregrip_pitch            = -90.0;
+nosave float wm_hs_launcher_off_foregrip_roll             = 0.0;
+nosave float wm_hs_launcher_off_foregrip_scale            = 1.0;
+
+// ---- BFG -- from the pistol's seats -- no gun of this type has been tuned yet
+nosave float wm_hs_bfg_main_slide_ofs_x                   = -9.6;
+nosave float wm_hs_bfg_main_slide_ofs_y                   = 2.9;
+nosave float wm_hs_bfg_main_slide_ofs_z                   = 1.1;
+nosave float wm_hs_bfg_main_slide_yaw                     = -90.0;
+nosave float wm_hs_bfg_main_slide_pitch                   = -90.0;
+nosave float wm_hs_bfg_main_slide_roll                    = -180.0;
+nosave float wm_hs_bfg_main_slide_scale                   = 1.0;
+nosave float wm_hs_bfg_main_mag_ofs_x                     = 0.0;
+nosave float wm_hs_bfg_main_mag_ofs_y                     = 0.0;
+nosave float wm_hs_bfg_main_mag_ofs_z                     = -0.1;
+nosave float wm_hs_bfg_main_mag_yaw                       = 0.0;
+nosave float wm_hs_bfg_main_mag_pitch                     = 0.0;
+nosave float wm_hs_bfg_main_mag_roll                      = 0.0;
+nosave float wm_hs_bfg_main_mag_scale                     = 1.0;
+nosave float wm_hs_bfg_main_support_ofs_x                 = 0.0;
+nosave float wm_hs_bfg_main_support_ofs_y                 = 0.0;
+nosave float wm_hs_bfg_main_support_ofs_z                 = 0.0;
+nosave float wm_hs_bfg_main_support_yaw                   = 0.0;
+nosave float wm_hs_bfg_main_support_pitch                 = 0.0;
+nosave float wm_hs_bfg_main_support_roll                  = 0.0;
+nosave float wm_hs_bfg_main_support_scale                 = 1.0;
+nosave float wm_hs_bfg_main_forend_ofs_x                  = 0.0;
+nosave float wm_hs_bfg_main_forend_ofs_y                  = 0.0;
+nosave float wm_hs_bfg_main_forend_ofs_z                  = 0.0;
+nosave float wm_hs_bfg_main_forend_yaw                    = -90.0;
+nosave float wm_hs_bfg_main_forend_pitch                  = -90.0;
+nosave float wm_hs_bfg_main_forend_roll                   = 0.0;
+nosave float wm_hs_bfg_main_forend_scale                  = 1.0;
+nosave float wm_hs_bfg_main_foregrip_ofs_x                = 0.0;
+nosave float wm_hs_bfg_main_foregrip_ofs_y                = 0.0;
+nosave float wm_hs_bfg_main_foregrip_ofs_z                = 0.0;
+nosave float wm_hs_bfg_main_foregrip_yaw                  = -90.0;
+nosave float wm_hs_bfg_main_foregrip_pitch                = -90.0;
+nosave float wm_hs_bfg_main_foregrip_roll                 = 0.0;
+nosave float wm_hs_bfg_main_foregrip_scale                = 1.0;
+
+nosave float wm_hs_bfg_off_slide_ofs_x                    = 8.4;
+nosave float wm_hs_bfg_off_slide_ofs_y                    = 4.4;
+nosave float wm_hs_bfg_off_slide_ofs_z                    = 3.1;
+nosave float wm_hs_bfg_off_slide_yaw                      = -90.0;
+nosave float wm_hs_bfg_off_slide_pitch                    = -90.0;
+nosave float wm_hs_bfg_off_slide_roll                     = 180.0;
+nosave float wm_hs_bfg_off_slide_scale                    = 1.0;
+nosave float wm_hs_bfg_off_mag_ofs_x                      = 0.0;
+nosave float wm_hs_bfg_off_mag_ofs_y                      = 0.0;
+nosave float wm_hs_bfg_off_mag_ofs_z                      = -0.1;
+nosave float wm_hs_bfg_off_mag_yaw                        = 0.0;
+nosave float wm_hs_bfg_off_mag_pitch                      = 0.0;
+nosave float wm_hs_bfg_off_mag_roll                       = 0.0;
+nosave float wm_hs_bfg_off_mag_scale                      = 1.0;
+nosave float wm_hs_bfg_off_support_ofs_x                  = 0.0;
+nosave float wm_hs_bfg_off_support_ofs_y                  = 0.0;
+nosave float wm_hs_bfg_off_support_ofs_z                  = 0.0;
+nosave float wm_hs_bfg_off_support_yaw                    = 0.0;
+nosave float wm_hs_bfg_off_support_pitch                  = 0.0;
+nosave float wm_hs_bfg_off_support_roll                   = 0.0;
+nosave float wm_hs_bfg_off_support_scale                  = 1.0;
+nosave float wm_hs_bfg_off_forend_ofs_x                   = 0.0;
+nosave float wm_hs_bfg_off_forend_ofs_y                   = 0.0;
+nosave float wm_hs_bfg_off_forend_ofs_z                   = 0.0;
+nosave float wm_hs_bfg_off_forend_yaw                     = -90.0;
+nosave float wm_hs_bfg_off_forend_pitch                   = -90.0;
+nosave float wm_hs_bfg_off_forend_roll                    = 0.0;
+nosave float wm_hs_bfg_off_forend_scale                   = 1.0;
+nosave float wm_hs_bfg_off_foregrip_ofs_x                 = 0.0;
+nosave float wm_hs_bfg_off_foregrip_ofs_y                 = 0.0;
+nosave float wm_hs_bfg_off_foregrip_ofs_z                 = 0.0;
+nosave float wm_hs_bfg_off_foregrip_yaw                   = -90.0;
+nosave float wm_hs_bfg_off_foregrip_pitch                 = -90.0;
+nosave float wm_hs_bfg_off_foregrip_roll                  = 0.0;
+nosave float wm_hs_bfg_off_foregrip_scale                 = 1.0;
+
+// ---- RAILGUN -- from the pistol's seats -- no gun of this type has been tuned yet
+nosave float wm_hs_railgun_main_slide_ofs_x               = -9.6;
+nosave float wm_hs_railgun_main_slide_ofs_y               = 2.9;
+nosave float wm_hs_railgun_main_slide_ofs_z               = 1.1;
+nosave float wm_hs_railgun_main_slide_yaw                 = -90.0;
+nosave float wm_hs_railgun_main_slide_pitch               = -90.0;
+nosave float wm_hs_railgun_main_slide_roll                = -180.0;
+nosave float wm_hs_railgun_main_slide_scale               = 1.0;
+nosave float wm_hs_railgun_main_mag_ofs_x                 = 0.0;
+nosave float wm_hs_railgun_main_mag_ofs_y                 = 0.0;
+nosave float wm_hs_railgun_main_mag_ofs_z                 = -0.1;
+nosave float wm_hs_railgun_main_mag_yaw                   = 0.0;
+nosave float wm_hs_railgun_main_mag_pitch                 = 0.0;
+nosave float wm_hs_railgun_main_mag_roll                  = 0.0;
+nosave float wm_hs_railgun_main_mag_scale                 = 1.0;
+nosave float wm_hs_railgun_main_support_ofs_x             = 0.0;
+nosave float wm_hs_railgun_main_support_ofs_y             = 0.0;
+nosave float wm_hs_railgun_main_support_ofs_z             = 0.0;
+nosave float wm_hs_railgun_main_support_yaw               = 0.0;
+nosave float wm_hs_railgun_main_support_pitch             = 0.0;
+nosave float wm_hs_railgun_main_support_roll              = 0.0;
+nosave float wm_hs_railgun_main_support_scale             = 1.0;
+nosave float wm_hs_railgun_main_forend_ofs_x              = 0.0;
+nosave float wm_hs_railgun_main_forend_ofs_y              = 0.0;
+nosave float wm_hs_railgun_main_forend_ofs_z              = 0.0;
+nosave float wm_hs_railgun_main_forend_yaw                = -90.0;
+nosave float wm_hs_railgun_main_forend_pitch              = -90.0;
+nosave float wm_hs_railgun_main_forend_roll               = 0.0;
+nosave float wm_hs_railgun_main_forend_scale              = 1.0;
+nosave float wm_hs_railgun_main_foregrip_ofs_x            = 0.0;
+nosave float wm_hs_railgun_main_foregrip_ofs_y            = 0.0;
+nosave float wm_hs_railgun_main_foregrip_ofs_z            = 0.0;
+nosave float wm_hs_railgun_main_foregrip_yaw              = -90.0;
+nosave float wm_hs_railgun_main_foregrip_pitch            = -90.0;
+nosave float wm_hs_railgun_main_foregrip_roll             = 0.0;
+nosave float wm_hs_railgun_main_foregrip_scale            = 1.0;
+
+nosave float wm_hs_railgun_off_slide_ofs_x                = 8.4;
+nosave float wm_hs_railgun_off_slide_ofs_y                = 4.4;
+nosave float wm_hs_railgun_off_slide_ofs_z                = 3.1;
+nosave float wm_hs_railgun_off_slide_yaw                  = -90.0;
+nosave float wm_hs_railgun_off_slide_pitch                = -90.0;
+nosave float wm_hs_railgun_off_slide_roll                 = 180.0;
+nosave float wm_hs_railgun_off_slide_scale                = 1.0;
+nosave float wm_hs_railgun_off_mag_ofs_x                  = 0.0;
+nosave float wm_hs_railgun_off_mag_ofs_y                  = 0.0;
+nosave float wm_hs_railgun_off_mag_ofs_z                  = -0.1;
+nosave float wm_hs_railgun_off_mag_yaw                    = 0.0;
+nosave float wm_hs_railgun_off_mag_pitch                  = 0.0;
+nosave float wm_hs_railgun_off_mag_roll                   = 0.0;
+nosave float wm_hs_railgun_off_mag_scale                  = 1.0;
+nosave float wm_hs_railgun_off_support_ofs_x              = 0.0;
+nosave float wm_hs_railgun_off_support_ofs_y              = 0.0;
+nosave float wm_hs_railgun_off_support_ofs_z              = 0.0;
+nosave float wm_hs_railgun_off_support_yaw                = 0.0;
+nosave float wm_hs_railgun_off_support_pitch              = 0.0;
+nosave float wm_hs_railgun_off_support_roll               = 0.0;
+nosave float wm_hs_railgun_off_support_scale              = 1.0;
+nosave float wm_hs_railgun_off_forend_ofs_x               = 0.0;
+nosave float wm_hs_railgun_off_forend_ofs_y               = 0.0;
+nosave float wm_hs_railgun_off_forend_ofs_z               = 0.0;
+nosave float wm_hs_railgun_off_forend_yaw                 = -90.0;
+nosave float wm_hs_railgun_off_forend_pitch               = -90.0;
+nosave float wm_hs_railgun_off_forend_roll                = 0.0;
+nosave float wm_hs_railgun_off_forend_scale               = 1.0;
+nosave float wm_hs_railgun_off_foregrip_ofs_x             = 0.0;
+nosave float wm_hs_railgun_off_foregrip_ofs_y             = 0.0;
+nosave float wm_hs_railgun_off_foregrip_ofs_z             = 0.0;
+nosave float wm_hs_railgun_off_foregrip_yaw               = -90.0;
+nosave float wm_hs_railgun_off_foregrip_pitch             = -90.0;
+nosave float wm_hs_railgun_off_foregrip_roll              = 0.0;
+nosave float wm_hs_railgun_off_foregrip_scale             = 1.0;
+
+// ---- FLAMETHROWER -- from the pistol's seats -- no gun of this type has been tuned yet
+nosave float wm_hs_flamethrower_main_slide_ofs_x          = -9.6;
+nosave float wm_hs_flamethrower_main_slide_ofs_y          = 2.9;
+nosave float wm_hs_flamethrower_main_slide_ofs_z          = 1.1;
+nosave float wm_hs_flamethrower_main_slide_yaw            = -90.0;
+nosave float wm_hs_flamethrower_main_slide_pitch          = -90.0;
+nosave float wm_hs_flamethrower_main_slide_roll           = -180.0;
+nosave float wm_hs_flamethrower_main_slide_scale          = 1.0;
+nosave float wm_hs_flamethrower_main_mag_ofs_x            = 0.0;
+nosave float wm_hs_flamethrower_main_mag_ofs_y            = 0.0;
+nosave float wm_hs_flamethrower_main_mag_ofs_z            = -0.1;
+nosave float wm_hs_flamethrower_main_mag_yaw              = 0.0;
+nosave float wm_hs_flamethrower_main_mag_pitch            = 0.0;
+nosave float wm_hs_flamethrower_main_mag_roll             = 0.0;
+nosave float wm_hs_flamethrower_main_mag_scale            = 1.0;
+nosave float wm_hs_flamethrower_main_support_ofs_x        = 0.0;
+nosave float wm_hs_flamethrower_main_support_ofs_y        = 0.0;
+nosave float wm_hs_flamethrower_main_support_ofs_z        = 0.0;
+nosave float wm_hs_flamethrower_main_support_yaw          = 0.0;
+nosave float wm_hs_flamethrower_main_support_pitch        = 0.0;
+nosave float wm_hs_flamethrower_main_support_roll         = 0.0;
+nosave float wm_hs_flamethrower_main_support_scale        = 1.0;
+nosave float wm_hs_flamethrower_main_forend_ofs_x         = 0.0;
+nosave float wm_hs_flamethrower_main_forend_ofs_y         = 0.0;
+nosave float wm_hs_flamethrower_main_forend_ofs_z         = 0.0;
+nosave float wm_hs_flamethrower_main_forend_yaw           = -90.0;
+nosave float wm_hs_flamethrower_main_forend_pitch         = -90.0;
+nosave float wm_hs_flamethrower_main_forend_roll          = 0.0;
+nosave float wm_hs_flamethrower_main_forend_scale         = 1.0;
+nosave float wm_hs_flamethrower_main_foregrip_ofs_x       = 0.0;
+nosave float wm_hs_flamethrower_main_foregrip_ofs_y       = 0.0;
+nosave float wm_hs_flamethrower_main_foregrip_ofs_z       = 0.0;
+nosave float wm_hs_flamethrower_main_foregrip_yaw         = -90.0;
+nosave float wm_hs_flamethrower_main_foregrip_pitch       = -90.0;
+nosave float wm_hs_flamethrower_main_foregrip_roll        = 0.0;
+nosave float wm_hs_flamethrower_main_foregrip_scale       = 1.0;
+
+nosave float wm_hs_flamethrower_off_slide_ofs_x           = 8.4;
+nosave float wm_hs_flamethrower_off_slide_ofs_y           = 4.4;
+nosave float wm_hs_flamethrower_off_slide_ofs_z           = 3.1;
+nosave float wm_hs_flamethrower_off_slide_yaw             = -90.0;
+nosave float wm_hs_flamethrower_off_slide_pitch           = -90.0;
+nosave float wm_hs_flamethrower_off_slide_roll            = 180.0;
+nosave float wm_hs_flamethrower_off_slide_scale           = 1.0;
+nosave float wm_hs_flamethrower_off_mag_ofs_x             = 0.0;
+nosave float wm_hs_flamethrower_off_mag_ofs_y             = 0.0;
+nosave float wm_hs_flamethrower_off_mag_ofs_z             = -0.1;
+nosave float wm_hs_flamethrower_off_mag_yaw               = 0.0;
+nosave float wm_hs_flamethrower_off_mag_pitch             = 0.0;
+nosave float wm_hs_flamethrower_off_mag_roll              = 0.0;
+nosave float wm_hs_flamethrower_off_mag_scale             = 1.0;
+nosave float wm_hs_flamethrower_off_support_ofs_x         = 0.0;
+nosave float wm_hs_flamethrower_off_support_ofs_y         = 0.0;
+nosave float wm_hs_flamethrower_off_support_ofs_z         = 0.0;
+nosave float wm_hs_flamethrower_off_support_yaw           = 0.0;
+nosave float wm_hs_flamethrower_off_support_pitch         = 0.0;
+nosave float wm_hs_flamethrower_off_support_roll          = 0.0;
+nosave float wm_hs_flamethrower_off_support_scale         = 1.0;
+nosave float wm_hs_flamethrower_off_forend_ofs_x          = 0.0;
+nosave float wm_hs_flamethrower_off_forend_ofs_y          = 0.0;
+nosave float wm_hs_flamethrower_off_forend_ofs_z          = 0.0;
+nosave float wm_hs_flamethrower_off_forend_yaw            = -90.0;
+nosave float wm_hs_flamethrower_off_forend_pitch          = -90.0;
+nosave float wm_hs_flamethrower_off_forend_roll           = 0.0;
+nosave float wm_hs_flamethrower_off_forend_scale          = 1.0;
+nosave float wm_hs_flamethrower_off_foregrip_ofs_x        = 0.0;
+nosave float wm_hs_flamethrower_off_foregrip_ofs_y        = 0.0;
+nosave float wm_hs_flamethrower_off_foregrip_ofs_z        = 0.0;
+nosave float wm_hs_flamethrower_off_foregrip_yaw          = -90.0;
+nosave float wm_hs_flamethrower_off_foregrip_pitch        = -90.0;
+nosave float wm_hs_flamethrower_off_foregrip_roll         = 0.0;
+nosave float wm_hs_flamethrower_off_foregrip_scale        = 1.0;
+
+// ---- CHAINSAW -- from the pistol's seats -- no gun of this type has been tuned yet
+nosave float wm_hs_chainsaw_main_slide_ofs_x              = -9.6;
+nosave float wm_hs_chainsaw_main_slide_ofs_y              = 2.9;
+nosave float wm_hs_chainsaw_main_slide_ofs_z              = 1.1;
+nosave float wm_hs_chainsaw_main_slide_yaw                = -90.0;
+nosave float wm_hs_chainsaw_main_slide_pitch              = -90.0;
+nosave float wm_hs_chainsaw_main_slide_roll               = -180.0;
+nosave float wm_hs_chainsaw_main_slide_scale              = 1.0;
+nosave float wm_hs_chainsaw_main_mag_ofs_x                = 0.0;
+nosave float wm_hs_chainsaw_main_mag_ofs_y                = 0.0;
+nosave float wm_hs_chainsaw_main_mag_ofs_z                = -0.1;
+nosave float wm_hs_chainsaw_main_mag_yaw                  = 0.0;
+nosave float wm_hs_chainsaw_main_mag_pitch                = 0.0;
+nosave float wm_hs_chainsaw_main_mag_roll                 = 0.0;
+nosave float wm_hs_chainsaw_main_mag_scale                = 1.0;
+nosave float wm_hs_chainsaw_main_support_ofs_x            = 0.0;
+nosave float wm_hs_chainsaw_main_support_ofs_y            = 0.0;
+nosave float wm_hs_chainsaw_main_support_ofs_z            = 0.0;
+nosave float wm_hs_chainsaw_main_support_yaw              = 0.0;
+nosave float wm_hs_chainsaw_main_support_pitch            = 0.0;
+nosave float wm_hs_chainsaw_main_support_roll             = 0.0;
+nosave float wm_hs_chainsaw_main_support_scale            = 1.0;
+nosave float wm_hs_chainsaw_main_forend_ofs_x             = 0.0;
+nosave float wm_hs_chainsaw_main_forend_ofs_y             = 0.0;
+nosave float wm_hs_chainsaw_main_forend_ofs_z             = 0.0;
+nosave float wm_hs_chainsaw_main_forend_yaw               = -90.0;
+nosave float wm_hs_chainsaw_main_forend_pitch             = -90.0;
+nosave float wm_hs_chainsaw_main_forend_roll              = 0.0;
+nosave float wm_hs_chainsaw_main_forend_scale             = 1.0;
+nosave float wm_hs_chainsaw_main_foregrip_ofs_x           = 0.0;
+nosave float wm_hs_chainsaw_main_foregrip_ofs_y           = 0.0;
+nosave float wm_hs_chainsaw_main_foregrip_ofs_z           = 0.0;
+nosave float wm_hs_chainsaw_main_foregrip_yaw             = -90.0;
+nosave float wm_hs_chainsaw_main_foregrip_pitch           = -90.0;
+nosave float wm_hs_chainsaw_main_foregrip_roll            = 0.0;
+nosave float wm_hs_chainsaw_main_foregrip_scale           = 1.0;
+
+nosave float wm_hs_chainsaw_off_slide_ofs_x               = 8.4;
+nosave float wm_hs_chainsaw_off_slide_ofs_y               = 4.4;
+nosave float wm_hs_chainsaw_off_slide_ofs_z               = 3.1;
+nosave float wm_hs_chainsaw_off_slide_yaw                 = -90.0;
+nosave float wm_hs_chainsaw_off_slide_pitch               = -90.0;
+nosave float wm_hs_chainsaw_off_slide_roll                = 180.0;
+nosave float wm_hs_chainsaw_off_slide_scale               = 1.0;
+nosave float wm_hs_chainsaw_off_mag_ofs_x                 = 0.0;
+nosave float wm_hs_chainsaw_off_mag_ofs_y                 = 0.0;
+nosave float wm_hs_chainsaw_off_mag_ofs_z                 = -0.1;
+nosave float wm_hs_chainsaw_off_mag_yaw                   = 0.0;
+nosave float wm_hs_chainsaw_off_mag_pitch                 = 0.0;
+nosave float wm_hs_chainsaw_off_mag_roll                  = 0.0;
+nosave float wm_hs_chainsaw_off_mag_scale                 = 1.0;
+nosave float wm_hs_chainsaw_off_support_ofs_x             = 0.0;
+nosave float wm_hs_chainsaw_off_support_ofs_y             = 0.0;
+nosave float wm_hs_chainsaw_off_support_ofs_z             = 0.0;
+nosave float wm_hs_chainsaw_off_support_yaw               = 0.0;
+nosave float wm_hs_chainsaw_off_support_pitch             = 0.0;
+nosave float wm_hs_chainsaw_off_support_roll              = 0.0;
+nosave float wm_hs_chainsaw_off_support_scale             = 1.0;
+nosave float wm_hs_chainsaw_off_forend_ofs_x              = 0.0;
+nosave float wm_hs_chainsaw_off_forend_ofs_y              = 0.0;
+nosave float wm_hs_chainsaw_off_forend_ofs_z              = 0.0;
+nosave float wm_hs_chainsaw_off_forend_yaw                = -90.0;
+nosave float wm_hs_chainsaw_off_forend_pitch              = -90.0;
+nosave float wm_hs_chainsaw_off_forend_roll               = 0.0;
+nosave float wm_hs_chainsaw_off_forend_scale              = 1.0;
+nosave float wm_hs_chainsaw_off_foregrip_ofs_x            = 0.0;
+nosave float wm_hs_chainsaw_off_foregrip_ofs_y            = 0.0;
+nosave float wm_hs_chainsaw_off_foregrip_ofs_z            = 0.0;
+nosave float wm_hs_chainsaw_off_foregrip_yaw              = -90.0;
+nosave float wm_hs_chainsaw_off_foregrip_pitch            = -90.0;
+nosave float wm_hs_chainsaw_off_foregrip_roll             = 0.0;
+nosave float wm_hs_chainsaw_off_foregrip_scale            = 1.0;
+
+// A GUN WITH NO TYPE READS: 0 its own seats (wm_hs_default_*), or a type's, counted as
+// MENUDEF's WMHandProfiles lists them -- 1 pistol, 2 shotgun, 3 breakaction, 4 revolver,
+// 5 rifle, 6 smg, 7 chaingun, 8 plasma, 9 launcher, 10 bfg, 11 railgun, 12 flamethrower,
+// 13 chainsaw. Script, read as a hand is seated: a selector, not a slider.
+nosave int wm_hs_uncalibrated = 0;
+
+// THE GUN IN EACH HAND AND THE PROFILE ITS HANDS READ, written by the game every tic it
+// changes, for the hand-seat pages to show (handprofile.zs). Never saved.
+nosave noarchive string wm_hs_now_main = "";
+nosave noarchive string wm_hs_now_off  = "";
+
+// ---- DEPRECATED 2026-09-13: THE OLD PER-HAND SEATS, SHARED BY EVERY GUN ---------
+// READ BY NOTHING. Still declared, with their old defaults, so the values doomxr.ini
+// saved under these names load without a word and stay in the ini: they are the
+// record of what was tuned before the seats went per kind of gun. Every live seat is
+// wm_hs_* above.
+user float wm_main_slide_ofs_x = -9.6;
+user float wm_main_slide_ofs_y = 2.9;
+user float wm_main_slide_ofs_z = 1.1;
+user float wm_main_slide_yaw   = -90.0;
+user float wm_main_slide_pitch = -90.0;
+user float wm_main_slide_roll  = -180.0;
+user float wm_main_slide_scale = 1.0;
+user float wm_main_mag_ofs_x = 0.0;
+user float wm_main_mag_ofs_y = 0.0;
+user float wm_main_mag_ofs_z = -0.1;
+user float wm_main_mag_yaw   = 0.0;
+user float wm_main_mag_pitch = 0.0;
+user float wm_main_mag_roll  = 0.0;
+user float wm_main_mag_scale = 1.0;
+user float wm_main_support_ofs_x = 0.0;
+user float wm_main_support_ofs_y = 0.0;
+user float wm_main_support_ofs_z = 0.0;
+user float wm_main_support_yaw   = 0.0;
+user float wm_main_support_pitch = 0.0;
+user float wm_main_support_roll  = 0.0;
+user float wm_main_support_scale = 1.0;
+user float wm_off_slide_ofs_x = 8.4;
+user float wm_off_slide_ofs_y = 4.4;
+user float wm_off_slide_ofs_z = 3.1;
+user float wm_off_slide_yaw   = -90.0;
+user float wm_off_slide_pitch = -90.0;
+user float wm_off_slide_roll  = 180.0;
+user float wm_off_slide_scale = 1.0;
+user float wm_off_mag_ofs_x = 0.0;
+user float wm_off_mag_ofs_y = 0.0;
+user float wm_off_mag_ofs_z = -0.1;
+user float wm_off_mag_yaw   = 0.0;
+user float wm_off_mag_pitch = 0.0;
+user float wm_off_mag_roll  = 0.0;
+user float wm_off_mag_scale = 1.0;
+user float wm_off_support_ofs_x = 0.0;
+user float wm_off_support_ofs_y = 0.0;
+user float wm_off_support_ofs_z = 0.0;
+user float wm_off_support_yaw   = 0.0;
+user float wm_off_support_pitch = 0.0;
+user float wm_off_support_roll  = 0.0;
+user float wm_off_support_scale = 1.0;
+user float wm_main_forend_ofs_x = 0.0;
+user float wm_main_forend_ofs_y = 0.0;
+user float wm_main_forend_ofs_z = 0.0;
+user float wm_main_forend_yaw   = -90.0;
+user float wm_main_forend_pitch = -90.0;
+user float wm_main_forend_roll  = 0.0;
+user float wm_main_forend_scale = 1.0;
+user float wm_off_forend_ofs_x = 0.0;
+user float wm_off_forend_ofs_y = 0.0;
+user float wm_off_forend_ofs_z = 0.0;
+user float wm_off_forend_yaw   = -90.0;
+user float wm_off_forend_pitch = -90.0;
+user float wm_off_forend_roll  = 0.0;
+user float wm_off_forend_scale = 1.0;
+user float wm_main_foregrip_ofs_x = 0.0;
+user float wm_main_foregrip_ofs_y = 0.0;
+user float wm_main_foregrip_ofs_z = 0.0;
+user float wm_main_foregrip_yaw   = -90.0;
+user float wm_main_foregrip_pitch = -90.0;
+user float wm_main_foregrip_roll  = 0.0;
+user float wm_main_foregrip_scale = 1.0;
+user float wm_off_foregrip_ofs_x = 0.0;
+user float wm_off_foregrip_ofs_y = 0.0;
+user float wm_off_foregrip_ofs_z = 0.0;
+user float wm_off_foregrip_yaw   = -90.0;
+user float wm_off_foregrip_pitch = -90.0;
+user float wm_off_foregrip_roll  = 0.0;
+user float wm_off_foregrip_scale = 1.0;
+
+// RENAMED from wm_pin_hand on 2026-09-12. A saved setting outranks a default
+// forever, and the old one had been switched off by accident while tuning --
+// so the lock read as broken. A new name starts on.
+user bool  wm_hand_lock = true;
+
+// A GRAB NEEDS THE HAND TURNED FOR IT: palm onto the slide (down) or under the
+// magazine or pump (up), not sideways the way a hand grips its own gun -- so two
+// guns fired close together never start working each other. wm_palm_cos is how
+// square the palm must be: 1.0 exactly, 0.5 within 60 degrees, 0 off.
+user bool  wm_palm_gate = true;
+user float wm_palm_cos  = 0.5;
+
+// ---- DEPRECATED 2026-09-13: THE OLD SHARED MAGAZINE / ROUND SETS ----------------
+// One set for every gun. Declared only so the values doomxr.ini saved under them load
+// without complaint; nothing reads them. The per-kind sets follow them (FEEL_PLAN row 3).
+user float wm_heldmag_main_ofs_x = 1.0;
+user float wm_heldmag_main_ofs_y = 2.0;
+user float wm_heldmag_main_ofs_z = -2.5;
+user float wm_heldmag_main_yaw   = 75.0;
+user float wm_heldmag_main_pitch = 15.0;
+user float wm_heldmag_main_roll  = 0.0;
+user float wm_heldmag_main_scale = 1.0;
+
+user float wm_heldmag_off_ofs_x = -1.0;
+user float wm_heldmag_off_ofs_y = 2.0;
+user float wm_heldmag_off_ofs_z = -2.5;
+user float wm_heldmag_off_yaw   = -75.0;
+user float wm_heldmag_off_pitch = 15.0;
+user float wm_heldmag_off_roll  = 0.0;
+user float wm_heldmag_off_scale = 1.0;
+
+user float wm_heldround_main_ofs_x = 0.0;
+user float wm_heldround_main_ofs_y = 0.0;
+user float wm_heldround_main_ofs_z = 0.0;
+user float wm_heldround_main_yaw   = 0.0;
+user float wm_heldround_main_pitch = 0.0;
+user float wm_heldround_main_roll  = 0.0;
+user float wm_heldround_main_scale = 1.0;
+
+user float wm_heldround_off_ofs_x = 0.0;
+user float wm_heldround_off_ofs_y = 0.0;
+user float wm_heldround_off_ofs_z = 0.0;
+user float wm_heldround_off_yaw   = 0.0;
+user float wm_heldround_off_pitch = 0.0;
+user float wm_heldround_off_roll  = 0.0;
+user float wm_heldround_off_scale = 1.0;
+
+user float wm_dropmag_ofs_x = 0.0;
+user float wm_dropmag_ofs_y = 0.0;
+user float wm_dropmag_ofs_z = 0.0;
+user float wm_dropmag_yaw   = 0.0;
+user float wm_dropmag_pitch = 0.0;
+user float wm_dropmag_roll  = 0.0;
+user float wm_dropmag_scale = 1.0;
+
+user float wm_dropround_ofs_x = 0.0;
+user float wm_dropround_ofs_y = 0.0;
+user float wm_dropround_ofs_z = 0.0;
+user float wm_dropround_yaw   = 0.0;
+user float wm_dropround_pitch = 0.0;
+user float wm_dropround_roll  = 0.0;
+user float wm_dropround_scale = 1.0;
+
+// ---- A MAGAZINE / ROUND IN YOUR HAND, AND ON THE FLOOR, PER KIND OF GUN (renderer) ----
+//
+// FEEL_PLAN row 3. wm_ha_<profile>_<slot>: profile a gun type (handprofile.zs), or a card's
+// own handprofile where a weapon package declares one; slot main_mag, off_mag, main_round,
+// off_round (the hand HOLDING it), floor_mag, floor_round. A magazine or round reads its own
+// gun's sets (WM_HandProfile.AmmoPrefix), so tuning a revolver's speedloader never moves a
+// pistol's magazine. NOSAVE, as the hand seats are: config only, never userinfo.
+
+// default
+nosave float wm_ha_default_main_mag_ofs_x           = 1.0;
+nosave float wm_ha_default_main_mag_ofs_y           = 2.0;
+nosave float wm_ha_default_main_mag_ofs_z           = -2.5;
+nosave float wm_ha_default_main_mag_yaw             = 75.0;
+nosave float wm_ha_default_main_mag_pitch           = 15.0;
+nosave float wm_ha_default_main_mag_roll            = 0.0;
+nosave float wm_ha_default_main_mag_scale           = 1.0;
+nosave float wm_ha_default_off_mag_ofs_x            = -1.0;
+nosave float wm_ha_default_off_mag_ofs_y            = 2.0;
+nosave float wm_ha_default_off_mag_ofs_z            = -2.5;
+nosave float wm_ha_default_off_mag_yaw              = -75.0;
+nosave float wm_ha_default_off_mag_pitch            = 15.0;
+nosave float wm_ha_default_off_mag_roll             = 0.0;
+nosave float wm_ha_default_off_mag_scale            = 1.0;
+nosave float wm_ha_default_main_round_ofs_x         = 0.0;
+nosave float wm_ha_default_main_round_ofs_y         = 0.0;
+nosave float wm_ha_default_main_round_ofs_z         = 0.0;
+nosave float wm_ha_default_main_round_yaw           = 0.0;
+nosave float wm_ha_default_main_round_pitch         = 0.0;
+nosave float wm_ha_default_main_round_roll          = 0.0;
+nosave float wm_ha_default_main_round_scale         = 1.0;
+nosave float wm_ha_default_off_round_ofs_x          = 0.0;
+nosave float wm_ha_default_off_round_ofs_y          = 0.0;
+nosave float wm_ha_default_off_round_ofs_z          = 0.0;
+nosave float wm_ha_default_off_round_yaw            = 0.0;
+nosave float wm_ha_default_off_round_pitch          = 0.0;
+nosave float wm_ha_default_off_round_roll           = 0.0;
+nosave float wm_ha_default_off_round_scale          = 1.0;
+nosave float wm_ha_default_floor_mag_ofs_x          = 0.0;
+nosave float wm_ha_default_floor_mag_ofs_y          = 0.0;
+nosave float wm_ha_default_floor_mag_ofs_z          = 0.0;
+nosave float wm_ha_default_floor_mag_yaw            = 0.0;
+nosave float wm_ha_default_floor_mag_pitch          = 0.0;
+nosave float wm_ha_default_floor_mag_roll           = 0.0;
+nosave float wm_ha_default_floor_mag_scale          = 1.0;
+nosave float wm_ha_default_floor_round_ofs_x        = 0.0;
+nosave float wm_ha_default_floor_round_ofs_y        = 0.0;
+nosave float wm_ha_default_floor_round_ofs_z        = 0.0;
+nosave float wm_ha_default_floor_round_yaw          = 0.0;
+nosave float wm_ha_default_floor_round_pitch        = 0.0;
+nosave float wm_ha_default_floor_round_roll         = 0.0;
+nosave float wm_ha_default_floor_round_scale        = 1.0;
+
+// pistol
+nosave float wm_ha_pistol_main_mag_ofs_x            = 1.0;
+nosave float wm_ha_pistol_main_mag_ofs_y            = 2.0;
+nosave float wm_ha_pistol_main_mag_ofs_z            = -2.5;
+nosave float wm_ha_pistol_main_mag_yaw              = 75.0;
+nosave float wm_ha_pistol_main_mag_pitch            = 15.0;
+nosave float wm_ha_pistol_main_mag_roll             = 0.0;
+nosave float wm_ha_pistol_main_mag_scale            = 1.0;
+nosave float wm_ha_pistol_off_mag_ofs_x             = -1.0;
+nosave float wm_ha_pistol_off_mag_ofs_y             = 2.0;
+nosave float wm_ha_pistol_off_mag_ofs_z             = -2.5;
+nosave float wm_ha_pistol_off_mag_yaw               = -75.0;
+nosave float wm_ha_pistol_off_mag_pitch             = 15.0;
+nosave float wm_ha_pistol_off_mag_roll              = 0.0;
+nosave float wm_ha_pistol_off_mag_scale             = 1.0;
+nosave float wm_ha_pistol_main_round_ofs_x          = 0.0;
+nosave float wm_ha_pistol_main_round_ofs_y          = 0.0;
+nosave float wm_ha_pistol_main_round_ofs_z          = 0.0;
+nosave float wm_ha_pistol_main_round_yaw            = 0.0;
+nosave float wm_ha_pistol_main_round_pitch          = 0.0;
+nosave float wm_ha_pistol_main_round_roll           = 0.0;
+nosave float wm_ha_pistol_main_round_scale          = 1.0;
+nosave float wm_ha_pistol_off_round_ofs_x           = 0.0;
+nosave float wm_ha_pistol_off_round_ofs_y           = 0.0;
+nosave float wm_ha_pistol_off_round_ofs_z           = 0.0;
+nosave float wm_ha_pistol_off_round_yaw             = 0.0;
+nosave float wm_ha_pistol_off_round_pitch           = 0.0;
+nosave float wm_ha_pistol_off_round_roll            = 0.0;
+nosave float wm_ha_pistol_off_round_scale           = 1.0;
+nosave float wm_ha_pistol_floor_mag_ofs_x           = 0.0;
+nosave float wm_ha_pistol_floor_mag_ofs_y           = 0.0;
+nosave float wm_ha_pistol_floor_mag_ofs_z           = 0.0;
+nosave float wm_ha_pistol_floor_mag_yaw             = 0.0;
+nosave float wm_ha_pistol_floor_mag_pitch           = 0.0;
+nosave float wm_ha_pistol_floor_mag_roll            = 0.0;
+nosave float wm_ha_pistol_floor_mag_scale           = 1.0;
+nosave float wm_ha_pistol_floor_round_ofs_x         = 0.0;
+nosave float wm_ha_pistol_floor_round_ofs_y         = 0.0;
+nosave float wm_ha_pistol_floor_round_ofs_z         = 0.0;
+nosave float wm_ha_pistol_floor_round_yaw           = 0.0;
+nosave float wm_ha_pistol_floor_round_pitch         = 0.0;
+nosave float wm_ha_pistol_floor_round_roll          = 0.0;
+nosave float wm_ha_pistol_floor_round_scale         = 1.0;
+
+// shotgun
+nosave float wm_ha_shotgun_main_mag_ofs_x           = 1.0;
+nosave float wm_ha_shotgun_main_mag_ofs_y           = 2.0;
+nosave float wm_ha_shotgun_main_mag_ofs_z           = -2.5;
+nosave float wm_ha_shotgun_main_mag_yaw             = 75.0;
+nosave float wm_ha_shotgun_main_mag_pitch           = 15.0;
+nosave float wm_ha_shotgun_main_mag_roll            = 0.0;
+nosave float wm_ha_shotgun_main_mag_scale           = 1.0;
+nosave float wm_ha_shotgun_off_mag_ofs_x            = -1.0;
+nosave float wm_ha_shotgun_off_mag_ofs_y            = 2.0;
+nosave float wm_ha_shotgun_off_mag_ofs_z            = -2.5;
+nosave float wm_ha_shotgun_off_mag_yaw              = -75.0;
+nosave float wm_ha_shotgun_off_mag_pitch            = 15.0;
+nosave float wm_ha_shotgun_off_mag_roll             = 0.0;
+nosave float wm_ha_shotgun_off_mag_scale            = 1.0;
+nosave float wm_ha_shotgun_main_round_ofs_x         = 0.0;
+nosave float wm_ha_shotgun_main_round_ofs_y         = 0.0;
+nosave float wm_ha_shotgun_main_round_ofs_z         = 0.0;
+nosave float wm_ha_shotgun_main_round_yaw           = 0.0;
+nosave float wm_ha_shotgun_main_round_pitch         = 0.0;
+nosave float wm_ha_shotgun_main_round_roll          = 0.0;
+nosave float wm_ha_shotgun_main_round_scale         = 1.0;
+nosave float wm_ha_shotgun_off_round_ofs_x          = 0.0;
+nosave float wm_ha_shotgun_off_round_ofs_y          = 0.0;
+nosave float wm_ha_shotgun_off_round_ofs_z          = 0.0;
+nosave float wm_ha_shotgun_off_round_yaw            = 0.0;
+nosave float wm_ha_shotgun_off_round_pitch          = 0.0;
+nosave float wm_ha_shotgun_off_round_roll           = 0.0;
+nosave float wm_ha_shotgun_off_round_scale          = 1.0;
+nosave float wm_ha_shotgun_floor_mag_ofs_x          = 0.0;
+nosave float wm_ha_shotgun_floor_mag_ofs_y          = 0.0;
+nosave float wm_ha_shotgun_floor_mag_ofs_z          = 0.0;
+nosave float wm_ha_shotgun_floor_mag_yaw            = 0.0;
+nosave float wm_ha_shotgun_floor_mag_pitch          = 0.0;
+nosave float wm_ha_shotgun_floor_mag_roll           = 0.0;
+nosave float wm_ha_shotgun_floor_mag_scale          = 1.0;
+nosave float wm_ha_shotgun_floor_round_ofs_x        = 0.0;
+nosave float wm_ha_shotgun_floor_round_ofs_y        = 0.0;
+nosave float wm_ha_shotgun_floor_round_ofs_z        = 0.0;
+nosave float wm_ha_shotgun_floor_round_yaw          = 0.0;
+nosave float wm_ha_shotgun_floor_round_pitch        = 0.0;
+nosave float wm_ha_shotgun_floor_round_roll         = 0.0;
+nosave float wm_ha_shotgun_floor_round_scale        = 1.0;
+
+// breakaction
+nosave float wm_ha_breakaction_main_mag_ofs_x       = 1.0;
+nosave float wm_ha_breakaction_main_mag_ofs_y       = 2.0;
+nosave float wm_ha_breakaction_main_mag_ofs_z       = -2.5;
+nosave float wm_ha_breakaction_main_mag_yaw         = 75.0;
+nosave float wm_ha_breakaction_main_mag_pitch       = 15.0;
+nosave float wm_ha_breakaction_main_mag_roll        = 0.0;
+nosave float wm_ha_breakaction_main_mag_scale       = 1.0;
+nosave float wm_ha_breakaction_off_mag_ofs_x        = -1.0;
+nosave float wm_ha_breakaction_off_mag_ofs_y        = 2.0;
+nosave float wm_ha_breakaction_off_mag_ofs_z        = -2.5;
+nosave float wm_ha_breakaction_off_mag_yaw          = -75.0;
+nosave float wm_ha_breakaction_off_mag_pitch        = 15.0;
+nosave float wm_ha_breakaction_off_mag_roll         = 0.0;
+nosave float wm_ha_breakaction_off_mag_scale        = 1.0;
+nosave float wm_ha_breakaction_main_round_ofs_x     = 0.0;
+nosave float wm_ha_breakaction_main_round_ofs_y     = 0.0;
+nosave float wm_ha_breakaction_main_round_ofs_z     = 0.0;
+nosave float wm_ha_breakaction_main_round_yaw       = 0.0;
+nosave float wm_ha_breakaction_main_round_pitch     = 0.0;
+nosave float wm_ha_breakaction_main_round_roll      = 0.0;
+nosave float wm_ha_breakaction_main_round_scale     = 1.0;
+nosave float wm_ha_breakaction_off_round_ofs_x      = 0.0;
+nosave float wm_ha_breakaction_off_round_ofs_y      = 0.0;
+nosave float wm_ha_breakaction_off_round_ofs_z      = 0.0;
+nosave float wm_ha_breakaction_off_round_yaw        = 0.0;
+nosave float wm_ha_breakaction_off_round_pitch      = 0.0;
+nosave float wm_ha_breakaction_off_round_roll       = 0.0;
+nosave float wm_ha_breakaction_off_round_scale      = 1.0;
+nosave float wm_ha_breakaction_floor_mag_ofs_x      = 0.0;
+nosave float wm_ha_breakaction_floor_mag_ofs_y      = 0.0;
+nosave float wm_ha_breakaction_floor_mag_ofs_z      = 0.0;
+nosave float wm_ha_breakaction_floor_mag_yaw        = 0.0;
+nosave float wm_ha_breakaction_floor_mag_pitch      = 0.0;
+nosave float wm_ha_breakaction_floor_mag_roll       = 0.0;
+nosave float wm_ha_breakaction_floor_mag_scale      = 1.0;
+nosave float wm_ha_breakaction_floor_round_ofs_x    = 0.0;
+nosave float wm_ha_breakaction_floor_round_ofs_y    = 0.0;
+nosave float wm_ha_breakaction_floor_round_ofs_z    = 0.0;
+nosave float wm_ha_breakaction_floor_round_yaw      = 0.0;
+nosave float wm_ha_breakaction_floor_round_pitch    = 0.0;
+nosave float wm_ha_breakaction_floor_round_roll     = 0.0;
+nosave float wm_ha_breakaction_floor_round_scale    = 1.0;
+
+// revolver
+nosave float wm_ha_revolver_main_mag_ofs_x          = 1.0;
+nosave float wm_ha_revolver_main_mag_ofs_y          = 2.0;
+nosave float wm_ha_revolver_main_mag_ofs_z          = -2.5;
+nosave float wm_ha_revolver_main_mag_yaw            = 75.0;
+nosave float wm_ha_revolver_main_mag_pitch          = 15.0;
+nosave float wm_ha_revolver_main_mag_roll           = 0.0;
+nosave float wm_ha_revolver_main_mag_scale          = 1.0;
+nosave float wm_ha_revolver_off_mag_ofs_x           = -1.0;
+nosave float wm_ha_revolver_off_mag_ofs_y           = 2.0;
+nosave float wm_ha_revolver_off_mag_ofs_z           = -2.5;
+nosave float wm_ha_revolver_off_mag_yaw             = -75.0;
+nosave float wm_ha_revolver_off_mag_pitch           = 15.0;
+nosave float wm_ha_revolver_off_mag_roll            = 0.0;
+nosave float wm_ha_revolver_off_mag_scale           = 1.0;
+nosave float wm_ha_revolver_main_round_ofs_x        = 0.0;
+nosave float wm_ha_revolver_main_round_ofs_y        = 0.0;
+nosave float wm_ha_revolver_main_round_ofs_z        = 0.0;
+nosave float wm_ha_revolver_main_round_yaw          = 0.0;
+nosave float wm_ha_revolver_main_round_pitch        = 0.0;
+nosave float wm_ha_revolver_main_round_roll         = 0.0;
+nosave float wm_ha_revolver_main_round_scale        = 1.0;
+nosave float wm_ha_revolver_off_round_ofs_x         = 0.0;
+nosave float wm_ha_revolver_off_round_ofs_y         = 0.0;
+nosave float wm_ha_revolver_off_round_ofs_z         = 0.0;
+nosave float wm_ha_revolver_off_round_yaw           = 0.0;
+nosave float wm_ha_revolver_off_round_pitch         = 0.0;
+nosave float wm_ha_revolver_off_round_roll          = 0.0;
+nosave float wm_ha_revolver_off_round_scale         = 1.0;
+nosave float wm_ha_revolver_floor_mag_ofs_x         = 0.0;
+nosave float wm_ha_revolver_floor_mag_ofs_y         = 0.0;
+nosave float wm_ha_revolver_floor_mag_ofs_z         = 0.0;
+nosave float wm_ha_revolver_floor_mag_yaw           = 0.0;
+nosave float wm_ha_revolver_floor_mag_pitch         = 0.0;
+nosave float wm_ha_revolver_floor_mag_roll          = 0.0;
+nosave float wm_ha_revolver_floor_mag_scale         = 1.0;
+nosave float wm_ha_revolver_floor_round_ofs_x       = 0.0;
+nosave float wm_ha_revolver_floor_round_ofs_y       = 0.0;
+nosave float wm_ha_revolver_floor_round_ofs_z       = 0.0;
+nosave float wm_ha_revolver_floor_round_yaw         = 0.0;
+nosave float wm_ha_revolver_floor_round_pitch       = 0.0;
+nosave float wm_ha_revolver_floor_round_roll        = 0.0;
+nosave float wm_ha_revolver_floor_round_scale       = 1.0;
+
+// rifle
+nosave float wm_ha_rifle_main_mag_ofs_x             = 1.0;
+nosave float wm_ha_rifle_main_mag_ofs_y             = 2.0;
+nosave float wm_ha_rifle_main_mag_ofs_z             = -2.5;
+nosave float wm_ha_rifle_main_mag_yaw               = 75.0;
+nosave float wm_ha_rifle_main_mag_pitch             = 15.0;
+nosave float wm_ha_rifle_main_mag_roll              = 0.0;
+nosave float wm_ha_rifle_main_mag_scale             = 1.0;
+nosave float wm_ha_rifle_off_mag_ofs_x              = -1.0;
+nosave float wm_ha_rifle_off_mag_ofs_y              = 2.0;
+nosave float wm_ha_rifle_off_mag_ofs_z              = -2.5;
+nosave float wm_ha_rifle_off_mag_yaw                = -75.0;
+nosave float wm_ha_rifle_off_mag_pitch              = 15.0;
+nosave float wm_ha_rifle_off_mag_roll               = 0.0;
+nosave float wm_ha_rifle_off_mag_scale              = 1.0;
+nosave float wm_ha_rifle_main_round_ofs_x           = 0.0;
+nosave float wm_ha_rifle_main_round_ofs_y           = 0.0;
+nosave float wm_ha_rifle_main_round_ofs_z           = 0.0;
+nosave float wm_ha_rifle_main_round_yaw             = 0.0;
+nosave float wm_ha_rifle_main_round_pitch           = 0.0;
+nosave float wm_ha_rifle_main_round_roll            = 0.0;
+nosave float wm_ha_rifle_main_round_scale           = 1.0;
+nosave float wm_ha_rifle_off_round_ofs_x            = 0.0;
+nosave float wm_ha_rifle_off_round_ofs_y            = 0.0;
+nosave float wm_ha_rifle_off_round_ofs_z            = 0.0;
+nosave float wm_ha_rifle_off_round_yaw              = 0.0;
+nosave float wm_ha_rifle_off_round_pitch            = 0.0;
+nosave float wm_ha_rifle_off_round_roll             = 0.0;
+nosave float wm_ha_rifle_off_round_scale            = 1.0;
+nosave float wm_ha_rifle_floor_mag_ofs_x            = 0.0;
+nosave float wm_ha_rifle_floor_mag_ofs_y            = 0.0;
+nosave float wm_ha_rifle_floor_mag_ofs_z            = 0.0;
+nosave float wm_ha_rifle_floor_mag_yaw              = 0.0;
+nosave float wm_ha_rifle_floor_mag_pitch            = 0.0;
+nosave float wm_ha_rifle_floor_mag_roll             = 0.0;
+nosave float wm_ha_rifle_floor_mag_scale            = 1.0;
+nosave float wm_ha_rifle_floor_round_ofs_x          = 0.0;
+nosave float wm_ha_rifle_floor_round_ofs_y          = 0.0;
+nosave float wm_ha_rifle_floor_round_ofs_z          = 0.0;
+nosave float wm_ha_rifle_floor_round_yaw            = 0.0;
+nosave float wm_ha_rifle_floor_round_pitch          = 0.0;
+nosave float wm_ha_rifle_floor_round_roll           = 0.0;
+nosave float wm_ha_rifle_floor_round_scale          = 1.0;
+
+// smg
+nosave float wm_ha_smg_main_mag_ofs_x               = 1.0;
+nosave float wm_ha_smg_main_mag_ofs_y               = 2.0;
+nosave float wm_ha_smg_main_mag_ofs_z               = -2.5;
+nosave float wm_ha_smg_main_mag_yaw                 = 75.0;
+nosave float wm_ha_smg_main_mag_pitch               = 15.0;
+nosave float wm_ha_smg_main_mag_roll                = 0.0;
+nosave float wm_ha_smg_main_mag_scale               = 1.0;
+nosave float wm_ha_smg_off_mag_ofs_x                = -1.0;
+nosave float wm_ha_smg_off_mag_ofs_y                = 2.0;
+nosave float wm_ha_smg_off_mag_ofs_z                = -2.5;
+nosave float wm_ha_smg_off_mag_yaw                  = -75.0;
+nosave float wm_ha_smg_off_mag_pitch                = 15.0;
+nosave float wm_ha_smg_off_mag_roll                 = 0.0;
+nosave float wm_ha_smg_off_mag_scale                = 1.0;
+nosave float wm_ha_smg_main_round_ofs_x             = 0.0;
+nosave float wm_ha_smg_main_round_ofs_y             = 0.0;
+nosave float wm_ha_smg_main_round_ofs_z             = 0.0;
+nosave float wm_ha_smg_main_round_yaw               = 0.0;
+nosave float wm_ha_smg_main_round_pitch             = 0.0;
+nosave float wm_ha_smg_main_round_roll              = 0.0;
+nosave float wm_ha_smg_main_round_scale             = 1.0;
+nosave float wm_ha_smg_off_round_ofs_x              = 0.0;
+nosave float wm_ha_smg_off_round_ofs_y              = 0.0;
+nosave float wm_ha_smg_off_round_ofs_z              = 0.0;
+nosave float wm_ha_smg_off_round_yaw                = 0.0;
+nosave float wm_ha_smg_off_round_pitch              = 0.0;
+nosave float wm_ha_smg_off_round_roll               = 0.0;
+nosave float wm_ha_smg_off_round_scale              = 1.0;
+nosave float wm_ha_smg_floor_mag_ofs_x              = 0.0;
+nosave float wm_ha_smg_floor_mag_ofs_y              = 0.0;
+nosave float wm_ha_smg_floor_mag_ofs_z              = 0.0;
+nosave float wm_ha_smg_floor_mag_yaw                = 0.0;
+nosave float wm_ha_smg_floor_mag_pitch              = 0.0;
+nosave float wm_ha_smg_floor_mag_roll               = 0.0;
+nosave float wm_ha_smg_floor_mag_scale              = 1.0;
+nosave float wm_ha_smg_floor_round_ofs_x            = 0.0;
+nosave float wm_ha_smg_floor_round_ofs_y            = 0.0;
+nosave float wm_ha_smg_floor_round_ofs_z            = 0.0;
+nosave float wm_ha_smg_floor_round_yaw              = 0.0;
+nosave float wm_ha_smg_floor_round_pitch            = 0.0;
+nosave float wm_ha_smg_floor_round_roll             = 0.0;
+nosave float wm_ha_smg_floor_round_scale            = 1.0;
+
+// chaingun
+nosave float wm_ha_chaingun_main_mag_ofs_x          = 1.0;
+nosave float wm_ha_chaingun_main_mag_ofs_y          = 2.0;
+nosave float wm_ha_chaingun_main_mag_ofs_z          = -2.5;
+nosave float wm_ha_chaingun_main_mag_yaw            = 75.0;
+nosave float wm_ha_chaingun_main_mag_pitch          = 15.0;
+nosave float wm_ha_chaingun_main_mag_roll           = 0.0;
+nosave float wm_ha_chaingun_main_mag_scale          = 1.0;
+nosave float wm_ha_chaingun_off_mag_ofs_x           = -1.0;
+nosave float wm_ha_chaingun_off_mag_ofs_y           = 2.0;
+nosave float wm_ha_chaingun_off_mag_ofs_z           = -2.5;
+nosave float wm_ha_chaingun_off_mag_yaw             = -75.0;
+nosave float wm_ha_chaingun_off_mag_pitch           = 15.0;
+nosave float wm_ha_chaingun_off_mag_roll            = 0.0;
+nosave float wm_ha_chaingun_off_mag_scale           = 1.0;
+nosave float wm_ha_chaingun_main_round_ofs_x        = 0.0;
+nosave float wm_ha_chaingun_main_round_ofs_y        = 0.0;
+nosave float wm_ha_chaingun_main_round_ofs_z        = 0.0;
+nosave float wm_ha_chaingun_main_round_yaw          = 0.0;
+nosave float wm_ha_chaingun_main_round_pitch        = 0.0;
+nosave float wm_ha_chaingun_main_round_roll         = 0.0;
+nosave float wm_ha_chaingun_main_round_scale        = 1.0;
+nosave float wm_ha_chaingun_off_round_ofs_x         = 0.0;
+nosave float wm_ha_chaingun_off_round_ofs_y         = 0.0;
+nosave float wm_ha_chaingun_off_round_ofs_z         = 0.0;
+nosave float wm_ha_chaingun_off_round_yaw           = 0.0;
+nosave float wm_ha_chaingun_off_round_pitch         = 0.0;
+nosave float wm_ha_chaingun_off_round_roll          = 0.0;
+nosave float wm_ha_chaingun_off_round_scale         = 1.0;
+nosave float wm_ha_chaingun_floor_mag_ofs_x         = 0.0;
+nosave float wm_ha_chaingun_floor_mag_ofs_y         = 0.0;
+nosave float wm_ha_chaingun_floor_mag_ofs_z         = 0.0;
+nosave float wm_ha_chaingun_floor_mag_yaw           = 0.0;
+nosave float wm_ha_chaingun_floor_mag_pitch         = 0.0;
+nosave float wm_ha_chaingun_floor_mag_roll          = 0.0;
+nosave float wm_ha_chaingun_floor_mag_scale         = 1.0;
+nosave float wm_ha_chaingun_floor_round_ofs_x       = 0.0;
+nosave float wm_ha_chaingun_floor_round_ofs_y       = 0.0;
+nosave float wm_ha_chaingun_floor_round_ofs_z       = 0.0;
+nosave float wm_ha_chaingun_floor_round_yaw         = 0.0;
+nosave float wm_ha_chaingun_floor_round_pitch       = 0.0;
+nosave float wm_ha_chaingun_floor_round_roll        = 0.0;
+nosave float wm_ha_chaingun_floor_round_scale       = 1.0;
+
+// plasma
+nosave float wm_ha_plasma_main_mag_ofs_x            = 1.0;
+nosave float wm_ha_plasma_main_mag_ofs_y            = 2.0;
+nosave float wm_ha_plasma_main_mag_ofs_z            = -2.5;
+nosave float wm_ha_plasma_main_mag_yaw              = 75.0;
+nosave float wm_ha_plasma_main_mag_pitch            = 15.0;
+nosave float wm_ha_plasma_main_mag_roll             = 0.0;
+nosave float wm_ha_plasma_main_mag_scale            = 1.0;
+nosave float wm_ha_plasma_off_mag_ofs_x             = -1.0;
+nosave float wm_ha_plasma_off_mag_ofs_y             = 2.0;
+nosave float wm_ha_plasma_off_mag_ofs_z             = -2.5;
+nosave float wm_ha_plasma_off_mag_yaw               = -75.0;
+nosave float wm_ha_plasma_off_mag_pitch             = 15.0;
+nosave float wm_ha_plasma_off_mag_roll              = 0.0;
+nosave float wm_ha_plasma_off_mag_scale             = 1.0;
+nosave float wm_ha_plasma_main_round_ofs_x          = 0.0;
+nosave float wm_ha_plasma_main_round_ofs_y          = 0.0;
+nosave float wm_ha_plasma_main_round_ofs_z          = 0.0;
+nosave float wm_ha_plasma_main_round_yaw            = 0.0;
+nosave float wm_ha_plasma_main_round_pitch          = 0.0;
+nosave float wm_ha_plasma_main_round_roll           = 0.0;
+nosave float wm_ha_plasma_main_round_scale          = 1.0;
+nosave float wm_ha_plasma_off_round_ofs_x           = 0.0;
+nosave float wm_ha_plasma_off_round_ofs_y           = 0.0;
+nosave float wm_ha_plasma_off_round_ofs_z           = 0.0;
+nosave float wm_ha_plasma_off_round_yaw             = 0.0;
+nosave float wm_ha_plasma_off_round_pitch           = 0.0;
+nosave float wm_ha_plasma_off_round_roll            = 0.0;
+nosave float wm_ha_plasma_off_round_scale           = 1.0;
+nosave float wm_ha_plasma_floor_mag_ofs_x           = 0.0;
+nosave float wm_ha_plasma_floor_mag_ofs_y           = 0.0;
+nosave float wm_ha_plasma_floor_mag_ofs_z           = 0.0;
+nosave float wm_ha_plasma_floor_mag_yaw             = 0.0;
+nosave float wm_ha_plasma_floor_mag_pitch           = 0.0;
+nosave float wm_ha_plasma_floor_mag_roll            = 0.0;
+nosave float wm_ha_plasma_floor_mag_scale           = 1.0;
+nosave float wm_ha_plasma_floor_round_ofs_x         = 0.0;
+nosave float wm_ha_plasma_floor_round_ofs_y         = 0.0;
+nosave float wm_ha_plasma_floor_round_ofs_z         = 0.0;
+nosave float wm_ha_plasma_floor_round_yaw           = 0.0;
+nosave float wm_ha_plasma_floor_round_pitch         = 0.0;
+nosave float wm_ha_plasma_floor_round_roll          = 0.0;
+nosave float wm_ha_plasma_floor_round_scale         = 1.0;
+
+// launcher
+nosave float wm_ha_launcher_main_mag_ofs_x          = 1.0;
+nosave float wm_ha_launcher_main_mag_ofs_y          = 2.0;
+nosave float wm_ha_launcher_main_mag_ofs_z          = -2.5;
+nosave float wm_ha_launcher_main_mag_yaw            = 75.0;
+nosave float wm_ha_launcher_main_mag_pitch          = 15.0;
+nosave float wm_ha_launcher_main_mag_roll           = 0.0;
+nosave float wm_ha_launcher_main_mag_scale          = 1.0;
+nosave float wm_ha_launcher_off_mag_ofs_x           = -1.0;
+nosave float wm_ha_launcher_off_mag_ofs_y           = 2.0;
+nosave float wm_ha_launcher_off_mag_ofs_z           = -2.5;
+nosave float wm_ha_launcher_off_mag_yaw             = -75.0;
+nosave float wm_ha_launcher_off_mag_pitch           = 15.0;
+nosave float wm_ha_launcher_off_mag_roll            = 0.0;
+nosave float wm_ha_launcher_off_mag_scale           = 1.0;
+nosave float wm_ha_launcher_main_round_ofs_x        = 0.0;
+nosave float wm_ha_launcher_main_round_ofs_y        = 0.0;
+nosave float wm_ha_launcher_main_round_ofs_z        = 0.0;
+nosave float wm_ha_launcher_main_round_yaw          = 0.0;
+nosave float wm_ha_launcher_main_round_pitch        = 0.0;
+nosave float wm_ha_launcher_main_round_roll         = 0.0;
+nosave float wm_ha_launcher_main_round_scale        = 1.0;
+nosave float wm_ha_launcher_off_round_ofs_x         = 0.0;
+nosave float wm_ha_launcher_off_round_ofs_y         = 0.0;
+nosave float wm_ha_launcher_off_round_ofs_z         = 0.0;
+nosave float wm_ha_launcher_off_round_yaw           = 0.0;
+nosave float wm_ha_launcher_off_round_pitch         = 0.0;
+nosave float wm_ha_launcher_off_round_roll          = 0.0;
+nosave float wm_ha_launcher_off_round_scale         = 1.0;
+nosave float wm_ha_launcher_floor_mag_ofs_x         = 0.0;
+nosave float wm_ha_launcher_floor_mag_ofs_y         = 0.0;
+nosave float wm_ha_launcher_floor_mag_ofs_z         = 0.0;
+nosave float wm_ha_launcher_floor_mag_yaw           = 0.0;
+nosave float wm_ha_launcher_floor_mag_pitch         = 0.0;
+nosave float wm_ha_launcher_floor_mag_roll          = 0.0;
+nosave float wm_ha_launcher_floor_mag_scale         = 1.0;
+nosave float wm_ha_launcher_floor_round_ofs_x       = 0.0;
+nosave float wm_ha_launcher_floor_round_ofs_y       = 0.0;
+nosave float wm_ha_launcher_floor_round_ofs_z       = 0.0;
+nosave float wm_ha_launcher_floor_round_yaw         = 0.0;
+nosave float wm_ha_launcher_floor_round_pitch       = 0.0;
+nosave float wm_ha_launcher_floor_round_roll        = 0.0;
+nosave float wm_ha_launcher_floor_round_scale       = 1.0;
+
+// bfg
+nosave float wm_ha_bfg_main_mag_ofs_x               = 1.0;
+nosave float wm_ha_bfg_main_mag_ofs_y               = 2.0;
+nosave float wm_ha_bfg_main_mag_ofs_z               = -2.5;
+nosave float wm_ha_bfg_main_mag_yaw                 = 75.0;
+nosave float wm_ha_bfg_main_mag_pitch               = 15.0;
+nosave float wm_ha_bfg_main_mag_roll                = 0.0;
+nosave float wm_ha_bfg_main_mag_scale               = 1.0;
+nosave float wm_ha_bfg_off_mag_ofs_x                = -1.0;
+nosave float wm_ha_bfg_off_mag_ofs_y                = 2.0;
+nosave float wm_ha_bfg_off_mag_ofs_z                = -2.5;
+nosave float wm_ha_bfg_off_mag_yaw                  = -75.0;
+nosave float wm_ha_bfg_off_mag_pitch                = 15.0;
+nosave float wm_ha_bfg_off_mag_roll                 = 0.0;
+nosave float wm_ha_bfg_off_mag_scale                = 1.0;
+nosave float wm_ha_bfg_main_round_ofs_x             = 0.0;
+nosave float wm_ha_bfg_main_round_ofs_y             = 0.0;
+nosave float wm_ha_bfg_main_round_ofs_z             = 0.0;
+nosave float wm_ha_bfg_main_round_yaw               = 0.0;
+nosave float wm_ha_bfg_main_round_pitch             = 0.0;
+nosave float wm_ha_bfg_main_round_roll              = 0.0;
+nosave float wm_ha_bfg_main_round_scale             = 1.0;
+nosave float wm_ha_bfg_off_round_ofs_x              = 0.0;
+nosave float wm_ha_bfg_off_round_ofs_y              = 0.0;
+nosave float wm_ha_bfg_off_round_ofs_z              = 0.0;
+nosave float wm_ha_bfg_off_round_yaw                = 0.0;
+nosave float wm_ha_bfg_off_round_pitch              = 0.0;
+nosave float wm_ha_bfg_off_round_roll               = 0.0;
+nosave float wm_ha_bfg_off_round_scale              = 1.0;
+nosave float wm_ha_bfg_floor_mag_ofs_x              = 0.0;
+nosave float wm_ha_bfg_floor_mag_ofs_y              = 0.0;
+nosave float wm_ha_bfg_floor_mag_ofs_z              = 0.0;
+nosave float wm_ha_bfg_floor_mag_yaw                = 0.0;
+nosave float wm_ha_bfg_floor_mag_pitch              = 0.0;
+nosave float wm_ha_bfg_floor_mag_roll               = 0.0;
+nosave float wm_ha_bfg_floor_mag_scale              = 1.0;
+nosave float wm_ha_bfg_floor_round_ofs_x            = 0.0;
+nosave float wm_ha_bfg_floor_round_ofs_y            = 0.0;
+nosave float wm_ha_bfg_floor_round_ofs_z            = 0.0;
+nosave float wm_ha_bfg_floor_round_yaw              = 0.0;
+nosave float wm_ha_bfg_floor_round_pitch            = 0.0;
+nosave float wm_ha_bfg_floor_round_roll             = 0.0;
+nosave float wm_ha_bfg_floor_round_scale            = 1.0;
+
+// railgun
+nosave float wm_ha_railgun_main_mag_ofs_x           = 1.0;
+nosave float wm_ha_railgun_main_mag_ofs_y           = 2.0;
+nosave float wm_ha_railgun_main_mag_ofs_z           = -2.5;
+nosave float wm_ha_railgun_main_mag_yaw             = 75.0;
+nosave float wm_ha_railgun_main_mag_pitch           = 15.0;
+nosave float wm_ha_railgun_main_mag_roll            = 0.0;
+nosave float wm_ha_railgun_main_mag_scale           = 1.0;
+nosave float wm_ha_railgun_off_mag_ofs_x            = -1.0;
+nosave float wm_ha_railgun_off_mag_ofs_y            = 2.0;
+nosave float wm_ha_railgun_off_mag_ofs_z            = -2.5;
+nosave float wm_ha_railgun_off_mag_yaw              = -75.0;
+nosave float wm_ha_railgun_off_mag_pitch            = 15.0;
+nosave float wm_ha_railgun_off_mag_roll             = 0.0;
+nosave float wm_ha_railgun_off_mag_scale            = 1.0;
+nosave float wm_ha_railgun_main_round_ofs_x         = 0.0;
+nosave float wm_ha_railgun_main_round_ofs_y         = 0.0;
+nosave float wm_ha_railgun_main_round_ofs_z         = 0.0;
+nosave float wm_ha_railgun_main_round_yaw           = 0.0;
+nosave float wm_ha_railgun_main_round_pitch         = 0.0;
+nosave float wm_ha_railgun_main_round_roll          = 0.0;
+nosave float wm_ha_railgun_main_round_scale         = 1.0;
+nosave float wm_ha_railgun_off_round_ofs_x          = 0.0;
+nosave float wm_ha_railgun_off_round_ofs_y          = 0.0;
+nosave float wm_ha_railgun_off_round_ofs_z          = 0.0;
+nosave float wm_ha_railgun_off_round_yaw            = 0.0;
+nosave float wm_ha_railgun_off_round_pitch          = 0.0;
+nosave float wm_ha_railgun_off_round_roll           = 0.0;
+nosave float wm_ha_railgun_off_round_scale          = 1.0;
+nosave float wm_ha_railgun_floor_mag_ofs_x          = 0.0;
+nosave float wm_ha_railgun_floor_mag_ofs_y          = 0.0;
+nosave float wm_ha_railgun_floor_mag_ofs_z          = 0.0;
+nosave float wm_ha_railgun_floor_mag_yaw            = 0.0;
+nosave float wm_ha_railgun_floor_mag_pitch          = 0.0;
+nosave float wm_ha_railgun_floor_mag_roll           = 0.0;
+nosave float wm_ha_railgun_floor_mag_scale          = 1.0;
+nosave float wm_ha_railgun_floor_round_ofs_x        = 0.0;
+nosave float wm_ha_railgun_floor_round_ofs_y        = 0.0;
+nosave float wm_ha_railgun_floor_round_ofs_z        = 0.0;
+nosave float wm_ha_railgun_floor_round_yaw          = 0.0;
+nosave float wm_ha_railgun_floor_round_pitch        = 0.0;
+nosave float wm_ha_railgun_floor_round_roll         = 0.0;
+nosave float wm_ha_railgun_floor_round_scale        = 1.0;
+
+// flamethrower
+nosave float wm_ha_flamethrower_main_mag_ofs_x      = 1.0;
+nosave float wm_ha_flamethrower_main_mag_ofs_y      = 2.0;
+nosave float wm_ha_flamethrower_main_mag_ofs_z      = -2.5;
+nosave float wm_ha_flamethrower_main_mag_yaw        = 75.0;
+nosave float wm_ha_flamethrower_main_mag_pitch      = 15.0;
+nosave float wm_ha_flamethrower_main_mag_roll       = 0.0;
+nosave float wm_ha_flamethrower_main_mag_scale      = 1.0;
+nosave float wm_ha_flamethrower_off_mag_ofs_x       = -1.0;
+nosave float wm_ha_flamethrower_off_mag_ofs_y       = 2.0;
+nosave float wm_ha_flamethrower_off_mag_ofs_z       = -2.5;
+nosave float wm_ha_flamethrower_off_mag_yaw         = -75.0;
+nosave float wm_ha_flamethrower_off_mag_pitch       = 15.0;
+nosave float wm_ha_flamethrower_off_mag_roll        = 0.0;
+nosave float wm_ha_flamethrower_off_mag_scale       = 1.0;
+nosave float wm_ha_flamethrower_main_round_ofs_x    = 0.0;
+nosave float wm_ha_flamethrower_main_round_ofs_y    = 0.0;
+nosave float wm_ha_flamethrower_main_round_ofs_z    = 0.0;
+nosave float wm_ha_flamethrower_main_round_yaw      = 0.0;
+nosave float wm_ha_flamethrower_main_round_pitch    = 0.0;
+nosave float wm_ha_flamethrower_main_round_roll     = 0.0;
+nosave float wm_ha_flamethrower_main_round_scale    = 1.0;
+nosave float wm_ha_flamethrower_off_round_ofs_x     = 0.0;
+nosave float wm_ha_flamethrower_off_round_ofs_y     = 0.0;
+nosave float wm_ha_flamethrower_off_round_ofs_z     = 0.0;
+nosave float wm_ha_flamethrower_off_round_yaw       = 0.0;
+nosave float wm_ha_flamethrower_off_round_pitch     = 0.0;
+nosave float wm_ha_flamethrower_off_round_roll      = 0.0;
+nosave float wm_ha_flamethrower_off_round_scale     = 1.0;
+nosave float wm_ha_flamethrower_floor_mag_ofs_x     = 0.0;
+nosave float wm_ha_flamethrower_floor_mag_ofs_y     = 0.0;
+nosave float wm_ha_flamethrower_floor_mag_ofs_z     = 0.0;
+nosave float wm_ha_flamethrower_floor_mag_yaw       = 0.0;
+nosave float wm_ha_flamethrower_floor_mag_pitch     = 0.0;
+nosave float wm_ha_flamethrower_floor_mag_roll      = 0.0;
+nosave float wm_ha_flamethrower_floor_mag_scale     = 1.0;
+nosave float wm_ha_flamethrower_floor_round_ofs_x   = 0.0;
+nosave float wm_ha_flamethrower_floor_round_ofs_y   = 0.0;
+nosave float wm_ha_flamethrower_floor_round_ofs_z   = 0.0;
+nosave float wm_ha_flamethrower_floor_round_yaw     = 0.0;
+nosave float wm_ha_flamethrower_floor_round_pitch   = 0.0;
+nosave float wm_ha_flamethrower_floor_round_roll    = 0.0;
+nosave float wm_ha_flamethrower_floor_round_scale   = 1.0;
+
+// chainsaw
+nosave float wm_ha_chainsaw_main_mag_ofs_x          = 1.0;
+nosave float wm_ha_chainsaw_main_mag_ofs_y          = 2.0;
+nosave float wm_ha_chainsaw_main_mag_ofs_z          = -2.5;
+nosave float wm_ha_chainsaw_main_mag_yaw            = 75.0;
+nosave float wm_ha_chainsaw_main_mag_pitch          = 15.0;
+nosave float wm_ha_chainsaw_main_mag_roll           = 0.0;
+nosave float wm_ha_chainsaw_main_mag_scale          = 1.0;
+nosave float wm_ha_chainsaw_off_mag_ofs_x           = -1.0;
+nosave float wm_ha_chainsaw_off_mag_ofs_y           = 2.0;
+nosave float wm_ha_chainsaw_off_mag_ofs_z           = -2.5;
+nosave float wm_ha_chainsaw_off_mag_yaw             = -75.0;
+nosave float wm_ha_chainsaw_off_mag_pitch           = 15.0;
+nosave float wm_ha_chainsaw_off_mag_roll            = 0.0;
+nosave float wm_ha_chainsaw_off_mag_scale           = 1.0;
+nosave float wm_ha_chainsaw_main_round_ofs_x        = 0.0;
+nosave float wm_ha_chainsaw_main_round_ofs_y        = 0.0;
+nosave float wm_ha_chainsaw_main_round_ofs_z        = 0.0;
+nosave float wm_ha_chainsaw_main_round_yaw          = 0.0;
+nosave float wm_ha_chainsaw_main_round_pitch        = 0.0;
+nosave float wm_ha_chainsaw_main_round_roll         = 0.0;
+nosave float wm_ha_chainsaw_main_round_scale        = 1.0;
+nosave float wm_ha_chainsaw_off_round_ofs_x         = 0.0;
+nosave float wm_ha_chainsaw_off_round_ofs_y         = 0.0;
+nosave float wm_ha_chainsaw_off_round_ofs_z         = 0.0;
+nosave float wm_ha_chainsaw_off_round_yaw           = 0.0;
+nosave float wm_ha_chainsaw_off_round_pitch         = 0.0;
+nosave float wm_ha_chainsaw_off_round_roll          = 0.0;
+nosave float wm_ha_chainsaw_off_round_scale         = 1.0;
+nosave float wm_ha_chainsaw_floor_mag_ofs_x         = 0.0;
+nosave float wm_ha_chainsaw_floor_mag_ofs_y         = 0.0;
+nosave float wm_ha_chainsaw_floor_mag_ofs_z         = 0.0;
+nosave float wm_ha_chainsaw_floor_mag_yaw           = 0.0;
+nosave float wm_ha_chainsaw_floor_mag_pitch         = 0.0;
+nosave float wm_ha_chainsaw_floor_mag_roll          = 0.0;
+nosave float wm_ha_chainsaw_floor_mag_scale         = 1.0;
+nosave float wm_ha_chainsaw_floor_round_ofs_x       = 0.0;
+nosave float wm_ha_chainsaw_floor_round_ofs_y       = 0.0;
+nosave float wm_ha_chainsaw_floor_round_ofs_z       = 0.0;
+nosave float wm_ha_chainsaw_floor_round_yaw         = 0.0;
+nosave float wm_ha_chainsaw_floor_round_pitch       = 0.0;
+nosave float wm_ha_chainsaw_floor_round_roll        = 0.0;
+nosave float wm_ha_chainsaw_floor_round_scale       = 1.0;
+
+user bool  wm_heldmag_preview = false;
+
+// ---- MAGAZINES AND ROUNDS -------------------------------------------------
+user float wm_walk_grace   = 175.0;   // tics before walking over one picks it up
+user float wm_round_life   = 3150.0;  // a racked-out round lies this long
+user float wm_round_glint  = 8.0;
+user float wm_mag_glow     = 14.0;
+user float wm_bounce       = 0.3;
+user float wm_drop_speed   = 2.0;
+user float wm_catch_radius = 6.0;
+user bool  wm_clip_becomes_mag = true; // a sprite clip taken in a hand becomes our magazine     // a closed free hand catches a falling magazine within this
+user float wm_throw_mult   = 1.0;
+// A LOADER EMPTIED INTO A GUN (a speedloader): on, it drops out of the hand as a loose
+// empty loader that fades after wm_round_life; off, it is simply gone. Script, read the
+// tic it empties.
+user bool  wm_loader_spent_drops = true;
+user float wm_world_factor = 0.34;    // follow-hand frame: 0.01 x vr_vunits_per_meter
+user bool  wm_stow_working_hand = true;
+
+// ---- THE POUCH AND THE WELL -----------------------------------------------
+// THE POUCH IS ON YOUR BELT, not your chest. The chest is where you catch
+// things -- a pouch there turned every catch near your body into a magazine
+// draw. New names, because the old chest position is saved in your ini and a
+// saved value outranks a changed default forever.
+// NOSAVE (NETPLAY_SPEC section 8, fix 3): placement mode writes these every tic a pouch is dragged, and a
+// user cvar sends every such change to every peer. They are this machine's feel and are read only through
+// the console player, so they are local; still saved in the ini. Values saved under the old user scope
+// load by name on the first run.
+nosave float wm_belt_fwd     = 5.0;
+nosave float wm_belt_side    = 0.0;
+nosave float wm_belt_up      = -20.0;
+nosave float wm_belt_radius  = 4.0;
+nosave bool  wm_hip_pouches  = false;
+nosave float wm_hip_side     = 9.0;
+nosave float wm_hip_up       = -22.0;
+nosave float wm_hip_fwd      = 1.0;
+user float wm_well_radius  = 3.0;     // the well catches a magazine within this
+user float wm_well_letgo   = 5.0;     // wander this far off the line and it is yours again
+user float wm_seat_at      = 0.25;    // this far in, the catch takes it
+
+// ---- FIRING ---------------------------------------------------------------
+// THE SHOT'S LOOKS ARE RS_BALLISTICS' (RSB_CALL_SITES_HANDOFF.md): muzzle flash, smoke, bore sparks,
+// the round, its impacts and spent casings, set on its own menu. What stays here is the rig's: the beam
+// slot a hand's flash uses, how long a belt link lies (WM_BeltLink), and below, how hard the port throws.
+user float wm_flash_slot    = 4.0;    // beam slots: this one and the next, one per hand
+user float wm_casing_life   = 700.0;  // tics a belt link lies before it fades
+user float wm_eject_speed   = 4.0;
+user bool  wm_eject_mirror_off = false;
+user float wm_cycle_tics    = 6.0;
+user float wm_recoil_travel = 1.0;
+
+// A FLICK SHUTS AN OPEN GUN (an open verb with close = flick, rig.zs FlickByVerbs). How fast the
+// open part must move along its flickaxis, hand and wrist together, in METRES A SECOND whatever
+// vr_vunits_per_meter is. Script, read on the tic it is measured -- nothing drawn moves by it, so
+// it sits on no live page. Off: only a hand shuts it. In a netgame the controller velocity reads
+// zero, so there only a hand does.
+user bool  wm_flick_close = true;
+user float wm_flick_speed = 1.5;
+
+// HOW FAR BACK STILL COUNTS AS CLOSED, per kind of gun (the owner, 2026-09-13: a pump moved a hair
+// would not fire). wm_feel_<type>_home: a cycle returned by hand (a pump) counts as home within it;
+// _shut: an opened gun counts as shut within it. The larger of it and the card's own homeat / closeat
+// wins, and a part let go inside it goes fully home (WM_Rig.HomeAt / CloseAt). 0 is the card's own.
+// Script, read as the game runs -- not on a live page. NOSAVE: config only, never userinfo.
+nosave float wm_feel_pistol_home  = 0.0;
+nosave float wm_feel_pistol_shut  = 0.0;
+nosave float wm_feel_shotgun_home = 0.25;
+nosave float wm_feel_shotgun_shut = 0.0;
+nosave float wm_feel_breakaction_home = 0.0;
+nosave float wm_feel_breakaction_shut = 0.0;
+nosave float wm_feel_revolver_home = 0.0;
+nosave float wm_feel_revolver_shut = 0.0;
+nosave float wm_feel_rifle_home   = 0.0;
+nosave float wm_feel_rifle_shut   = 0.0;
+nosave float wm_feel_smg_home     = 0.0;
+nosave float wm_feel_smg_shut     = 0.0;
+nosave float wm_feel_chaingun_home = 0.0;
+nosave float wm_feel_chaingun_shut = 0.0;
+nosave float wm_feel_plasma_home  = 0.0;
+nosave float wm_feel_plasma_shut  = 0.0;
+nosave float wm_feel_launcher_home = 0.0;
+nosave float wm_feel_launcher_shut = 0.0;
+nosave float wm_feel_bfg_home     = 0.0;
+nosave float wm_feel_bfg_shut     = 0.0;
+nosave float wm_feel_railgun_home = 0.0;
+nosave float wm_feel_railgun_shut = 0.0;
+nosave float wm_feel_flamethrower_home = 0.0;
+nosave float wm_feel_flamethrower_shut = 0.0;
+nosave float wm_feel_chainsaw_home = 0.0;
+nosave float wm_feel_chainsaw_shut = 0.0;
+nosave float wm_feel_default_home = 0.0;
+nosave float wm_feel_default_shut = 0.0;
+
+// ---- GRAB POINTS ------------------------------------------------------------
+user bool  wm_show_grabs     = true;
+// SHOW A HAND ON A PART WITHOUT HOLDING IT, for tuning the hand's seat on that
+// part: 0 off, 1 the slide or pump (the action part), 2 the magazine -- on the gun chosen by wm_tune_gun,
+// with the hand that works it. A menu freezes the game, so a part cannot be
+// held while its sliders are dragged; this puts the hand there instead, and the
+// pin stays put with the menu open.
+// RENAMED from wm_pin_preview on 2026-09-12, for the same reason: a preview
+// left on from tuning pinned a hand to a part it was not holding.
+user int   wm_hand_preview   = 0;
+// BRACING, the whole of it: the oval, pinning the open hand to the support
+// point, claiming the grip as a support hand, and putting that hand's own gun
+// away while it braces. Off until it is taken on. NOTE: two-handed bracing has
+// never been seen to work in this system -- only the engine's stock two-hand
+// mechanic does.
+user bool  wm_brace          = false;
+user float wm_reach_override = 0.0;   // 0 = each part's own reach from the card
+// The grab-point page's picks. NOSAVE (NETPLAY_SPEC section 8, fix 3): menu state, local to this machine.
+nosave int   wm_tune_gun       = 0;
+nosave int   wm_tune_part      = 0;
+
+// THE PART BEING TUNED (BUILD.md step 5, the owner's choice 2026-09-13): ONE scratch set, read only by
+// the grab slot wm_tune_gun and wm_tune_part pick -- and only while wm_tune_for says the scratch was
+// set for that slot; every other part draws and tests its card numbers. RENDERER-READ, so the tuned
+// oval moves while the menu has the playsim frozen: wm_tune is its seat set (a nudge in the gun's frame
+// units), wm_tune_sh its shape (multipliers of the card's half-sizes), wm_tune_r its reach as a ball
+// (0 = the card's). Baked into card lines on the grab-point page, then cleared. NOSAVE: kept in this
+// machine's ini until baked, never in userinfo.
+nosave float wm_tune_ofs_x      = 0.0;
+nosave float wm_tune_ofs_y      = 0.0;
+nosave float wm_tune_ofs_z      = 0.0;
+nosave float wm_tune_r          = 0.0;
+nosave float wm_tune_sh_ofs_x   = 0.0;
+nosave float wm_tune_sh_ofs_y   = 0.0;
+nosave float wm_tune_sh_ofs_z   = 0.0;
+nosave float wm_tune_sh_yaw     = 0.0;
+nosave float wm_tune_sh_pitch   = 0.0;
+nosave float wm_tune_sh_roll    = 0.0;
+nosave float wm_tune_sh_scale   = 1.0;
+nosave float wm_tune_sh_scale_x = 1.0;
+nosave float wm_tune_sh_scale_y = 1.0;
+nosave float wm_tune_sh_scale_z = 1.0;
+// Which slot the scratch was set for: gun x 16 + slot + 1, 0 unset (WM_Rig.IsTuned, WM_GrabMenu.Build).
+nosave int   wm_tune_for        = 0;
+
+// THE BAKE LEDGER (BUILD.md step 5): each baked grab slot's card lines, one entry per gun class and part, as
+// "WM_M4A3|part slide|grab = ...|grabradius = ..." (WM_BakeLedger, menu.zs). Kept because the console was the only
+// other copy and the engine opens its log fresh on every launch. NOSAVE: this machine's ini only, never sent.
+// Read back out by E:/DOOMWork/tools/bake_defaults.py --ledger; cleared on the grab-point page.
+nosave string wm_bake_ledger_00 = "";
+nosave string wm_bake_ledger_01 = "";
+nosave string wm_bake_ledger_02 = "";
+nosave string wm_bake_ledger_03 = "";
+nosave string wm_bake_ledger_04 = "";
+nosave string wm_bake_ledger_05 = "";
+nosave string wm_bake_ledger_06 = "";
+nosave string wm_bake_ledger_07 = "";
+nosave string wm_bake_ledger_08 = "";
+nosave string wm_bake_ledger_09 = "";
+nosave string wm_bake_ledger_10 = "";
+nosave string wm_bake_ledger_11 = "";
+nosave string wm_bake_ledger_12 = "";
+nosave string wm_bake_ledger_13 = "";
+nosave string wm_bake_ledger_14 = "";
+nosave string wm_bake_ledger_15 = "";
+nosave string wm_bake_ledger_16 = "";
+nosave string wm_bake_ledger_17 = "";
+nosave string wm_bake_ledger_18 = "";
+nosave string wm_bake_ledger_19 = "";
+nosave string wm_bake_ledger_20 = "";
+nosave string wm_bake_ledger_21 = "";
+nosave string wm_bake_ledger_22 = "";
+nosave string wm_bake_ledger_23 = "";
+nosave string wm_bake_ledger_24 = "";
+nosave string wm_bake_ledger_25 = "";
+nosave string wm_bake_ledger_26 = "";
+nosave string wm_bake_ledger_27 = "";
+nosave string wm_bake_ledger_28 = "";
+nosave string wm_bake_ledger_29 = "";
+nosave string wm_bake_ledger_30 = "";
+nosave string wm_bake_ledger_31 = "";
+nosave string wm_bake_ledger_32 = "";
+nosave string wm_bake_ledger_33 = "";
+nosave string wm_bake_ledger_34 = "";
+nosave string wm_bake_ledger_35 = "";
+nosave string wm_bake_ledger_36 = "";
+nosave string wm_bake_ledger_37 = "";
+nosave string wm_bake_ledger_38 = "";
+nosave string wm_bake_ledger_39 = "";
+nosave string wm_bake_ledger_40 = "";
+nosave string wm_bake_ledger_41 = "";
+nosave string wm_bake_ledger_42 = "";
+nosave string wm_bake_ledger_43 = "";
+nosave string wm_bake_ledger_44 = "";
+nosave string wm_bake_ledger_45 = "";
+nosave string wm_bake_ledger_46 = "";
+nosave string wm_bake_ledger_47 = "";
+nosave string wm_bake_ledger_48 = "";
+nosave string wm_bake_ledger_49 = "";
+nosave string wm_bake_ledger_50 = "";
+nosave string wm_bake_ledger_51 = "";
+nosave string wm_bake_ledger_52 = "";
+nosave string wm_bake_ledger_53 = "";
+nosave string wm_bake_ledger_54 = "";
+nosave string wm_bake_ledger_55 = "";
+nosave string wm_bake_ledger_56 = "";
+nosave string wm_bake_ledger_57 = "";
+nosave string wm_bake_ledger_58 = "";
+nosave string wm_bake_ledger_59 = "";
+nosave string wm_bake_ledger_60 = "";
+nosave string wm_bake_ledger_61 = "";
+nosave string wm_bake_ledger_62 = "";
+nosave string wm_bake_ledger_63 = "";
+
+// THE OVAL, for the part being tuned: half-sizes in map units, along the barrel,
+// across it, and up. Zero on an axis means "the card's own number". A grab is
+// rarely a ball -- a slide is long and thin, a well is a slot -- and a ball
+// drawn for one promises reach where there is none.
+// WHICH OVAL IS BEING EDITED, and what it looks like while it is. The menu
+// sets one of these to 1 as you change the part; the RENDERER reads them (each
+// selected copy names its own as VisibleCVar), so the right oval lights up
+// while the menu has the playsim frozen -- which is the only time it matters.
+// m = main gun, o = off gun, then the part's number on the card. Never saved:
+// a menu closed by a crash must not leave one lit. NOSAVE (NETPLAY_SPEC section 8, fix 3): menu state on
+// this machine, never userinfo.
+nosave noarchive float wm_gp_sel_m0 = 0.0;
+nosave noarchive float wm_gp_sel_m1 = 0.0;
+nosave noarchive float wm_gp_sel_m2 = 0.0;
+nosave noarchive float wm_gp_sel_m3 = 0.0;
+nosave noarchive float wm_gp_sel_m4 = 0.0;
+nosave noarchive float wm_gp_sel_m5 = 0.0;
+nosave noarchive float wm_gp_sel_m6 = 0.0;
+nosave noarchive float wm_gp_sel_m7 = 0.0;
+nosave noarchive float wm_gp_sel_o0 = 0.0;
+nosave noarchive float wm_gp_sel_o1 = 0.0;
+nosave noarchive float wm_gp_sel_o2 = 0.0;
+nosave noarchive float wm_gp_sel_o3 = 0.0;
+nosave noarchive float wm_gp_sel_o4 = 0.0;
+nosave noarchive float wm_gp_sel_o5 = 0.0;
+nosave noarchive float wm_gp_sel_o6 = 0.0;
+nosave noarchive float wm_gp_sel_o7 = 0.0;
+
+// THE PART'S OWN NAME, written by the game when a gun's card loads, so the menu
+// can say "slide" instead of "part 3". A menu cannot read the card itself --
+// the two live in different scopes -- and a cvar is the bridge between them. NOSAVE (NETPLAY_SPEC section 8,
+// fix 3): written as parts bind, local to this machine; as user cvars each write went to every peer.
+nosave noarchive string wm_gp_name_m0 = "";
+nosave noarchive string wm_gp_name_m1 = "";
+nosave noarchive string wm_gp_name_m2 = "";
+nosave noarchive string wm_gp_name_m3 = "";
+nosave noarchive string wm_gp_name_m4 = "";
+nosave noarchive string wm_gp_name_m5 = "";
+nosave noarchive string wm_gp_name_m6 = "";
+nosave noarchive string wm_gp_name_m7 = "";
+nosave noarchive string wm_gp_name_o0 = "";
+nosave noarchive string wm_gp_name_o1 = "";
+nosave noarchive string wm_gp_name_o2 = "";
+nosave noarchive string wm_gp_name_o3 = "";
+nosave noarchive string wm_gp_name_o4 = "";
+nosave noarchive string wm_gp_name_o5 = "";
+nosave noarchive string wm_gp_name_o6 = "";
+nosave noarchive string wm_gp_name_o7 = "";
+
+// It BREATHES rather than flashes: a sine, never a step, because a hard flash
+// is a photosensitivity problem. Hz is breaths a second; depth is how far down
+// it fades (0.35 = to a third and back).
+user float wm_gp_pulse_hz    = 1.0;
+user float wm_gp_pulse_depth = 0.35;
+nosave color wm_gp_sel_color = "ff 40 ff";   // a look on this machine (section 8, fix 3)
+
+// EVERY GRAB POINT ON THE SELECTED GUN, MOVED TOGETHER. When the whole set is
+// displaced the same way -- all of them a few inches to one side, still correct
+// relative to each other -- the fault is one offset, not eight. Dial it here,
+// read the numbers, bake them into the gun's card, set these back to zero.
+// In the MESH'S OWN AXES, same as the card and the per-part sliders below.
+// _ofs_x/_ofs_y/_ofs_z, because the RENDERER reads these names itself: each
+// sphere carries FollowActorOfsCVar 'wm_grab_all', and the renderer adds this
+// set to the sphere's seat in the gun's frame every frame it draws -- so they
+// move WHILE THE MENU IS OPEN, which is when a person is looking at them.
+// Script adds the same numbers to the point it TESTS, once, so the sphere and
+// the grab stay the same thing.
+user float wm_grab_all_ofs_x = 0.0;
+user float wm_grab_all_ofs_y = 0.0;
+user float wm_grab_all_ofs_z = 0.0;
+
+// THE WIRE SPHERES THEMSELVES (renderer). Size 1.0 is exactly the reach being
+// tested; anything else is a sphere that no longer tells the truth about what
+// is in reach -- yours to choose, but that is the trade.
+user float wm_marker_alpha = 0.7;
+
+// ---- DIAGNOSTICS ------------------------------------------------------------
+// 0 off, 1 errors, 2 +warnings, 3 +every state change, 4 +per-tic. 3 by default
+// because the console is the test harness: a headless run of this engine never
+// reaches a map.
+user int wm_log = 3;
+
+// A LIVE READOUT ON YOUR HUD: for each hand, which gun it works, how far it is
+// from every part against the reach that part needs, what the grip is doing,
+// and what it has hold of. On by default -- it is the answer to "how is it
+// detecting", and the thing to read when something will not grab.
+user bool wm_overlay = true;
+
+// A small buzz when a hand comes into reach of a part or the pouch, so you can
+// feel where a grab will land without having to find the sphere.
+user bool wm_reach_buzz = true;
+
+// THE READOUT, INTO THE LOG TOO -- console and log file, never on screen. A
+// snapshot every wm_log_hud_every tics, plus one on the exact tic either grip
+// closes or opens: that one answers "why didn't it grab". The log is
+// build-dxr/RelWithDebInfo/log-debug.txt, overwritten on each launch.
+user bool  wm_log_hud       = true;
+user float wm_log_hud_every = 70.0;
+
+// ---- THE INTERPRETER: verbs or the old role code (A/B, this build) ----------
+// ON: each gun is run by its card's verbs (zscript/wm/verb.zs) -- cycle, swap,
+// open -- which decide every rack, drop and seat. A card that declares none has
+// the old behaviour synthesised as verbs. OFF: the old role code runs, exactly
+// as it did, so a regression can be felt by flipping this rather than bisected.
+// Both must feel identical on the two shipped pistols. The load log, the rack
+// and release lines and netevent wm_dump all say which path ran.
+user bool  wm_verbs         = true;
+
+// ---- EVERY GRAB POINT ITS OWN NUMBERS -------------------------------------
+//
+// One set per part per gun -- m0..m7 for the main gun, o0..o7 for the off gun,
+// numbered as the gun's card lists them. They were shared once, and that was a
+// bug with a face: tune the slide, pick the magazine, and your numbers walked
+// over to the magazine while the slide sprang back.
+//
+// ALL THREE CHANNELS ARE READ BY THE RENDERER, so every one of them moves the
+// oval while the menu is open:
+//   _ofs_x/_y/_z   this part's nudge   -- a seat set (FollowActorOfsCVar2)
+//   _sh_scale_x/.. its shape, as multipliers on the card's reach -- a
+//                  placement set (PlacementPrefix); 1.00 is the card's
+//   _r             its reach as a ball, 0 = the card's (ScaleCVar)
+//
+// The page shows one part's set at a time and points its sliders at that one,
+// so what you drag is what you selected. Script reads the same numbers for
+// what is TESTED, which is what keeps the oval honest.
+
+// DEPRECATED 2026-09-13 (BUILD.md step 5): nothing draws or tests by the per-slot sets below any more.
+// They stay declared, and ARCHIVED, only so tuning saved in doomxr.ini can still be baked into the
+// cards -- the grab-point page's "Bake every part from its OLD tuning". Remove them once baked.
+user float wm_gp_m0_ofs_x = 0.0;
+user float wm_gp_m0_ofs_y = 0.0;
+user float wm_gp_m0_ofs_z = 0.0;
+user float wm_gp_m0_r     = 0.0;
+user float wm_gp_m0_sh_ofs_x = 0.0;
+user float wm_gp_m0_sh_ofs_y = 0.0;
+user float wm_gp_m0_sh_ofs_z = 0.0;
+user float wm_gp_m0_sh_yaw   = 0.0;
+user float wm_gp_m0_sh_pitch = 0.0;
+user float wm_gp_m0_sh_roll  = 0.0;
+user float wm_gp_m0_sh_scale = 1.0;
+user float wm_gp_m0_sh_scale_x = 1.0;
+user float wm_gp_m0_sh_scale_y = 1.0;
+user float wm_gp_m0_sh_scale_z = 1.0;
+
+user float wm_gp_m1_ofs_x = 0.0;
+user float wm_gp_m1_ofs_y = 0.0;
+user float wm_gp_m1_ofs_z = 0.0;
+user float wm_gp_m1_r     = 0.0;
+user float wm_gp_m1_sh_ofs_x = 0.0;
+user float wm_gp_m1_sh_ofs_y = 0.0;
+user float wm_gp_m1_sh_ofs_z = 0.0;
+user float wm_gp_m1_sh_yaw   = 0.0;
+user float wm_gp_m1_sh_pitch = 0.0;
+user float wm_gp_m1_sh_roll  = 0.0;
+user float wm_gp_m1_sh_scale = 1.0;
+user float wm_gp_m1_sh_scale_x = 1.0;
+user float wm_gp_m1_sh_scale_y = 1.0;
+user float wm_gp_m1_sh_scale_z = 1.0;
+
+user float wm_gp_m2_ofs_x = 0.0;
+user float wm_gp_m2_ofs_y = 0.0;
+user float wm_gp_m2_ofs_z = 0.0;
+user float wm_gp_m2_r     = 0.0;
+user float wm_gp_m2_sh_ofs_x = 0.0;
+user float wm_gp_m2_sh_ofs_y = 0.0;
+user float wm_gp_m2_sh_ofs_z = 0.0;
+user float wm_gp_m2_sh_yaw   = 0.0;
+user float wm_gp_m2_sh_pitch = 0.0;
+user float wm_gp_m2_sh_roll  = 0.0;
+user float wm_gp_m2_sh_scale = 1.0;
+user float wm_gp_m2_sh_scale_x = 1.0;
+user float wm_gp_m2_sh_scale_y = 1.0;
+user float wm_gp_m2_sh_scale_z = 1.0;
+
+user float wm_gp_m3_ofs_x = 0.0;
+user float wm_gp_m3_ofs_y = 0.0;
+user float wm_gp_m3_ofs_z = 0.0;
+user float wm_gp_m3_r     = 0.0;
+user float wm_gp_m3_sh_ofs_x = 0.0;
+user float wm_gp_m3_sh_ofs_y = 0.0;
+user float wm_gp_m3_sh_ofs_z = 0.0;
+user float wm_gp_m3_sh_yaw   = 0.0;
+user float wm_gp_m3_sh_pitch = 0.0;
+user float wm_gp_m3_sh_roll  = 0.0;
+user float wm_gp_m3_sh_scale = 1.0;
+user float wm_gp_m3_sh_scale_x = 1.0;
+user float wm_gp_m3_sh_scale_y = 1.0;
+user float wm_gp_m3_sh_scale_z = 1.0;
+
+user float wm_gp_m4_ofs_x = 0.0;
+user float wm_gp_m4_ofs_y = 0.0;
+user float wm_gp_m4_ofs_z = 0.0;
+user float wm_gp_m4_r     = 0.0;
+user float wm_gp_m4_sh_ofs_x = 0.0;
+user float wm_gp_m4_sh_ofs_y = 0.0;
+user float wm_gp_m4_sh_ofs_z = 0.0;
+user float wm_gp_m4_sh_yaw   = 0.0;
+user float wm_gp_m4_sh_pitch = 0.0;
+user float wm_gp_m4_sh_roll  = 0.0;
+user float wm_gp_m4_sh_scale = 1.0;
+user float wm_gp_m4_sh_scale_x = 1.0;
+user float wm_gp_m4_sh_scale_y = 1.0;
+user float wm_gp_m4_sh_scale_z = 1.0;
+
+user float wm_gp_m5_ofs_x = 0.0;
+user float wm_gp_m5_ofs_y = 0.0;
+user float wm_gp_m5_ofs_z = 0.0;
+user float wm_gp_m5_r     = 0.0;
+user float wm_gp_m5_sh_ofs_x = 0.0;
+user float wm_gp_m5_sh_ofs_y = 0.0;
+user float wm_gp_m5_sh_ofs_z = 0.0;
+user float wm_gp_m5_sh_yaw   = 0.0;
+user float wm_gp_m5_sh_pitch = 0.0;
+user float wm_gp_m5_sh_roll  = 0.0;
+user float wm_gp_m5_sh_scale = 1.0;
+user float wm_gp_m5_sh_scale_x = 1.0;
+user float wm_gp_m5_sh_scale_y = 1.0;
+user float wm_gp_m5_sh_scale_z = 1.0;
+
+user float wm_gp_m6_ofs_x = 0.0;
+user float wm_gp_m6_ofs_y = 0.0;
+user float wm_gp_m6_ofs_z = 0.0;
+user float wm_gp_m6_r     = 0.0;
+user float wm_gp_m6_sh_ofs_x = 0.0;
+user float wm_gp_m6_sh_ofs_y = 0.0;
+user float wm_gp_m6_sh_ofs_z = 0.0;
+user float wm_gp_m6_sh_yaw   = 0.0;
+user float wm_gp_m6_sh_pitch = 0.0;
+user float wm_gp_m6_sh_roll  = 0.0;
+user float wm_gp_m6_sh_scale = 1.0;
+user float wm_gp_m6_sh_scale_x = 1.0;
+user float wm_gp_m6_sh_scale_y = 1.0;
+user float wm_gp_m6_sh_scale_z = 1.0;
+
+user float wm_gp_m7_ofs_x = 0.0;
+user float wm_gp_m7_ofs_y = 0.0;
+user float wm_gp_m7_ofs_z = 0.0;
+user float wm_gp_m7_r     = 0.0;
+user float wm_gp_m7_sh_ofs_x = 0.0;
+user float wm_gp_m7_sh_ofs_y = 0.0;
+user float wm_gp_m7_sh_ofs_z = 0.0;
+user float wm_gp_m7_sh_yaw   = 0.0;
+user float wm_gp_m7_sh_pitch = 0.0;
+user float wm_gp_m7_sh_roll  = 0.0;
+user float wm_gp_m7_sh_scale = 1.0;
+user float wm_gp_m7_sh_scale_x = 1.0;
+user float wm_gp_m7_sh_scale_y = 1.0;
+user float wm_gp_m7_sh_scale_z = 1.0;
+
+user float wm_gp_o0_ofs_x = 0.0;
+user float wm_gp_o0_ofs_y = 0.0;
+user float wm_gp_o0_ofs_z = 0.0;
+user float wm_gp_o0_r     = 0.0;
+user float wm_gp_o0_sh_ofs_x = 0.0;
+user float wm_gp_o0_sh_ofs_y = 0.0;
+user float wm_gp_o0_sh_ofs_z = 0.0;
+user float wm_gp_o0_sh_yaw   = 0.0;
+user float wm_gp_o0_sh_pitch = 0.0;
+user float wm_gp_o0_sh_roll  = 0.0;
+user float wm_gp_o0_sh_scale = 1.0;
+user float wm_gp_o0_sh_scale_x = 1.0;
+user float wm_gp_o0_sh_scale_y = 1.0;
+user float wm_gp_o0_sh_scale_z = 1.0;
+
+user float wm_gp_o1_ofs_x = 0.0;
+user float wm_gp_o1_ofs_y = 0.0;
+user float wm_gp_o1_ofs_z = 0.0;
+user float wm_gp_o1_r     = 0.0;
+user float wm_gp_o1_sh_ofs_x = 0.0;
+user float wm_gp_o1_sh_ofs_y = 0.0;
+user float wm_gp_o1_sh_ofs_z = 0.0;
+user float wm_gp_o1_sh_yaw   = 0.0;
+user float wm_gp_o1_sh_pitch = 0.0;
+user float wm_gp_o1_sh_roll  = 0.0;
+user float wm_gp_o1_sh_scale = 1.0;
+user float wm_gp_o1_sh_scale_x = 1.0;
+user float wm_gp_o1_sh_scale_y = 1.0;
+user float wm_gp_o1_sh_scale_z = 1.0;
+
+user float wm_gp_o2_ofs_x = 0.0;
+user float wm_gp_o2_ofs_y = 0.0;
+user float wm_gp_o2_ofs_z = 0.0;
+user float wm_gp_o2_r     = 0.0;
+user float wm_gp_o2_sh_ofs_x = 0.0;
+user float wm_gp_o2_sh_ofs_y = 0.0;
+user float wm_gp_o2_sh_ofs_z = 0.0;
+user float wm_gp_o2_sh_yaw   = 0.0;
+user float wm_gp_o2_sh_pitch = 0.0;
+user float wm_gp_o2_sh_roll  = 0.0;
+user float wm_gp_o2_sh_scale = 1.0;
+user float wm_gp_o2_sh_scale_x = 1.0;
+user float wm_gp_o2_sh_scale_y = 1.0;
+user float wm_gp_o2_sh_scale_z = 1.0;
+
+user float wm_gp_o3_ofs_x = 0.0;
+user float wm_gp_o3_ofs_y = 0.0;
+user float wm_gp_o3_ofs_z = 0.0;
+user float wm_gp_o3_r     = 0.0;
+user float wm_gp_o3_sh_ofs_x = 0.0;
+user float wm_gp_o3_sh_ofs_y = 0.0;
+user float wm_gp_o3_sh_ofs_z = 0.0;
+user float wm_gp_o3_sh_yaw   = 0.0;
+user float wm_gp_o3_sh_pitch = 0.0;
+user float wm_gp_o3_sh_roll  = 0.0;
+user float wm_gp_o3_sh_scale = 1.0;
+user float wm_gp_o3_sh_scale_x = 1.0;
+user float wm_gp_o3_sh_scale_y = 1.0;
+user float wm_gp_o3_sh_scale_z = 1.0;
+
+user float wm_gp_o4_ofs_x = 0.0;
+user float wm_gp_o4_ofs_y = 0.0;
+user float wm_gp_o4_ofs_z = 0.0;
+user float wm_gp_o4_r     = 0.0;
+user float wm_gp_o4_sh_ofs_x = 0.0;
+user float wm_gp_o4_sh_ofs_y = 0.0;
+user float wm_gp_o4_sh_ofs_z = 0.0;
+user float wm_gp_o4_sh_yaw   = 0.0;
+user float wm_gp_o4_sh_pitch = 0.0;
+user float wm_gp_o4_sh_roll  = 0.0;
+user float wm_gp_o4_sh_scale = 1.0;
+user float wm_gp_o4_sh_scale_x = 1.0;
+user float wm_gp_o4_sh_scale_y = 1.0;
+user float wm_gp_o4_sh_scale_z = 1.0;
+
+user float wm_gp_o5_ofs_x = 0.0;
+user float wm_gp_o5_ofs_y = 0.0;
+user float wm_gp_o5_ofs_z = 0.0;
+user float wm_gp_o5_r     = 0.0;
+user float wm_gp_o5_sh_ofs_x = 0.0;
+user float wm_gp_o5_sh_ofs_y = 0.0;
+user float wm_gp_o5_sh_ofs_z = 0.0;
+user float wm_gp_o5_sh_yaw   = 0.0;
+user float wm_gp_o5_sh_pitch = 0.0;
+user float wm_gp_o5_sh_roll  = 0.0;
+user float wm_gp_o5_sh_scale = 1.0;
+user float wm_gp_o5_sh_scale_x = 1.0;
+user float wm_gp_o5_sh_scale_y = 1.0;
+user float wm_gp_o5_sh_scale_z = 1.0;
+
+user float wm_gp_o6_ofs_x = 0.0;
+user float wm_gp_o6_ofs_y = 0.0;
+user float wm_gp_o6_ofs_z = 0.0;
+user float wm_gp_o6_r     = 0.0;
+user float wm_gp_o6_sh_ofs_x = 0.0;
+user float wm_gp_o6_sh_ofs_y = 0.0;
+user float wm_gp_o6_sh_ofs_z = 0.0;
+user float wm_gp_o6_sh_yaw   = 0.0;
+user float wm_gp_o6_sh_pitch = 0.0;
+user float wm_gp_o6_sh_roll  = 0.0;
+user float wm_gp_o6_sh_scale = 1.0;
+user float wm_gp_o6_sh_scale_x = 1.0;
+user float wm_gp_o6_sh_scale_y = 1.0;
+user float wm_gp_o6_sh_scale_z = 1.0;
+
+user float wm_gp_o7_ofs_x = 0.0;
+user float wm_gp_o7_ofs_y = 0.0;
+user float wm_gp_o7_ofs_z = 0.0;
+user float wm_gp_o7_r     = 0.0;
+user float wm_gp_o7_sh_ofs_x = 0.0;
+user float wm_gp_o7_sh_ofs_y = 0.0;
+user float wm_gp_o7_sh_ofs_z = 0.0;
+user float wm_gp_o7_sh_yaw   = 0.0;
+user float wm_gp_o7_sh_pitch = 0.0;
+user float wm_gp_o7_sh_roll  = 0.0;
+user float wm_gp_o7_sh_scale = 1.0;
+user float wm_gp_o7_sh_scale_x = 1.0;
+user float wm_gp_o7_sh_scale_y = 1.0;
+user float wm_gp_o7_sh_scale_z = 1.0;
+

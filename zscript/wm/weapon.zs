@@ -1,0 +1,841 @@
+// ============================================================================
+// THE WEAPONS. One base that fires; the prop on your controller is what you see.
+//
+// A weapon exists because GZDoom's idea of "a gun" is a Weapon class -- firing,
+// a slot and a trigger live there and nothing script-side can fire without
+// one. So each gun is a class, and the class is a name, a hand, an ammo type and
+// its SHOT (below). How the gun is worked -- its parts, stores, verbs, every mesh
+// number -- is its card.
+//
+// NO GUN LIVES HERE. This is the reload system; the guns are a weapon package
+// loaded after it (RS_VR_Weapons), which derives its classes from WM_Gun and its
+// props from WM_Prop. Nothing in this package names any of them.
+//
+// DUAL-WIELD IS THE ENGINE'S OWN. +WEAPON.OFFHANDWEAPON puts a weapon in
+// player.OffhandWeapon and makes its layer PSP_OFFHANDWEAPON; BT_OFFHANDATTACK
+// fires it. A_FireBullets from an off-hand weapon leaves the off hand. None of
+// that is invented here.
+//
+// ------------------------------------------------------------ TNT1 VIEW STATES
+//
+// Every view state is TNT1: the weapon draws nothing. What you look at is the
+// model on your controller. Hiding a sprite every tic was a fight with
+// RS_WorldHands' StandInForFist; with no picture there is nothing to argue about.
+//
+// ------------------------------------------------------------ VANILLA
+//
+// A class that says nothing about its shot fires the Doom pistol's: one round,
+// dead on, 5 x 1d3 -- what A_FireBullets(5.6, 0, 1, 5) did for a shot that is not
+// a refire. 19 tics a shot, as vanilla's 4 + 6 + 4 + 5 -- with the round leaving
+// on the FIRST of them rather than the fifth, because a 114ms wait between
+// pulling a trigger and the gun going off is a lag in a headset, not a period
+// detail.
+//
+// ONE PULL, ONE SHOT. The trigger has to come back before the next one. Held
+// down, nothing happens -- which is what a semi-automatic pistol does, and what
+// a pump does between strokes. A class that says WM_Gun.FullAuto keeps firing
+// while held (WM_HoldFire); one that says WM_Gun.ChambersPerPull fires several
+// loaded chambers on one pull (a double's two barrels).
+// ============================================================================
+
+class WM_Gun : Weapon
+{
+	Default
+	{
+		Weapon.SelectionOrder 1900;
+		Weapon.AmmoType1 "Clip";
+		Weapon.AmmoUse1 0;
+		Weapon.AmmoGive1 0;
+		+WEAPON.NOAUTOFIRE
+		+WEAPON.NOAUTOAIM
+		Inventory.PickupMessage "Weapon";
+	}
+
+	// ---- THE SHOT ----------------------------------------------------------------
+	//
+	// What one trigger pull puts in the air, said by the WEAPON CLASS in its Default
+	// block -- not by the card. A card describes how a gun is worked by hand; what
+	// comes out of the muzzle is the gun's own, and belongs with the rest of what
+	// the engine knows about it (ammo, selection, hand). A class that says nothing
+	// fires today's pistol shot exactly.
+	//
+	//   WM_Gun.ShotPellets N        rounds a pull fires. 0 (unset) is 1; at most 64.
+	//   WM_Gun.ShotSpread h, v      degrees either side of the aim, sideways then up.
+	//                               0, 0 (unset) is dead on.
+	//   WM_Gun.ShotDamage min, max  per round, rolled on the hit by the round (RSB_Bullet).
+	//                               0, 0 (unset) is its round profile's own, 5 x 1d3 unless it says otherwise.
+	//   WM_Gun.FireTics N           tics from one shot until the gun is ready again
+	//                               (35 a second). 0 (unset) is vanilla's 19. The
+	//                               trigger still has to come back between pulls,
+	//                               unless the class is FullAuto.
+	//   WM_Gun.ChambersPerPull N    how many LIVE chambers one pull fires at once, up to
+	//                               N (at most 8). 0 or 1 (unset) is one, today's pull
+	//                               exactly. A double whose pull fires both barrels says
+	//                               2: a pull fires every loaded barrel it can, and each
+	//                               chamber fired throws ShotPellets pellets -- so a
+	//                               double with one barrel loaded fires half the shot.
+	//                               Counted over the gun's chamber store (the first
+	//                               slotted store, WM_Ammo's facade), in slot order from
+	//                               the selected slot, and only with wm_verbs on; off,
+	//                               the old path fires one.
+	//   WM_Gun.FullAuto true        HOLDING THE TRIGGER KEEPS FIRING, one shot every
+	//                               FireTics, for as long as the chamber and the verbs
+	//                               allow (WM_TryFire asks the system every shot). The
+	//                               first empty pull clicks once and the trigger must
+	//                               come back. Unset (false) is one pull, one shot.
+	//                               Read off the owner's player cmd (WM_TriggerDown),
+	//                               so every machine in a netgame refires alike.
+	//   WM_Gun.RoundsPerShot N      what one pull SPENDS from a gun that fires from its
+	//                               magazine or the reserve (the card's `firesfrom`). 0
+	//                               (unset) is 1; at most 1000. A chamber gun fires
+	//                               chambers and never reads it. A BFG: 40 from a 160 cell.
+	//   WM_Gun.ShotClass "actor"    the projectile each pellet is, found BY NAME as it fires,
+	//                               so a class from another package is never a compile-time
+	//                               reference. "" (unset) is RS_Ballistics' RSB_Bullet, flown
+	//                               and drawn by the class's RoundProfile. Rocket, PlasmaBall
+	//                               and BFGBall bring their own speed, damage and death;
+	//                               LaunchRound and ShotDamage touch an RSB_Bullet only.
+	//   WM_Gun.RoundProfile "name"  RS_Ballistics profiles (RSBDEFS) for this class's shot: the
+	//   WM_Gun.FlashProfile "name"  round's ballistics and look ("pistol_45" unset); the muzzle's
+	//   WM_Gun.AltFlashProfile "n"  light, cone, sparks, flame and smoke ("pistol"); a second
+	//   WM_Gun.EjectaProfile "name" barrel's muzzle ("" is FlashProfile); what the port throws
+	//                               ("brass_45"). RS_VR_Reload REQUIRES RS_Ballistics, loaded
+	//                               before it (RSB_CALL_SITES_HANDOFF.md).
+	//   WM_Gun.ShotRail true        a RAIL each pellet instead of a projectile (A_RailAttack):
+	//                               ShotDamage rolled per rail, 100 unset; ShotSpread as its
+	//                               spread. Unset (false) fires projectiles.
+	//   WM_Gun.RailColors s, c      the rail's spiral and core, 0xRRGGBB. 0 (unset) is the
+	//                               engine's own colour for that part (a blue spiral, a grey
+	//                               core -- p_effect.cpp P_DrawRailTrail).
+	//   WM_Gun.ChargeTics N         a WAIT of N tics between the pull and the shot, with
+	//                               ChargeSound played as it starts -- the BFG's wind-up
+	//                               (vanilla 30). 0 (unset) fires on the pull. An empty gun
+	//                               clicks and does not charge; one emptied during the charge
+	//                               clicks at its end. At most 350.
+	//   WM_Gun.ChargeSound "snd"    the charge's sound. "" (unset) is silent.
+	//   WM_Gun.ShotSaw true         A_SAW once a pull instead of any projectile: a chainsaw.
+	//                               It never turns or pulls the player toward what it cuts --
+	//                               vanilla's does, and in a headset that yanks the view.
+	//                               ShotDamage rolled per hit when set, else vanilla's 2 x 1d10.
+	//                               No muzzle flash. Idle and draw sounds are the class's own
+	//                               Weapon.ReadySound / Weapon.UpSound.
+	//   WM_Gun.SawSounds f, h       the saw's running and hitting sounds. "" (unset) is
+	//                               weapons/sawfull and weapons/sawhit.
+	//   WM_Gun.ReleaseTics N        A RECOVERY WAIT once a firing run ends: when a shot's cycle
+	//                               ends without firing again -- a full-auto trigger up, or any
+	//                               semi-automatic shot -- no fire and no switch for N tics more.
+	//                               Vanilla's plasma rifle ends a burst `PLSG B 20 A_ReFire`: 20.
+	//                               0 (unset) is ready at once, as before. Not after a dry click
+	//                               or a second barrel's shot. At most 350.
+	//
+	// FIRE HOLD AND RELEASE: a subclass that does something for as long as the trigger is
+	// held -- a flamethrower's stream -- overrides FireHeld(int) and FireReleased(int) (below).
+	//
+	// A SECOND BARREL is not the class's: a card's `barrel <id>` block (card.zs WM_Barrel) puts
+	// one on the holding hand's second button -- an underbarrel launcher -- with its own store,
+	// shotclass, ammo and gate. AltFire (below) fires it; a class whose card has none never
+	// enters AltFire, because WM_Ready keeps that button blocked.
+	//
+	// Field names differ from the property names on purpose: ZScript is
+	// case-insensitive, and a field, a property and a method must never share one.
+	const MAX_SHOT_PELLETS = 64;
+	const MAX_CHAMBERS_PER_PULL = 8;
+	const MAX_ROUNDS_PER_SHOT = 1000;
+	int    shotPelletCount;
+	double shotSpreadYaw;
+	double shotSpreadPitch;
+	int    shotDamageLo;
+	int    shotDamageHi;
+	int    fireTicCount;
+	int    chambersPerPullCount;
+	bool   fullAutoFire;
+	int    roundsPerShotCount;
+	String shotClassName;
+	bool   railShotOn;
+	int    railSpiralRGB;
+	int    railCoreRGB;
+	int    chargeTicCount;
+	String chargeSoundName;
+	bool   sawShotOn;
+	String sawFullSoundName;
+	String sawHitSoundName;
+	int    releaseTicCount;
+	String roundProfileName;
+	String flashProfileName;
+	String altFlashProfileName;
+	String ejectaProfileName;
+	property ShotPellets: shotPelletCount;
+	property ShotSpread: shotSpreadYaw, shotSpreadPitch;
+	property ShotDamage: shotDamageLo, shotDamageHi;
+	property FireTics: fireTicCount;
+	property ChambersPerPull: chambersPerPullCount;
+	property FullAuto: fullAutoFire;
+	property RoundsPerShot: roundsPerShotCount;
+	property ShotClass: shotClassName;
+	property ShotRail: railShotOn;
+	property RailColors: railSpiralRGB, railCoreRGB;
+	property ChargeTics: chargeTicCount;
+	property ChargeSound: chargeSoundName;
+	property ShotSaw: sawShotOn;
+	property SawSounds: sawFullSoundName, sawHitSoundName;
+	property ReleaseTics: releaseTicCount;
+	property RoundProfile: roundProfileName;
+	property FlashProfile: flashProfileName;
+	property AltFlashProfile: altFlashProfileName;
+	property EjectaProfile: ejectaProfileName;
+
+	// THE RS_BALLISTICS PROFILES THIS CLASS'S SHOT NAMES, each the pistol's when unset.
+	String RoundProfileOrDefault()    const { return (roundProfileName.Length() > 0) ? roundProfileName : "pistol_45"; }
+	String FlashProfileOrDefault()    const { return (flashProfileName.Length() > 0) ? flashProfileName : "pistol"; }
+	String AltFlashProfileOrDefault() const { return (altFlashProfileName.Length() > 0) ? altFlashProfileName : FlashProfileOrDefault(); }
+	String EjectaProfileOrDefault()   const { return (ejectaProfileName.Length() > 0) ? ejectaProfileName : "brass_45"; }
+
+	// The whole Fire cycle in tics: the shot's own tic plus the wait after it.
+	int CycleTics() const { return (fireTicCount > 0) ? clamp(fireTicCount, 1, 350) : 19; }
+
+	// The most chambers one pull may fire: 1 unless the class says more.
+	int ChambersEachPull() const { return clamp(chambersPerPullCount, 1, MAX_CHAMBERS_PER_PULL); }
+
+	int    PelletsPerShot() const { return clamp(shotPelletCount, 1, MAX_SHOT_PELLETS); }
+	double ShotYawSpread() const   { return clamp(shotSpreadYaw, 0.0, 45.0); }
+	double ShotPitchSpread() const { return clamp(shotSpreadPitch, 0.0, 45.0); }
+	int    RoundsEachShot() const  { return clamp(roundsPerShotCount, 1, MAX_ROUNDS_PER_SHOT); }
+	int    ChargeTicsEach() const  { return clamp(chargeTicCount, 0, 350); }
+	// A saw's two sounds, each the owner's pick for this gun (WM_SoundPick: sawfull, sawhit) when one is set.
+	String SawFullSound()          { return WM_SoundPick.ForActor(Owner, GetClassName(), "sawfull", (sawFullSoundName != "") ? sawFullSoundName : "weapons/sawfull"); }
+	String SawHitSound()           { return WM_SoundPick.ForActor(Owner, GetClassName(), "sawhit", (sawHitSoundName != "") ? sawHitSoundName : "weapons/sawhit"); }
+	int    ReleaseTicsEach() const { return clamp(releaseTicCount, 0, 350); }
+
+	// THE PROJECTILE A PELLET IS (WM_Gun.ShotClass), found by name as it fires. A name that is
+	// no actor is said once, and the gun fires RSB_Bullet rather than nothing.
+	Class<Actor> ShotActor()
+	{
+		Class<Actor> fallback = "RSB_Bullet";
+		if (shotClassName == "") return fallback;
+		Class<Actor> named = (Class<Actor>)(Object.FindClass(shotClassName, "Actor"));
+		if (named) return named;
+		WM_Log.Once(WM_Log.LV_ERR, "shotclass:" .. GetClassName(), String.Format(
+			"%s: WM_Gun.ShotClass '%s' is not an actor class -- it fires RSB_Bullet instead", GetClassName(), shotClassName));
+		return fallback;
+	}
+
+	// ONE RAIL'S DAMAGE (WM_Gun.ShotRail): ShotDamage rolled on a named RNG, so every machine
+	// rolls alike; 100 when the class says none.
+	int RailDamage()
+	{
+		if (shotDamageLo <= 0) return 100;
+		return random[WMRail](shotDamageLo, max(shotDamageLo, shotDamageHi));
+	}
+
+	// A RAIL COLOUR (WM_Gun.RailColors) as A_RailAttack takes it. 0 stays 0, which is the
+	// engine's own colour for that part of the rail.
+	static color RailColor(int rgb)
+	{
+		color c = 0;
+		if (rgb != 0) c = Color(255, (rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255);
+		return c;
+	}
+
+	// For the bind log and wm_dump.
+	String ShotText()
+	{
+		int n = PelletsPerShot();
+		String s = String.Format("%d pellet%s, spread %.2f x %.2f deg", n, (n == 1) ? "" : "s", ShotYawSpread(), ShotPitchSpread());
+		if (railShotOn)
+		{
+			String railHurt = (shotDamageLo > 0) ? String.Format("%d-%d", shotDamageLo, max(shotDamageLo, shotDamageHi)) : "100 (unset)";
+			String railLook = (railSpiralRGB == 0 && railCoreRGB == 0) ? "the engine's own colours" : String.Format("spiral %06x, core %06x", railSpiralRGB, railCoreRGB);
+			s = s .. String.Format(", each a RAIL (A_RailAttack), damage %s, %s", railHurt, railLook);
+		}
+		else if (shotClassName != "")
+			s = s .. String.Format(", each a %s with its own damage", shotClassName);
+		else if (shotDamageLo > 0)
+			s = s .. String.Format(", damage %d-%d a pellet", shotDamageLo, max(shotDamageLo, shotDamageHi));
+		else
+			s = s .. String.Format(", damage the round profile's own (%s: 5 x 1d3 unless it says otherwise)", RoundProfileOrDefault());
+		if (roundsPerShotCount > 1)
+			s = s .. String.Format(", %d rounds a shot (spent by a gun that fires from its magazine or the reserve)", RoundsEachShot());
+		// Said only by a class that sets them, so every other gun's line reads as it did.
+		if (ChambersEachPull() > 1)
+			s = s .. String.Format(", per chamber -- a pull fires up to %d loaded chambers at once", ChambersEachPull());
+		if (fullAutoFire)
+			s = s .. String.Format(", FULL AUTO (held, a shot every %d tics)", CycleTics());
+		if (sawShotOn)
+			s = s .. String.Format(", a SAW each pull instead (A_Saw, no turn or pull-in, damage %s)",
+				(shotDamageLo > 0) ? String.Format("%d-%d", shotDamageLo, max(shotDamageLo, shotDamageHi)) : "vanilla 2 x 1d10");
+		if (ChargeTicsEach() > 0)
+			s = s .. String.Format(", CHARGES %d tics before each shot%s", ChargeTicsEach(),
+				(chargeSoundName != "") ? " (" .. chargeSoundName .. ")" : "");
+		if (ReleaseTicsEach() > 0)
+			s = s .. String.Format(", RECOVERS %d tics after a firing run", ReleaseTicsEach());
+		return s .. String.Format(" -- from the weapon class %s", GetClassName());
+	}
+
+	// The trigger has to come back. Set on every pull; cleared once the
+	// button is seen up.
+	bool mustRelease;
+
+	// THE GUN'S OWN ROUNDS, kept on the weapon rather than on the rig that
+	// draws it. The rig is rebuilt whenever the hand changes what it holds,
+	// and a fresh rig used to mean a fresh 15 + 1: switch to the fist and back
+	// for a free reload.
+	WM_Ammo wmAmmo;
+
+	int Hand() { return bOffhandWeapon ? 1 : 0; }
+
+	// ---- FIRE HOLD AND RELEASE --------------------------------------------------------
+	//
+	// For a gun that does something for as long as the trigger is held and something when it
+	// comes back -- a flamethrower's stream and its cut-off. A subclass overrides these; here
+	// both are empty. Called from DoEffect, which the engine runs for every inventory item every
+	// tic on every machine, and decided off the owner's usercmd, so every machine calls them
+	// alike.
+	//   FireHeld(heldTics)      every tic the trigger stays down after a shot left: 1, 2, 3 ...
+	//   FireReleased(heldTics)  once, the tic it comes back or the gun stops firing (a dry
+	//                           pull, a switch), with how many tics it was held
+	virtual void FireHeld(int heldTics) {}
+	virtual void FireReleased(int heldTics) {}
+
+	bool fireStarted;     // a shot left on this pull: a hold from here on is a hold on a fired trigger
+	int  fireHeldTics;
+
+	// THE TRIGGER OF THE HAND THIS GUN IS IN, off the owner's usercmd. The plain twin of
+	// WM_TriggerDown, which needs an action context; false when the gun is not in a hand.
+	bool TriggerIsDown()
+	{
+		if (!Owner || !Owner.player) return false;
+		let pl = Owner.player;
+		if (pl.ReadyWeapon != self && pl.OffhandWeapon != self) return false;
+		int bit = bOffhandWeapon ? BT_OFFHANDATTACK : BT_ATTACK;
+		return (pl.cmd.buttons & bit) != 0;
+	}
+
+	// ---- THE SECOND BARREL (card `barrel <id>`, card.zs WM_Barrel) --------------------------
+	//
+	// A card may give its gun a second barrel on the holding hand's second button -- an
+	// underbarrel grenade launcher. The class says nothing about it: the barrel is the card's,
+	// and the AltFire state asks the system for it by this class's name. A class whose card has
+	// none keeps the second button blocked in Ready, exactly as before (WM_Ready).
+
+	// ONE PULL, ONE SHOT on the second button too: set on every alt pull, cleared once the
+	// button is seen up (DoEffect, every tic on every machine).
+	bool altMustRelease;
+
+	// THE SECOND BUTTON OF THE HAND THIS GUN IS IN, off the owner's usercmd.
+	bool AltIsDown()
+	{
+		if (!Owner || !Owner.player) return false;
+		let pl = Owner.player;
+		if (pl.ReadyWeapon != self && pl.OffhandWeapon != self) return false;
+		int bit = bOffhandWeapon ? BT_OFFHANDALTATTACK : BT_ALTATTACK;
+		return (pl.cmd.buttons & bit) != 0;
+	}
+
+	// The barrel this class's card puts on the second button, or null. Card data, read on every
+	// machine.
+	WM_Barrel AltBarrel()
+	{
+		let sys = WM_System(EventHandler.Find("WM_System"));
+		return sys ? sys.AltBarrelFor(GetClassName()) : null;
+	}
+
+	override void DoEffect()
+	{
+		Super.DoEffect();
+		if (altMustRelease && !AltIsDown()) altMustRelease = false;
+		if (fireStarted && TriggerIsDown())
+		{
+			fireHeldTics++;
+			FireHeld(fireHeldTics);
+			return;
+		}
+		if (fireStarted || fireHeldTics > 0)
+		{
+			int heldFor = fireHeldTics;
+			fireHeldTics = 0;
+			fireStarted  = false;
+			if (heldFor > 0) FireReleased(heldFor);
+		}
+	}
+
+	// ---- THE DRAWN GUN, FOR EFFECTS ----------------------------------------------------
+	//
+	// Where things are on the gun as it is DRAWN in the hand, for a subclass's looks -- a
+	// flamethrower's stream out of its nozzle and its pilot light (RS_Ballistics'
+	// RSB_Flame.Stream / Pilot), from FireHeld / FireReleased. Points and directions are the
+	// CARD's: MD3 model space, x along the barrel toward the muzzle, y across, z up -- the same
+	// numbers the card's muzzle and grab points are written in.
+	//
+	// PRESENTATION ONLY. The drawn gun is placed from the local controller, so in a netgame these
+	// differ between machines: never let them decide damage, ammo or anything the game compares
+	// (Engine docs/NETWORK_HAND_INPUT_PLAN.md). Each returns ok = false while the gun has no drawn
+	// prop (not in a hand, or not yet built), with a fallback at the firing hand.
+	WM_Rig DrawnRig()
+	{
+		let sys = WM_System(EventHandler.Find("WM_System"));
+		return sys ? sys.RigForGun(self) : null;
+	}
+
+	private bool DrawnReady(WM_Rig rig) { return rig && rig.prop && rig.resolved && rig.card; }
+
+	// The firing hand's position, when there is no drawn gun to ask.
+	Vector3 HandFallbackPos()
+	{
+		let pmo = PlayerPawn(Owner);
+		if (!pmo) return Owner ? Owner.Pos : (0, 0, 0);
+		if (bOffhandWeapon) return pmo.OffhandPos;
+		return pmo.AttackPos;
+	}
+
+	// The owner's look, when there is no drawn gun to ask.
+	Vector3 HandFallbackDir()
+	{
+		if (!Owner) return (1, 0, 0);
+		double cp = cos(Owner.Pitch);
+		return (cos(Owner.Angle) * cp, sin(Owner.Angle) * cp, -sin(Owner.Pitch));
+	}
+
+	// A CARD POINT on the drawn gun, in the world.
+	Vector3, bool CardPointToWorld(Vector3 cardPoint)
+	{
+		let rig = DrawnRig();
+		if (DrawnReady(rig)) return rig.World(cardPoint), true;
+		return HandFallbackPos(), false;
+	}
+
+	// A CARD DIRECTION at a card point on the drawn gun, in the world, unit length.
+	Vector3, bool CardDirToWorld(Vector3 cardPoint, Vector3 cardDir)
+	{
+		let rig = DrawnRig();
+		if (DrawnReady(rig)) return rig.WorldDir(cardPoint, cardDir), true;
+		return HandFallbackDir(), false;
+	}
+
+	// The card's muzzle (with this hand's muzzle trim sliders), the barrel's direction, and the
+	// gun's sideways axis -- a flamethrower's nozzle, its aim and its acrossAxis.
+	Vector3, bool MuzzleToWorld()
+	{
+		let rig = DrawnRig();
+		if (DrawnReady(rig)) return rig.MuzzleWorld(), true;
+		return HandFallbackPos(), false;
+	}
+
+	Vector3, bool BarrelToWorld()
+	{
+		let rig = DrawnRig();
+		if (DrawnReady(rig)) return rig.BarrelWorld(), true;
+		return HandFallbackDir(), false;
+	}
+
+	Vector3, bool AcrossToWorld()
+	{
+		let rig = DrawnRig();
+		if (DrawnReady(rig)) return rig.AcrossWorld(), true;
+		return (0, 0, 0), false;
+	}
+
+	// WHAT THE GUN IS MOVING WITH, in map units a tic: the owner's own velocity plus the hand's
+	// (AttackVel / OffhandVel are map units a second, and read zero in a netgame -- see above).
+	Vector3 CarrierVelocity()
+	{
+		if (!Owner) return (0, 0, 0);
+		Vector3 v = Owner.Vel;
+		let pmo = PlayerPawn(Owner);
+		if (pmo)
+		{
+			if (bOffhandWeapon) v += pmo.OffhandVel / 35.0;
+			else                v += pmo.AttackVel / 35.0;
+		}
+		return v;
+	}
+
+	// WHAT IS LEFT TO FIRE: the rounds in the gun's own magazine (its WM_Ammo), or the owner's
+	// reserve for a gun that fires from it (card `firesfrom = reserve`). A chamber gun counts its
+	// magazine. A gun that fires on nothing has 0 and a share of 1.
+	int FeedRounds()
+	{
+		let sys = WM_System(EventHandler.Find("WM_System"));
+		let gunCard = sys ? sys.CardForWeapon(GetClassName()) : null;
+		if (gunCard && gunCard.firesFrom == WM_Card.FIRES_RESERVE)
+		{
+			let inv = Owner ? Owner.FindInventory(WM_LooseMag.ReserveFor(GetClassName())) : null;
+			return inv ? inv.Amount : 0;
+		}
+		if (gunCard && gunCard.firesFrom == WM_Card.FIRES_NOTHING) return 0;
+		return wmAmmo ? wmAmmo.rounds : 0;
+	}
+
+	// THE SAME AS A SHARE, 0..1 -- a flamethrower's fuelShare: the magazine against the card's
+	// capacity, or the reserve against its maximum.
+	double FeedShare()
+	{
+		let sys = WM_System(EventHandler.Find("WM_System"));
+		let gunCard = sys ? sys.CardForWeapon(GetClassName()) : null;
+		if (!gunCard || gunCard.firesFrom == WM_Card.FIRES_NOTHING) return 1.0;
+		if (gunCard.firesFrom == WM_Card.FIRES_RESERVE)
+		{
+			let inv = Owner ? Owner.FindInventory(WM_LooseMag.ReserveFor(GetClassName())) : null;
+			if (!inv || inv.MaxAmount <= 0) return 0.0;
+			return clamp(double(inv.Amount) / inv.MaxAmount, 0.0, 1.0);
+		}
+		return clamp(double(FeedRounds()) / max(gunCard.capacity, 1), 0.0, 1.0);
+	}
+
+	action bool WM_TriggerDown()
+	{
+		if (!player) return false;
+		int bit = invoker.bOffhandWeapon ? BT_OFFHANDATTACK : BT_ATTACK;
+		return (player.cmd.buttons & bit) != 0;
+	}
+
+	// READY. The trigger has to come back before the next pull (mustRelease). The second button
+	// fires only a card's second barrel (WM_Barrel), once a pull (altMustRelease); a class whose
+	// card has none keeps it blocked, as it always was, so pressing it never enters AltFire.
+	action void WM_Ready()
+	{
+		if (invoker.mustRelease && !WM_TriggerDown()) invoker.mustRelease = false;
+		int readyFlags = 0;
+		if (invoker.mustRelease) readyFlags |= WRF_NOPRIMARY;
+		if (invoker.altMustRelease || !invoker.AltBarrel()) readyFlags |= WRF_NOSECONDARY;
+		A_WeaponReady(readyFlags);
+	}
+
+	// ONE QUESTION TO THE SYSTEM, AND ONE ANNOUNCEMENT. The weapon owns no
+	// count: the chamber decides whether it fires, and the system owns the
+	// chamber. It announces the shot on the same tic so the flash, the brass
+	// and the slide are not a tic late.
+	//
+	// ASKED FOR THIS WEAPON'S OWNER, by player number -- never the console player.
+	// This action runs on every machine in a netgame, and on each it must ask about
+	// the hands of the player who pulled the trigger (WM_System.CanFire).
+	action State WM_TryFire()
+	{
+		invoker.mustRelease = true;
+		let sys = WM_System(EventHandler.Find("WM_System"));
+		int h = invoker.Hand();
+		int pn = player ? PlayerNumber() : -1;
+		int most = invoker.ChambersEachPull();
+		// WHAT THIS PULL SPENDS from a gun with no chamber (WM_Gun.RoundsPerShot): 1 unset.
+		int rounds = invoker.RoundsEachShot();
+		if (!sys || !sys.CanFire(pn, h, most, rounds))
+		{
+			// A gun that stops firing stops holding: FireReleased on the next DoEffect.
+			invoker.fireStarted = false;
+			if (sys) sys.OnDry(pn, h, rounds);
+			return ResolveState("Dry");
+		}
+		// HOW MANY CHAMBERS THIS PULL FIRES (WM_Gun.ChambersPerPull): 1 for every class
+		// that does not say more, without asking; otherwise the loaded chambers, up to
+		// the class's number. Asked before a pellet leaves, and OnShot spends exactly
+		// that many on the same tic, so the pellets and the spent cases always agree.
+		int chambers = (most > 1) ? sys.ChambersToFire(pn, h, most) : 1;
+		// A GUN THAT FIRES FROM THE RESERVE (card `firesfrom = reserve`) PAYS HERE, in the
+		// weapon's own action, which runs on every machine in a netgame -- never in the rig,
+		// which runs on one. RoundsPerShot of Weapon.AmmoType1, by DepleteAmmo, which honours
+		// infinite ammo; CanFire has already said the reserve holds that much.
+		if (sys.FiresFrom(invoker.GetClassName()) == WM_Card.FIRES_RESERVE)
+			invoker.DepleteAmmo(false, true, rounds, true);
+		// THE SHOT THIS CLASS DESCRIBES: PelletsPerShot rounds a chamber, each scattered
+		// within its spread and dealing its damage. Read off the invoker, so every machine
+		// fires the same pellets. A class silent on all three is one round, dead on,
+		// 5 x 1d3 -- the pistol shot exactly as it was.
+		// A SAW (WM_Gun.ShotSaw): A_Saw once a pull, never a pellet. SF_NOTURN and SF_NOPULLIN,
+		// because vanilla's turns and drags the PLAYER toward what it cuts, which in a headset
+		// yanks the view. A_Saw picks the off hand itself (invoker == player.OffhandWeapon).
+		// ShotDamage, when set, is rolled on a named RNG (SF_NORANDOM keeps it); unset is
+		// vanilla's 2 x 1d10. Its puff is RS_Ballistics' RSB_SawPuff: a BulletPuff with its
+		// sprite hidden that plays the `saw` impact (sparks, embers, a light) where it cuts.
+		if (invoker.sawShotOn)
+		{
+			int sawDamage = 2;
+			int sawFlags = SF_NOUSEAMMO | SF_NOTURN | SF_NOPULLIN;
+			if (invoker.shotDamageLo > 0)
+			{
+				sawDamage = random[WMSaw](invoker.shotDamageLo, max(invoker.shotDamageLo, invoker.shotDamageHi));
+				sawFlags |= SF_NORANDOM;
+			}
+			A_Saw(invoker.SawFullSound(), invoker.SawHitSound(), sawDamage, "RSB_SawPuff", sawFlags);
+			invoker.fireStarted = true;
+			sys.OnShot(pn, h, chambers, rounds);
+			return ResolveState(null);
+		}
+		int    nPellets = invoker.PelletsPerShot() * chambers;
+		double sprH     = invoker.ShotYawSpread();
+		double sprV     = invoker.ShotPitchSpread();
+		for (int i = 0; i < nPellets; i++)
+		{
+			// A RAIL (WM_Gun.ShotRail) instead of a projectile. A_RailAttack leaves the hand
+			// holding this gun on its own (it asks invoker == player.OffhandWeapon), spends no
+			// ammo (useammo false) and scatters by its own named RNG. Colours 0 are the engine's
+			// own rail -- a blue spiral round a grey core (p_effect.cpp P_DrawRailTrail). Its puff is
+			// RS_Ballistics' RSB_RailPuff: a BulletPuff with its sprite hidden that plays the `rail`
+			// impact (a blue-white splash, a glowing ring, a light) where it hits.
+			if (invoker.railShotOn)
+			{
+				A_RailAttack(invoker.RailDamage(), 0, false,
+					WM_Gun.RailColor(invoker.railSpiralRGB), WM_Gun.RailColor(invoker.railCoreRGB),
+					0, 0, "RSB_RailPuff", sprH, sprV);
+				continue;
+			}
+			// A REAL ROUND, NOT A HITSCAN LINE: RS_Ballistics' RSB_Bullet unless the class names its
+			// own projectile (WM_Gun.ShotClass). The engine spawns it at the firing hand and aims it,
+			// as A_FireBullets did; LaunchRound, after the scatter, names its profile, sets its speed and
+			// applies ShotDamage, and leaves any other projectile as its class made it. THIS IS THE SEAM
+			// a different round comes in at: one call, the class found by name.
+			Actor shot, spare;
+			[shot, spare] = A_FireProjectile(invoker.ShotActor(), 0, false, 0, 0, FPF_NOAUTOAIM);
+			if (shot && (sprH > 0 || sprV > 0)) invoker.ScatterShot(shot, sprH, sprV);
+			invoker.LaunchRound(shot, player, h, true);
+		}
+		invoker.fireStarted = true;
+		sys.OnShot(pn, h, chambers, rounds);
+		return ResolveState(null);
+	}
+
+	// FULL AUTO (WM_Gun.FullAuto): the end of a Fire cycle, with the trigger still held,
+	// goes straight round to Fire again instead of to Ready. Null -- carry on to Ready,
+	// as every other class does -- when the class is not full auto, the trigger is up,
+	// the player is dead, or this hand has a weapon change pending (A_ReFire's own test,
+	// so a switch is not held off by a held trigger). Whether the next shot happens is
+	// still WM_TryFire's: the chamber and the verbs decide, and an empty one clicks once.
+	action State WM_HoldFire()
+	{
+		if (!player || player.health <= 0) return null;
+		if (player.PendingWeapon != WP_NOCHANGE && player.PendingWeapon.bOffhandWeapon == invoker.bOffhandWeapon) return null;
+		// THE SECOND BARREL BETWEEN SHOTS (card.zs WM_Barrel): a full-auto gun held down never
+		// reaches Ready, so its second button is read here too, at the end of every cycle. The
+		// card is asked only while that button is down, so a class with no second barrel is not.
+		if (!invoker.altMustRelease && WM_AltDown() && invoker.AltBarrel())
+		{
+			invoker.bAltFire = true;
+			return ResolveState("AltFire");
+		}
+		if (!invoker.fullAutoFire || !WM_TriggerDown()) return null;
+		invoker.bAltFire = false;
+		return ResolveState("Fire");
+	}
+
+	action bool WM_AltDown()
+	{
+		if (!player) return false;
+		int bit = invoker.bOffhandWeapon ? BT_OFFHANDALTATTACK : BT_ALTATTACK;
+		return (player.cmd.buttons & bit) != 0;
+	}
+
+	// THE SECOND BARREL'S SHOT (card `barrel <id>`, card.zs WM_Barrel): the AltFire state's
+	// first tic, the same shape as WM_TryFire -- one question to the system for the weapon's
+	// OWNER by player number, then the shot and its announcement on the same tic. One round of
+	// the barrel's shotclass, spawned at the firing hand as every shot is; its damage is its own
+	// class's. Nothing is paid here: the round is in the barrel's store, which OnAltShot spends.
+	action State WM_TryAltFire()
+	{
+		invoker.altMustRelease = true;
+		let sys = WM_System(EventHandler.Find("WM_System"));
+		let b = sys ? sys.AltBarrelFor(invoker.GetClassName()) : null;
+		if (!b) return ResolveState("Ready");
+		int h = invoker.Hand();
+		int pn = player ? PlayerNumber() : -1;
+		if (!sys.CanAltFire(pn, h))
+		{
+			sys.OnAltDry(pn, h);
+			return ResolveState("Dry");
+		}
+		Actor shot, spare;
+		[shot, spare] = A_FireProjectile(invoker.BarrelShotActor(b), 0, false, 0, 0, FPF_NOAUTOAIM);
+		invoker.LaunchRound(shot, player, h, false);
+		sys.OnAltShot(pn, h);
+		return ResolveState(null);
+	}
+
+	// THE PROJECTILE A SECOND BARREL FIRES (WM_Barrel `shotclass`), found by name as it fires.
+	// Unset is RSB_Bullet, the gun's own round; a name that is no actor is said once, and it fires
+	// RSB_Bullet rather than nothing -- ShotActor's rule for the main barrel.
+	Class<Actor> BarrelShotActor(WM_Barrel b)
+	{
+		Class<Actor> fallback = "RSB_Bullet";
+		if (!b || b.shotClassName == "") return fallback;
+		Class<Actor> named = (Class<Actor>)(Object.FindClass(b.shotClassName, "Actor"));
+		if (named) return named;
+		WM_Log.Once(WM_Log.LV_ERR, "barrelshot:" .. GetClassName() .. ":" .. b.id, String.Format(
+			"%s barrel %s: shotclass '%s' is not an actor class -- it fires RSB_Bullet instead", GetClassName(), b.id, b.shotClassName));
+		return fallback;
+	}
+
+	// THE WAIT AFTER THE SECOND BARREL'S SHOT (WM_Barrel `firetics`), as WM_FireWait is the
+	// main barrel's.
+	action void WM_AltFireWait()
+	{
+		let b = invoker.AltBarrel();
+		A_SetTics(max((b ? b.CycleTics() : 19) - 1, 0));
+	}
+
+	// THE WAIT AFTER A SHOT, sized by the class (WM_Gun.FireTics). The Fire state's
+	// first tic fires; this state then lasts the rest of the cycle, so an unset
+	// class waits 18 more tics -- 19 in all, the cadence the fixed 10 + 4 + 5 gave.
+	action void WM_FireWait()
+	{
+		A_SetTics(max(invoker.CycleTics() - 1, 0));
+	}
+
+	// THE RECOVERY AFTER A FIRING RUN (WM_Gun.ReleaseTics). Reached only when WM_HoldFire let the
+	// run end -- no refire, no second barrel -- and no tics at all for a class that sets none, so
+	// every other gun is ready exactly when it was.
+	action void WM_ReleaseWait()
+	{
+		A_SetTics(invoker.ReleaseTicsEach());
+	}
+
+	// THE CHARGE (WM_Gun.ChargeTics), the first state of Fire and a 0-tic one, so a class that
+	// does not charge loses no tic and fires exactly as it did -- a FullAuto refire included.
+	// A gun that cannot fire clicks and does not charge; one that can starts the charge sound
+	// and waits in Charge, then WM_TryFire asks again, so a magazine dropped mid-charge clicks.
+	// The trigger coming back mid-charge does not cancel it, as in vanilla.
+	action State WM_Charge()
+	{
+		int tics = invoker.ChargeTicsEach();
+		if (tics <= 0) return null;
+		invoker.mustRelease = true;
+		let sys = WM_System(EventHandler.Find("WM_System"));
+		int h = invoker.Hand();
+		int pn = player ? PlayerNumber() : -1;
+		int rounds = invoker.RoundsEachShot();
+		if (!sys || !sys.CanFire(pn, h, invoker.ChambersEachPull(), rounds))
+		{
+			invoker.fireStarted = false;
+			if (sys) sys.OnDry(pn, h, rounds);
+			return ResolveState("Dry");
+		}
+		sys.OnCharge(pn, h, invoker.chargeSoundName, tics);
+		return ResolveState("Charge");
+	}
+
+	// The charge's own wait, sized by the class.
+	action void WM_ChargeWait()
+	{
+		A_SetTics(max(invoker.ChargeTicsEach(), 1));
+	}
+
+	// THIS CLASS'S DAMAGE ON ONE ROUND. Unset (0), the round keeps its own roll.
+	// ONE ROUND LEAVING THE GUN: THE ONE LAUNCH PATH for the pellet loop (WM_TryFire) and a second barrel
+	// (WM_TryAltFire), so a network command can wrap this one call (NETPLAY_SPEC). Called straight after
+	// A_FireProjectile and any scatter, in the fire action, on every machine. An RSB_Bullet takes the
+	// class's RoundProfile, which sets its speed and size from the profile's ballistics and keeps the
+	// direction. Any other projectile (a Rocket, a PlasmaBall, a grenade) is left as its class made it.
+	// withDamage: the class's ShotDamage on it -- the pellet loop's; a barrel's round keeps its own.
+	void LaunchRound(Actor shot, PlayerInfo shooter, int h, bool withDamage)
+	{
+		if (!shot) return;
+		if (shot is "RSB_Bullet") RSB_Bullet.Launch(shot, shooter, h, RoundProfileOrDefault());
+		if (withDamage) ApplyShotDamage(shot);
+	}
+
+	// THE CLASS'S ShotDamage ON ONE ROUND, rolled on its hit; unset (0) leaves the round profile's own.
+	void ApplyShotDamage(Actor shot)
+	{
+		if (!shot || shotDamageLo <= 0) return;
+		int lo = shotDamageLo;
+		int hi = max(shotDamageLo, shotDamageHi);
+		let r = RSB_Bullet(shot);
+		if (r) { r.damageMin = lo; r.damageMax = hi; }
+	}
+
+	// ONE PELLET'S OWN LINE. The engine aimed the round down the hand's line; this
+	// turns it by up to spreadYaw sideways and spreadPitch up or down -- two uniform
+	// draws differenced, so pellets bunch toward the middle the way A_FireBullets'
+	// did -- and keeps its speed. Done to the velocity, not through A_FireProjectile's
+	// angle and pitch, which offset the player's VIEW rather than the hand the round
+	// leaves. A named RNG, so every machine scatters alike.
+	void ScatterShot(Actor shot, double spreadYaw, double spreadPitch)
+	{
+		double spd = shot.Vel.Length();
+		if (spd < 0.000001) return;
+		Vector3 dir = shot.Vel / spd;
+		double yaw  = VectorAngle(dir.X, dir.Y) + (frandom[WMSpread](0, 1) - frandom[WMSpread](0, 1)) * spreadYaw;
+		double elev = atan2(dir.Z, dir.XY.Length()) + (frandom[WMSpread](0, 1) - frandom[WMSpread](0, 1)) * spreadPitch;
+		double ce = cos(elev);
+		shot.Vel = (ce * cos(yaw), ce * sin(yaw), sin(elev)) * spd;
+		shot.angle = yaw;
+		shot.pitch = -elev;
+	}
+
+	States
+	{
+	Spawn:
+		WMPR A -1;
+		Stop;
+	Ready:
+		TNT1 A 1 WM_Ready();
+		Loop;
+	Deselect:
+		TNT1 A 1 A_Lower();
+		Loop;
+	Select:
+		TNT1 A 1 A_Raise();
+		Loop;
+	Fire:
+		// No tic of its own: a class that does not charge passes straight to the shot.
+		TNT1 A 0 WM_Charge();
+		TNT1 A 1 WM_TryFire();
+		TNT1 A 18 WM_FireWait();
+		// No tic of its own: a class that is not FullAuto passes straight to Ready.
+		TNT1 A 0 WM_HoldFire();
+		// The recovery (WM_Gun.ReleaseTics): it sets its own tics, none for a class that sets none.
+		TNT1 A 1 WM_ReleaseWait();
+		Goto Ready;
+	Charge:
+		TNT1 A 1 WM_ChargeWait();
+		Goto Fire+1;
+	AltFire:
+		// A card's second barrel (card.zs WM_Barrel): its shot, its wait, then a held full-auto
+		// trigger goes round to Fire as at the end of Fire. Reached only when the card has one:
+		// WM_Ready blocks the second button otherwise, and WM_HoldFire asks first.
+		TNT1 A 1 WM_TryAltFire();
+		TNT1 A 18 WM_AltFireWait();
+		TNT1 A 0 WM_HoldFire();
+		Goto Ready;
+	Dry:
+		TNT1 A 8;
+		Goto Ready;
+	}
+}
+
+// WHAT A GUN IS DRAWN AS. The card's `prop` names a subclass of this (declared by
+// the weapon package, one per gun), rig.zs EnsureProp finds it by name and spawns
+// it, and the weapon package's MODELDEF binds the mesh and the hand to it
+// (FollowMainHand / FollowOffHand) -- which is the only reason each gun has its
+// own class.
+//
+// ADDED 2026-09-10 BY ANOTHER LANE, not this package's author: MODELDEF and
+// both cards already named the prop classes, but nothing declared them, so the
+// engine stopped at startup on "MODELDEF: Unknown actor type 'WM_PropM4A3'".
+// Written the way WM_Marker is -- a drawing, never a thing in the playsim --
+// and deliberately nothing more.
+//
+// THE HAND SEATS ARE THIS PACKAGE'S, THE BLOCKS THAT READ THEM ARE NOT. wm_main and
+// wm_off are placement sets per HAND (CVARINFO.txt, the "Main-hand gun" and
+// "Off-hand gun" pages), read by the renderer through `PlacementCVars wm_main` /
+// `wm_off` on a weapon package's MODELDEF blocks. No block here names them any
+// more, so they are declared to the lint by hand:
+// LINT-PREFIXES: wm_main wm_off
+class WM_Prop : Actor abstract
+{
+	Default
+	{
+		+NOBLOCKMAP
+		+NOGRAVITY
+		+NOINTERACTION
+		+NOTELEPORT
+		+DONTSPLASH
+		+NOTONAUTOMAP
+		RenderStyle "Normal";
+		Radius 1;
+		Height 1;
+	}
+
+	States
+	{
+	Spawn:
+		WMPR A -1;
+		Stop;
+	}
+}

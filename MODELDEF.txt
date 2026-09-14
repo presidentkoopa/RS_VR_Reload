@@ -1,0 +1,36 @@
+// ============================================================================
+// WHAT IS DRAWN -- by the reload system itself.
+//
+// GZDoom decides model-vs-sprite purely from MODELDEF, per class. A_ChangeModel
+// can swap WHICH mesh an actor wears; it cannot turn a sprite actor into a model
+// actor. So every drawn thing needs a block somewhere in the load order.
+//
+// NO GUN IS DRAWN HERE. The guns' props, and the default meshes of the loose
+// magazine and loose round (WM_LooseMag, WM_LooseRound), are a weapon package's
+// MODELDEF (RS_VR_Weapons/MODELDEF.txt): those classes are declared here, but the
+// only meshes they have ever worn are gun assets, and a gun's assets are its
+// package's. Loaded ALONE, the reload system has no cards, so nothing spawns a
+// loose magazine or round -- and if something did, it would draw as its
+// placeholder sprite (WMMG / WMRD), not as a mesh.
+//
+// The hand seats a gun's block reads (PlacementCVars wm_main / wm_off) and the
+// floor sets of the loose magazine and round (wm_dropmag / wm_dropround) are
+// still declared in this package's CVARINFO: they belong to hands and to the
+// system, not to any one gun.
+// ============================================================================
+
+// THE REACH MARKER. The wire sphere is radius 1.045, measured; the actor scales
+// itself to the radius the reach test uses, so what you see is what is tested.
+Model WM_Marker
+{
+	Path "models"
+	Model 0 "rs_wiresphere.obj"
+	Skin 0 "rs_wire_idle.png"
+	Scale 1.0 1.0 1.0
+	// NO PlacementCVars, DELIBERATELY. A placement set here would move and
+	// resize the wire mesh without touching the volume it is drawn to show --
+	// sliders whose only power is to make the display lie. If a wire mesh is
+	// ever built wrong, fix the mesh.
+	NOAUTOREVERSE
+	FrameIndex WMMK A 0 0
+}

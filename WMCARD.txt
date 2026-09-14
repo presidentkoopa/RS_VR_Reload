@@ -1,0 +1,220 @@
+# ============================================================================
+# THE RELOAD PROFILES. Archetypes only -- what a TYPE of gun does with its
+# parts, and nothing about any one gun.
+#
+# No weapon cards live in the reload system. A gun is a weapon package's card
+# (RS_VR_Weapons/WMCARD.txt), which takes one of these with `mechanism = <name>`
+# and says only where its own parts are and how far they move. Every WMCARD lump
+# in the load order is read before any card's mechanism is resolved, so a card
+# may come before or after the archetype it names.
+#
+# Loaded alone, the reload system reads these and has no guns to run them on --
+# which is correct, and says so once in the console.
+#
+# A gun that names no mechanism and declares no verbs still works: the old role
+# code's slide-and-magazine behaviour is synthesised from its `role = action` and
+# `role = feed` parts (card.zs SynthesiseVerbs), which is all a slide-and-magazine
+# gun needs.
+#
+# AN ARCHETYPE SAYS WHAT KIND OF GUN IT MAKES -- `type = shotgun` -- and a card on it
+# with no `type` of its own is that kind: its hands read that kind's seats
+# (zscript/wm/handprofile.zs). A card on no mechanism, on pistol grammar, is a pistol.
+# ============================================================================
+
+
+# ============================================================ THE PUMP ARCHETYPE
+#
+# The thresholds are BUILD.md section 4's worked pump card, not measurements:
+# how far a stroke must go to count is a feel to tune in a headset, not a
+# property of any mesh. homeat is the reload system's own default, stated
+# because a hand-returned action is the first thing to use it.
+archetype pump
+  type = shotgun     # the kind of gun, for whose hand seats it reads
+
+  # Pull back past outat: the chambered shell is thrown out of the port. Push
+  # home past homeat: the next shell comes up out of the tube into the
+  # chamber. The hand brings it home -- no spring, the shot does not cycle it,
+  # and it never holds open.
+  cycle pump
+    part   = forend
+    outat  = 0.85
+    apex   = 0.95
+    homeat = 0.10
+    onout  = eject
+    from   = chamber
+    onhome = feed
+    feed   = tube
+    into   = chamber
+    return = hand
+  end
+
+  # One shell at a time into the tube, let go of inside the oval. WHERE the
+  # port is differs per gun, so each card states `at`.
+  #
+  # size: BUILD.md's worked pump card -- HALF-sizes along the barrel, across
+  # and up, in the gun's axes, in MAP units, exactly as grabsize is.
+  load gate
+    into    = tube
+    size    = 2.5, 2.0, 2.0
+    subject = shell
+  end
+end
+
+
+# ===================================================== THE BREAK-TOP REVOLVER
+#
+# A Webley or a Schofield: the barrel and the cylinder are one assembly on a hinge
+# ahead of the cylinder, and the whole top tips DOWN to open. Each card names its
+# assembly part `barrel` and its cylinder store `cylinder`, and states where the
+# cylinder's rear face is (`load cylinder` / `at`, `dir`) -- nothing else here is a
+# measurement. The thresholds are feel, to tune in a headset.
+archetype breaktop_revolver
+  type = revolver     # the kind of gun, for whose hand seats it reads
+
+  # Tip the barrel down past openat: open. It stays where the hand leaves it. Pushed
+  # back up to closeat it is shut; anywhere between it is neither, and it does not fire
+  # (rig.OutOfBattery). THE DROP-MAG BUTTON OPENS IT (button = yes), and A FLICK UP SHUTS
+  # IT (close = flick) -- let go and snap the gun up, and the barrel carries on home.
+  open break
+    part      = barrel
+    openat    = 0.85
+    closeat   = 0.05
+    rest      = stay
+    button    = yes
+    close     = flick
+    flickaxis = up
+  end
+
+  # THE EXTRACTOR, BY GRAVITY: open, and turn the gun past its side or over, and every
+  # case in the cylinder falls out -- spent and live. `at` is the sine of how far the
+  # gun's DOWN axis is above horizontal: 0.10 is about 6 degrees past sideways, upside
+  # down is 1.0. The drop-mag button throws them out too, whichever way the gun is held.
+  # A break-top reloaded muzzle-down with its top up never tilts past, so fresh rounds
+  # stay in. (FEEL_PLAN section 2.)
+  eject extractor
+    by       = tilt
+    tiltaxis = down
+    at       = 0.10
+    from     = cylinder
+    needs    = open:break
+    button   = yes
+  end
+
+  # A speedloader to the open cylinder's rear face, let go of there: every empty
+  # chamber it can fill, at once. One loose round fills one. The zone rides the
+  # barrel, so it is on the face wherever the barrel has tipped to, and only takes
+  # anything while the gun is open.
+  load cylinder
+    into    = cylinder
+    slot    = next
+    subject = loader
+    size    = 2.5, 2.5, 2.5
+    rides   = barrel
+    needs   = open:break
+  end
+end
+
+
+# ==================================================== THE SWING-OUT REVOLVER
+#
+# A crane holds the cylinder beside the frame, and the cylinder swings out sideways
+# on it to open. Each card names its crane part `crane` and its store `cylinder`.
+archetype swingout_revolver
+  type = revolver     # the kind of gun, for whose hand seats it reads
+
+  # Swing the cylinder out past openat: open. Nothing leaves yet -- a crane has no
+  # extractor that works on opening. Swung back to closeat it is shut.
+  # THE DROP-MAG BUTTON SWINGS IT OUT (button = yes), and A FLICK SIDEWAYS SHUTS IT
+  # (close = flick, flickaxis = side: toward the side the crane shuts to, signed from its
+  # own hinge).
+  open crane
+    part      = crane
+    openat    = 0.85
+    closeat   = 0.05
+    rest      = stay
+    button    = yes
+    close     = flick
+    flickaxis = side
+  end
+
+  # THE EJECTOR: point the muzzle UP with the cylinder out, and every case falls out
+  # of the back of it -- the way a swing-out is emptied, muzzle up, rod pressed. The
+  # tilt alone does it (by = muzzleup), so the other hand stays free for the loader;
+  # `at` is how far up (the sine of the bore's elevation: 0.70 is about 44 degrees).
+  # The drop-mag button throws them out too, whichever way the gun is held (button = yes).
+  eject rod
+    by     = muzzleup
+    at     = 0.70
+    from   = cylinder
+    needs  = open:crane
+    button = yes
+  end
+
+  load cylinder
+    into    = cylinder
+    slot    = next
+    subject = loader
+    size    = 2.0, 2.0, 2.0
+    rides   = crane
+    needs   = open:crane
+  end
+end
+
+
+# ==================================================== THE BREAK-ACTION DOUBLE
+#
+# A side-by-side or over-under double: the barrels are one assembly on a hinge ahead
+# of the breech, and they tip DOWN to open, which lifts the breech up to the hand.
+# Each card names its barrel assembly part `barrels` and its chamber store `chambers`
+# (slotted, one slot a barrel), and states where the breech is (`load breech` / `at`,
+# `dir`) -- nothing else here is a measurement. The thresholds are feel, to tune in a
+# headset. How many barrels one pull fires is the weapon class's
+# (WM_Gun.ChambersPerPull), not the card's.
+archetype breakaction
+  type = breakaction     # the kind of gun, for whose hand seats it reads
+
+  # Tip the barrels down past openat: open. They stay where the hand leaves them. Pushed
+  # back up to closeat they are shut; anywhere between it is neither, and it does not fire
+  # (rig.OutOfBattery). THE DROP-MAG BUTTON OPENS IT (button = yes). Opening no longer
+  # throws the hulls: turn the open gun over and they fall out (eject extractor below) --
+  # the owner, 2026-09-13: like the break-top revolvers.
+  # A FLICK UP SHUTS THEM (close = flick): let go and snap the gun up.
+  open break
+    part      = barrels
+    openat    = 0.85
+    closeat   = 0.05
+    rest      = stay
+    button    = yes
+    close     = flick
+    flickaxis = up
+  end
+
+  # THE HULLS FALL OUT WHEN THE OPEN GUN IS TURNED OVER: past its side or upside down, so the
+  # breech faces the floor -- spent and live alike. at is the sine of how far the gun's DOWN axis
+  # is above horizontal (0.10 is about 6 degrees past sideways). The drop-mag button throws
+  # them out too, whichever way the gun is held. (FEEL_PLAN section 2, as the break-top.)
+  eject extractor
+    by       = tilt
+    tiltaxis = down
+    at       = 0.10
+    from     = chambers
+    needs    = open:break
+    button   = yes
+  end
+
+  # ONE ZONE AT THE BREECH, NOT ONE A BARREL. Two chambers a map unit apart would be
+  # two ovals almost on top of each other, and a shell let go of between them would go
+  # in by whichever it was a hair deeper in. One oval over both breeches fills the next
+  # empty chamber (`slot = next`, slot 0 first): a shell let go of there always goes
+  # somewhere it belongs. One shell at a time, from the pouch. The zone rides the
+  # barrels, so it is at the breech wherever they have tipped to, and only takes a
+  # shell while the gun is open.
+  load breech
+    into    = chambers
+    slot    = next
+    subject = shell
+    size    = 2.5, 2.5, 2.0
+    rides   = barrels
+    needs   = open:break
+  end
+end

@@ -1,0 +1,2890 @@
+// ============================================================================
+// THE MENU. As big as it needs to be, split so each page is one question.
+//
+// Anything under a heading that says MOVES LIVE is a placement set the renderer
+// reads every frame: open the page with the headset on, drag, and the gun, the
+// hand or the magazine moves while you watch. That is what these are for.
+//
+// Every slider here is checked by tools/menu_lint.py on each build against
+// CVARINFO and the code: a slider for a cvar nothing reads fails the build.
+// ============================================================================
+
+OptionValue "WMLogLevels"
+{
+	0, "Off"
+	1, "Errors only"
+	2, "Errors and warnings"
+	3, "Every state change"
+	4, "Everything, per tic"
+}
+
+OptionValue "WMGuns"
+{
+	0, "Main-hand gun"
+	1, "Off-hand gun"
+}
+
+OptionValue "WMPinPreview"
+{
+	0, "Off"
+	1, "On the slide, pump, barrel or crane"
+	2, "On the magazine"
+}
+
+AddOptionMenu "OptionsMenu"
+{
+	Submenu "VR Weapon Mechanisms", "WM_Options"
+}
+
+OptionMenu "WM_Options"
+{
+	Title "VR Weapon Mechanisms"
+	StaticText "A gun in each hand, each built from its own card.", 1
+	StaticText "Each hand works the OTHER hand's gun -- slide, magazine,", "DarkGray"
+	StaticText "the pouch -- and puts its own gun away while it does.", "DarkGray"
+	StaticText ""
+	Submenu "Main-hand gun -- M4A3",        "WM_MainGun"
+	Submenu "Off-hand gun -- Pistolet",     "WM_OffGun"
+	Submenu "Your hand on each gun",        "WM_HandSeats"
+	Submenu "Magazines and rounds",         "WM_MagMenu"
+	StaticText ""
+	StaticText "GRABBING A PART", 1
+	Option "Only grab with the palm turned onto the gun", "wm_palm_gate", "OnOff"
+	Slider "  How square the palm must be", "wm_palm_cos", 0.0, 1.0, 0.05, 2
+	StaticText "1.00 exactly square, 0.50 within 60 degrees. The HUD shows yours.", "DarkGray"
+	Submenu "The ammo pouch and the well",  "WM_PouchMenu"
+	Submenu "Firing, flash and brass",      "WM_FireMenu"
+	Submenu "Grab points",                  "WM_GrabMenu"
+	StaticText ""
+	StaticText "WHAT RUNS THE GUNS -- for comparing in the headset", "Gold"
+	Option "Run each gun from its card's verbs", "wm_verbs", "OnOff"
+	StaticText "On: the new interpreter -- cycle, swap -- decides every", "DarkGray"
+	StaticText "rack, drop and seat. Off: the old role code, untouched.", "DarkGray"
+	StaticText "Both should feel exactly the same. If they do not, say", "DarkGray"
+	StaticText "which one felt wrong -- the log names the path each time.", "DarkGray"
+	StaticText ""
+	StaticText "DIAGNOSTICS -- all on by default", "Gold"
+	Option  "Live readout on the HUD", "wm_overlay", "OnOff"
+	StaticText "Per hand: which gun it works, distance to every part", "DarkGray"
+	StaticText "against its reach, grip state, and what it is holding.", "DarkGray"
+	Option  "Buzz when a hand comes into reach", "wm_reach_buzz", "OnOff"
+	Option  "Write the readout to the log", "wm_log_hud", "OnOff"
+	Slider  "  every (tics)", "wm_log_hud_every", 10, 350, 5, 0
+	StaticText "Plus a snapshot the instant either grip closes or opens.", "DarkGray"
+	Option  "Console detail", "wm_log", "WMLogLevels"
+	Command "Print the full state now", "netevent wm_dump"
+	Command "Re-run the self test",     "netevent wm_selftest"
+	StaticText ""
+	StaticText "TEST CONTROLS", "Gold"
+	Command "Rack the MAIN gun",            "netevent wm_rack_main"
+	Command "Rack the OFF gun",             "netevent wm_rack_off"
+	Command "Drop the MAIN gun's magazine", "netevent wm_drop_main"
+	Command "Drop the OFF gun's magazine",  "netevent wm_drop_off"
+	Command "Reset both guns (15 + 1)",     "netevent wm_reset"
+}
+
+OptionMenu "WM_MainGun"
+{
+	Title "MAIN-HAND GUN -- M4A3"
+	StaticText "WHERE IT SITS ON YOUR CONTROLLER -- MOVES LIVE", "Gold"
+	StaticText "Starts from the seat you already tuned for this gun.", "DarkGray"
+	Slider "Left / right",   "wm_main_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "Forward / back", "wm_main_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "Down / up",      "wm_main_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "Yaw",            "wm_main_yaw",   -180, 180, 1, 0
+	Slider "Pitch",          "wm_main_pitch", -180, 180, 1, 0
+	Slider "Roll",           "wm_main_roll",  -180, 180, 1, 0
+	Slider "Size",           "wm_main_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "SIZE ON ONE AXIS -- MOVES LIVE", "Gold"
+	Slider "Size along X",   "wm_main_scale_x", 0.05, 3.0, 0.01, 2
+	Slider "Size along Y",   "wm_main_scale_y", 0.05, 3.0, 0.01, 2
+	Slider "Size along Z",   "wm_main_scale_z", 0.05, 3.0, 0.01, 2
+	StaticText "Above zero only -- the renderer ignores zero and below.", "DarkGray"
+	StaticText ""
+	StaticText "WHERE THE FLASH STARTS, in the gun's own axes", "Gold"
+	Slider "Along the barrel", "wm_main_muzzle_x", -10.0, 10.0, 0.1, 1
+	Slider "Across",           "wm_main_muzzle_y", -10.0, 10.0, 0.1, 1
+	Slider "Up / down",        "wm_main_muzzle_z", -10.0, 10.0, 0.1, 1
+}
+
+OptionMenu "WM_OffGun"
+{
+	Title "OFF-HAND GUN -- PISTOLET"
+	StaticText "WHERE IT SITS ON YOUR CONTROLLER -- MOVES LIVE", "Gold"
+	Slider "Left / right",   "wm_off_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "Forward / back", "wm_off_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "Down / up",      "wm_off_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "Yaw",            "wm_off_yaw",   -180, 180, 1, 0
+	Slider "Pitch",          "wm_off_pitch", -180, 180, 1, 0
+	Slider "Roll",           "wm_off_roll",  -180, 180, 1, 0
+	Slider "Size",           "wm_off_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "SIZE ON ONE AXIS -- MOVES LIVE", "Gold"
+	Slider "Size along X",   "wm_off_scale_x", 0.05, 3.0, 0.01, 2
+	Slider "Size along Y",   "wm_off_scale_y", 0.05, 3.0, 0.01, 2
+	Slider "Size along Z",   "wm_off_scale_z", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "WHERE THE FLASH STARTS, in the gun's own axes", "Gold"
+	Slider "Along the barrel", "wm_off_muzzle_x", -10.0, 10.0, 0.1, 1
+	Slider "Across",           "wm_off_muzzle_y", -10.0, 10.0, 0.1, 1
+	Slider "Up / down",        "wm_off_muzzle_z", -10.0, 10.0, 0.1, 1
+	StaticText ""
+	Option "Throw its brass the other way", "wm_eject_mirror_off", "OnOff"
+}
+
+OptionValue "WMHandProfiles"
+{
+	0, "Its own (the Uncalibrated page)"
+	1, "Pistol"
+	2, "Shotgun (pump)"
+	3, "Break action (a double)"
+	4, "Revolver"
+	5, "Rifle"
+	6, "SMG"
+	7, "Chaingun"
+	8, "Plasma gun"
+	9, "Launcher"
+	10, "BFG"
+	11, "Railgun"
+	12, "Flamethrower"
+	13, "Chainsaw"
+}
+
+// THE HUB: which kind of gun is in each hand, and a page per kind. No sliders here --
+// every one lives on its type's page, so tuning one kind can never move another.
+// WMHandProfile is OptionMenuItemWMHandProfile (zscript/wm/handprofile.zs): a live row
+// naming the gun in that hand and its profile; select it to open that page.
+// LINT-LIVE: WM_HandSeats
+OptionMenu "WM_HandSeats"
+{
+	Title "YOUR HAND ON EACH GUN"
+	StaticText "EVERY KIND OF GUN KEEPS ITS OWN HAND SEATS", 1
+	StaticText "Tune the revolver and the pistol and the pump stay where they were.", "DarkGray"
+	StaticText ""
+	StaticText "IN YOUR HANDS NOW -- select one to open its page", "Gold"
+	WMHandProfile "Main-hand gun", 0, ""
+	WMHandProfile "Off-hand gun", 1, ""
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part below, close this menu, then open", "DarkGray"
+	StaticText "it again. The hand stays on that part and every slider moves it.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	Option "Put the hand on the part when you grab it", "wm_hand_lock", "OnOff"
+	StaticText ""
+	StaticText "EVERY KIND OF GUN", "Gold"
+	Submenu "Pistol", "WM_HS_Pistol"
+	Submenu "Shotgun (pump)", "WM_HS_Shotgun"
+	Submenu "Break action (a double)", "WM_HS_BreakAction"
+	Submenu "Revolver", "WM_HS_Revolver"
+	Submenu "Rifle", "WM_HS_Rifle"
+	Submenu "SMG", "WM_HS_SMG"
+	Submenu "Chaingun", "WM_HS_Chaingun"
+	Submenu "Plasma gun", "WM_HS_Plasma"
+	Submenu "Launcher", "WM_HS_Launcher"
+	Submenu "BFG", "WM_HS_BFG"
+	Submenu "Railgun", "WM_HS_Railgun"
+	Submenu "Flamethrower", "WM_HS_Flamethrower"
+	Submenu "Chainsaw", "WM_HS_Chainsaw"
+	Submenu "Uncalibrated -- a gun whose card names no type", "WM_HS_Default"
+	StaticText ""
+	StaticText "A GUN WITH NO TYPE", "Gold"
+	Option "Uses the hands of", "wm_hs_uncalibrated", "WMHandProfiles"
+	StaticText "Takes effect when this menu closes. Or give its card a line:", "DarkGray"
+	StaticText "type = pistol -- or handprofile = <name> for a set of its own.", "DarkGray"
+}
+
+// LINT-LIVE: WM_HS_Default
+OptionMenu "WM_HS_Default"
+{
+	Title "YOUR HAND ON AN UNCALIBRATED GUN"
+	StaticText "Read by a gun whose card names no type -- unless 'A gun with no", "DarkGray"
+	StaticText "type uses the hands of' on the first page points at a type instead.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "default"
+	WMHandProfile "Off-hand gun", 1, "default"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_default_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_default_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_default_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_default_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_default_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_default_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_default_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_default_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_default_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_default_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_default_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_default_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_default_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_default_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_default_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_default_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_default_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_default_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_default_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_default_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_default_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_default_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_default_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_default_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_default_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_default_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_default_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_default_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_default_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_default_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_default_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_default_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_default_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_default_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_default_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_default_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_default_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_default_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_default_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_default_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_default_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_default_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_default_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_default_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_default_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_default_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_default_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_default_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_default_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_default_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_default_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_default_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_default_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_default_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_default_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_default_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_default_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_default_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_default_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_default_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_default_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_default_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_default_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_default_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_default_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_default_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_default_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_default_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_default_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_default_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HS_Pistol
+OptionMenu "WM_HS_Pistol"
+{
+	Title "YOUR HAND ON A PISTOL"
+	StaticText "Read by every gun whose card says type = pistol, or that runs on", "DarkGray"
+	StaticText "pistol grammar with no type. Started from the RS_TestPistol seats.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "pistol"
+	WMHandProfile "Off-hand gun", 1, "pistol"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_pistol_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_pistol_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_pistol_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_pistol_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_pistol_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_pistol_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_pistol_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_pistol_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_pistol_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_pistol_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_pistol_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_pistol_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_pistol_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_pistol_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_pistol_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_pistol_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_pistol_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_pistol_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_pistol_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_pistol_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_pistol_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_pistol_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_pistol_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_pistol_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_pistol_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_pistol_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_pistol_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_pistol_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_pistol_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_pistol_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_pistol_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_pistol_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_pistol_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_pistol_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_pistol_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_pistol_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_pistol_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_pistol_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_pistol_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_pistol_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_pistol_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_pistol_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_pistol_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_pistol_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_pistol_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_pistol_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_pistol_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_pistol_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_pistol_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_pistol_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_pistol_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_pistol_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_pistol_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_pistol_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_pistol_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_pistol_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_pistol_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_pistol_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_pistol_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_pistol_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_pistol_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_pistol_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_pistol_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_pistol_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_pistol_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_pistol_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_pistol_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_pistol_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_pistol_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_pistol_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HS_Shotgun
+OptionMenu "WM_HS_Shotgun"
+{
+	Title "YOUR HAND ON A SHOTGUN"
+	StaticText "Read by every gun whose card says type = shotgun, or runs the pump", "DarkGray"
+	StaticText "mechanism. The pump's turn is still the first estimate -- dial it here.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "shotgun"
+	WMHandProfile "Off-hand gun", 1, "shotgun"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_shotgun_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_shotgun_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_shotgun_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_shotgun_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_shotgun_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_shotgun_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_shotgun_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_shotgun_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_shotgun_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_shotgun_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_shotgun_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_shotgun_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_shotgun_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_shotgun_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_shotgun_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_shotgun_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_shotgun_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_shotgun_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_shotgun_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_shotgun_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_shotgun_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_shotgun_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_shotgun_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_shotgun_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_shotgun_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_shotgun_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_shotgun_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_shotgun_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_shotgun_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_shotgun_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_shotgun_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_shotgun_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_shotgun_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_shotgun_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_shotgun_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_shotgun_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_shotgun_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_shotgun_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_shotgun_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_shotgun_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_shotgun_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_shotgun_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_shotgun_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_shotgun_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_shotgun_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_shotgun_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_shotgun_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_shotgun_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_shotgun_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_shotgun_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_shotgun_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_shotgun_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_shotgun_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_shotgun_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_shotgun_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_shotgun_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_shotgun_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_shotgun_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_shotgun_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_shotgun_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_shotgun_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_shotgun_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_shotgun_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_shotgun_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_shotgun_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_shotgun_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_shotgun_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_shotgun_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_shotgun_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_shotgun_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HS_BreakAction
+OptionMenu "WM_HS_BreakAction"
+{
+	Title "YOUR HAND ON A BREAK-ACTION GUN"
+	StaticText "Read by every gun whose card says type = breakaction, or runs the", "DarkGray"
+	StaticText "breakaction mechanism.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "breakaction"
+	WMHandProfile "Off-hand gun", 1, "breakaction"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_breakaction_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_breakaction_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_breakaction_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_breakaction_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_breakaction_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_breakaction_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_breakaction_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_breakaction_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_breakaction_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_breakaction_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_breakaction_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_breakaction_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_breakaction_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_breakaction_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_breakaction_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_breakaction_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_breakaction_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_breakaction_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_breakaction_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_breakaction_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_breakaction_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_breakaction_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_breakaction_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_breakaction_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_breakaction_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_breakaction_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_breakaction_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_breakaction_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_breakaction_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_breakaction_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_breakaction_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_breakaction_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_breakaction_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_breakaction_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_breakaction_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_breakaction_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_breakaction_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_breakaction_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_breakaction_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_breakaction_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_breakaction_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_breakaction_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_breakaction_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_breakaction_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_breakaction_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_breakaction_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_breakaction_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_breakaction_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_breakaction_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_breakaction_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_breakaction_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_breakaction_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_breakaction_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_breakaction_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_breakaction_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_breakaction_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_breakaction_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_breakaction_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_breakaction_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_breakaction_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_breakaction_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_breakaction_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_breakaction_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_breakaction_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_breakaction_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_breakaction_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_breakaction_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_breakaction_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_breakaction_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_breakaction_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HS_Revolver
+OptionMenu "WM_HS_Revolver"
+{
+	Title "YOUR HAND ON A REVOLVER"
+	StaticText "Read by every gun whose card says type = revolver, or runs a revolver", "DarkGray"
+	StaticText "mechanism. Slide and magazine carry the revolver seat you tuned.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "revolver"
+	WMHandProfile "Off-hand gun", 1, "revolver"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_revolver_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_revolver_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_revolver_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_revolver_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_revolver_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_revolver_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_revolver_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_revolver_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_revolver_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_revolver_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_revolver_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_revolver_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_revolver_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_revolver_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_revolver_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_revolver_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_revolver_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_revolver_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_revolver_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_revolver_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_revolver_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_revolver_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_revolver_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_revolver_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_revolver_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_revolver_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_revolver_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_revolver_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_revolver_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_revolver_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_revolver_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_revolver_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_revolver_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_revolver_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_revolver_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_revolver_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_revolver_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_revolver_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_revolver_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_revolver_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_revolver_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_revolver_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_revolver_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_revolver_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_revolver_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_revolver_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_revolver_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_revolver_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_revolver_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_revolver_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_revolver_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_revolver_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_revolver_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_revolver_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_revolver_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_revolver_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_revolver_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_revolver_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_revolver_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_revolver_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_revolver_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_revolver_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_revolver_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_revolver_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_revolver_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_revolver_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_revolver_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_revolver_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_revolver_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_revolver_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HS_Rifle
+OptionMenu "WM_HS_Rifle"
+{
+	Title "YOUR HAND ON A RIFLE"
+	StaticText "Read by every gun whose card says type = rifle.", "DarkGray"
+	StaticText "No gun of this kind has been tuned yet: it starts from the pistol.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "rifle"
+	WMHandProfile "Off-hand gun", 1, "rifle"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_rifle_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_rifle_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_rifle_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_rifle_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_rifle_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_rifle_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_rifle_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_rifle_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_rifle_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_rifle_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_rifle_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_rifle_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_rifle_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_rifle_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_rifle_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_rifle_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_rifle_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_rifle_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_rifle_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_rifle_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_rifle_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_rifle_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_rifle_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_rifle_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_rifle_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_rifle_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_rifle_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_rifle_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_rifle_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_rifle_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_rifle_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_rifle_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_rifle_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_rifle_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_rifle_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_rifle_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_rifle_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_rifle_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_rifle_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_rifle_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_rifle_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_rifle_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_rifle_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_rifle_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_rifle_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_rifle_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_rifle_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_rifle_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_rifle_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_rifle_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_rifle_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_rifle_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_rifle_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_rifle_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_rifle_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_rifle_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_rifle_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_rifle_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_rifle_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_rifle_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_rifle_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_rifle_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_rifle_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_rifle_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_rifle_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_rifle_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_rifle_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_rifle_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_rifle_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_rifle_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HS_SMG
+OptionMenu "WM_HS_SMG"
+{
+	Title "YOUR HAND ON AN SMG"
+	StaticText "Read by every gun whose card says type = smg.", "DarkGray"
+	StaticText "No gun of this kind has been tuned yet: it starts from the pistol.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "smg"
+	WMHandProfile "Off-hand gun", 1, "smg"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_smg_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_smg_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_smg_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_smg_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_smg_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_smg_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_smg_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_smg_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_smg_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_smg_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_smg_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_smg_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_smg_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_smg_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_smg_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_smg_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_smg_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_smg_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_smg_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_smg_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_smg_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_smg_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_smg_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_smg_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_smg_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_smg_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_smg_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_smg_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_smg_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_smg_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_smg_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_smg_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_smg_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_smg_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_smg_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_smg_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_smg_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_smg_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_smg_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_smg_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_smg_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_smg_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_smg_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_smg_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_smg_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_smg_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_smg_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_smg_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_smg_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_smg_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_smg_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_smg_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_smg_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_smg_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_smg_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_smg_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_smg_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_smg_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_smg_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_smg_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_smg_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_smg_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_smg_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_smg_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_smg_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_smg_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_smg_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_smg_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_smg_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_smg_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HS_Chaingun
+OptionMenu "WM_HS_Chaingun"
+{
+	Title "YOUR HAND ON A CHAINGUN"
+	StaticText "Read by every gun whose card says type = chaingun.", "DarkGray"
+	StaticText "No gun of this kind has been tuned yet: it starts from the pistol.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "chaingun"
+	WMHandProfile "Off-hand gun", 1, "chaingun"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_chaingun_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chaingun_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chaingun_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chaingun_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chaingun_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chaingun_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chaingun_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_chaingun_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chaingun_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chaingun_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chaingun_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chaingun_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chaingun_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chaingun_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_chaingun_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chaingun_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chaingun_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chaingun_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chaingun_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chaingun_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chaingun_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_chaingun_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chaingun_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chaingun_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chaingun_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chaingun_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chaingun_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chaingun_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_chaingun_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chaingun_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chaingun_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chaingun_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chaingun_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chaingun_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chaingun_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_chaingun_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chaingun_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chaingun_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chaingun_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chaingun_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chaingun_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chaingun_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_chaingun_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chaingun_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chaingun_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chaingun_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chaingun_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chaingun_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chaingun_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_chaingun_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chaingun_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chaingun_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chaingun_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chaingun_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chaingun_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chaingun_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_chaingun_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chaingun_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chaingun_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chaingun_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chaingun_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chaingun_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chaingun_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_chaingun_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chaingun_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chaingun_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chaingun_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chaingun_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chaingun_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chaingun_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HS_Plasma
+OptionMenu "WM_HS_Plasma"
+{
+	Title "YOUR HAND ON A PLASMA GUN"
+	StaticText "Read by every gun whose card says type = plasma.", "DarkGray"
+	StaticText "No gun of this kind has been tuned yet: it starts from the pistol.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "plasma"
+	WMHandProfile "Off-hand gun", 1, "plasma"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_plasma_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_plasma_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_plasma_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_plasma_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_plasma_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_plasma_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_plasma_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_plasma_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_plasma_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_plasma_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_plasma_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_plasma_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_plasma_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_plasma_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_plasma_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_plasma_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_plasma_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_plasma_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_plasma_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_plasma_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_plasma_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_plasma_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_plasma_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_plasma_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_plasma_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_plasma_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_plasma_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_plasma_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_plasma_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_plasma_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_plasma_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_plasma_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_plasma_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_plasma_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_plasma_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_plasma_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_plasma_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_plasma_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_plasma_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_plasma_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_plasma_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_plasma_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_plasma_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_plasma_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_plasma_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_plasma_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_plasma_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_plasma_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_plasma_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_plasma_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_plasma_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_plasma_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_plasma_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_plasma_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_plasma_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_plasma_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_plasma_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_plasma_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_plasma_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_plasma_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_plasma_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_plasma_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_plasma_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_plasma_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_plasma_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_plasma_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_plasma_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_plasma_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_plasma_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_plasma_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HS_Launcher
+OptionMenu "WM_HS_Launcher"
+{
+	Title "YOUR HAND ON A LAUNCHER"
+	StaticText "Read by every gun whose card says type = launcher.", "DarkGray"
+	StaticText "No gun of this kind has been tuned yet: it starts from the pistol.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "launcher"
+	WMHandProfile "Off-hand gun", 1, "launcher"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_launcher_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_launcher_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_launcher_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_launcher_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_launcher_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_launcher_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_launcher_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_launcher_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_launcher_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_launcher_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_launcher_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_launcher_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_launcher_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_launcher_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_launcher_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_launcher_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_launcher_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_launcher_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_launcher_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_launcher_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_launcher_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_launcher_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_launcher_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_launcher_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_launcher_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_launcher_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_launcher_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_launcher_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_launcher_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_launcher_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_launcher_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_launcher_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_launcher_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_launcher_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_launcher_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_launcher_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_launcher_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_launcher_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_launcher_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_launcher_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_launcher_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_launcher_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_launcher_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_launcher_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_launcher_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_launcher_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_launcher_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_launcher_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_launcher_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_launcher_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_launcher_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_launcher_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_launcher_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_launcher_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_launcher_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_launcher_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_launcher_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_launcher_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_launcher_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_launcher_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_launcher_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_launcher_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_launcher_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_launcher_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_launcher_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_launcher_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_launcher_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_launcher_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_launcher_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_launcher_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HS_BFG
+OptionMenu "WM_HS_BFG"
+{
+	Title "YOUR HAND ON A BFG"
+	StaticText "Read by every gun whose card says type = bfg.", "DarkGray"
+	StaticText "No gun of this kind has been tuned yet: it starts from the pistol.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "bfg"
+	WMHandProfile "Off-hand gun", 1, "bfg"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_bfg_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_bfg_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_bfg_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_bfg_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_bfg_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_bfg_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_bfg_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_bfg_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_bfg_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_bfg_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_bfg_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_bfg_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_bfg_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_bfg_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_bfg_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_bfg_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_bfg_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_bfg_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_bfg_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_bfg_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_bfg_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_bfg_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_bfg_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_bfg_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_bfg_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_bfg_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_bfg_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_bfg_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_bfg_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_bfg_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_bfg_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_bfg_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_bfg_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_bfg_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_bfg_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_bfg_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_bfg_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_bfg_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_bfg_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_bfg_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_bfg_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_bfg_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_bfg_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_bfg_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_bfg_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_bfg_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_bfg_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_bfg_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_bfg_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_bfg_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_bfg_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_bfg_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_bfg_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_bfg_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_bfg_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_bfg_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_bfg_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_bfg_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_bfg_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_bfg_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_bfg_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_bfg_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_bfg_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_bfg_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_bfg_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_bfg_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_bfg_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_bfg_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_bfg_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_bfg_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HS_Railgun
+OptionMenu "WM_HS_Railgun"
+{
+	Title "YOUR HAND ON A RAILGUN"
+	StaticText "Read by every gun whose card says type = railgun.", "DarkGray"
+	StaticText "No gun of this kind has been tuned yet: it starts from the pistol.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "railgun"
+	WMHandProfile "Off-hand gun", 1, "railgun"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_railgun_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_railgun_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_railgun_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_railgun_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_railgun_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_railgun_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_railgun_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_railgun_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_railgun_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_railgun_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_railgun_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_railgun_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_railgun_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_railgun_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_railgun_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_railgun_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_railgun_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_railgun_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_railgun_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_railgun_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_railgun_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_railgun_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_railgun_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_railgun_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_railgun_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_railgun_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_railgun_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_railgun_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_railgun_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_railgun_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_railgun_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_railgun_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_railgun_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_railgun_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_railgun_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_railgun_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_railgun_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_railgun_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_railgun_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_railgun_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_railgun_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_railgun_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_railgun_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_railgun_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_railgun_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_railgun_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_railgun_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_railgun_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_railgun_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_railgun_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_railgun_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_railgun_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_railgun_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_railgun_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_railgun_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_railgun_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_railgun_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_railgun_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_railgun_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_railgun_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_railgun_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_railgun_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_railgun_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_railgun_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_railgun_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_railgun_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_railgun_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_railgun_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_railgun_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_railgun_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HS_Flamethrower
+OptionMenu "WM_HS_Flamethrower"
+{
+	Title "YOUR HAND ON A FLAMETHROWER"
+	StaticText "Read by every gun whose card says type = flamethrower.", "DarkGray"
+	StaticText "No gun of this kind has been tuned yet: it starts from the pistol.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "flamethrower"
+	WMHandProfile "Off-hand gun", 1, "flamethrower"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_flamethrower_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_flamethrower_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_flamethrower_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_flamethrower_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_flamethrower_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_flamethrower_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_flamethrower_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_flamethrower_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_flamethrower_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_flamethrower_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_flamethrower_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_flamethrower_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_flamethrower_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_flamethrower_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_flamethrower_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_flamethrower_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_flamethrower_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_flamethrower_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_flamethrower_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_flamethrower_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_flamethrower_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_flamethrower_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_flamethrower_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_flamethrower_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_flamethrower_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_flamethrower_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_flamethrower_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_flamethrower_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_flamethrower_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_flamethrower_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_flamethrower_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_flamethrower_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_flamethrower_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_flamethrower_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_flamethrower_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_flamethrower_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_flamethrower_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_flamethrower_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_flamethrower_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_flamethrower_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_flamethrower_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_flamethrower_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_flamethrower_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_flamethrower_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_flamethrower_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_flamethrower_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_flamethrower_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_flamethrower_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_flamethrower_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_flamethrower_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_flamethrower_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_flamethrower_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_flamethrower_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_flamethrower_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_flamethrower_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_flamethrower_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_flamethrower_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_flamethrower_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_flamethrower_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_flamethrower_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_flamethrower_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_flamethrower_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_flamethrower_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_flamethrower_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_flamethrower_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_flamethrower_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_flamethrower_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_flamethrower_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_flamethrower_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_flamethrower_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HS_Chainsaw
+OptionMenu "WM_HS_Chainsaw"
+{
+	Title "YOUR HAND ON A CHAINSAW"
+	StaticText "Read by every gun whose card says type = chainsaw.", "DarkGray"
+	StaticText "No gun of this kind has been tuned yet: it starts from the pistol.", "DarkGray"
+	WMHandProfile "Main-hand gun", 0, "chainsaw"
+	WMHandProfile "Off-hand gun", 1, "chainsaw"
+	StaticText ""
+	StaticText "TO TUNE: pick a gun and a part, close this menu, open it again.", "DarkGray"
+	Option "Show the hand on", "wm_hand_preview", "WMPinPreview"
+	Option "  of the", "wm_tune_gun", "WMGuns"
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_chainsaw_main_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chainsaw_main_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chainsaw_main_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chainsaw_main_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chainsaw_main_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chainsaw_main_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chainsaw_main_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_chainsaw_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chainsaw_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chainsaw_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chainsaw_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chainsaw_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chainsaw_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chainsaw_main_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_chainsaw_main_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chainsaw_main_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chainsaw_main_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chainsaw_main_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chainsaw_main_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chainsaw_main_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chainsaw_main_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND ON THE MAIN GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_chainsaw_main_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chainsaw_main_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chainsaw_main_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chainsaw_main_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chainsaw_main_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chainsaw_main_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chainsaw_main_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "OFF HAND BRACING THE MAIN GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_chainsaw_main_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chainsaw_main_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chainsaw_main_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chainsaw_main_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chainsaw_main_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chainsaw_main_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chainsaw_main_support_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S SLIDE OR BOLT -- MOVES LIVE", "Gold"
+	StaticText "A slide, a charging handle, a bolt: the part a hand racks.", "DarkGray"
+	Slider "  Along",    "wm_hs_chainsaw_off_slide_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chainsaw_off_slide_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chainsaw_off_slide_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chainsaw_off_slide_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chainsaw_off_slide_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chainsaw_off_slide_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chainsaw_off_slide_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S MAGAZINE -- MOVES LIVE", "Gold"
+	StaticText "Pushing a magazine home -- or a speedloader to a cylinder.", "DarkGray"
+	Slider "  Along",    "wm_hs_chainsaw_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chainsaw_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chainsaw_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chainsaw_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chainsaw_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chainsaw_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chainsaw_off_mag_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S PUMP -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat under the forend; it rides the pump.", "DarkGray"
+	Slider "  Along",    "wm_hs_chainsaw_off_forend_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chainsaw_off_forend_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chainsaw_off_forend_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chainsaw_off_forend_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chainsaw_off_forend_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chainsaw_off_forend_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chainsaw_off_forend_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND ON THE OFF GUN'S BARREL OR CRANE -- MOVES LIVE", "Gold"
+	StaticText "Trims the card's seat on a break-top barrel or a crane; it rides it open.", "DarkGray"
+	Slider "  Along",    "wm_hs_chainsaw_off_foregrip_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chainsaw_off_foregrip_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chainsaw_off_foregrip_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chainsaw_off_foregrip_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chainsaw_off_foregrip_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chainsaw_off_foregrip_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chainsaw_off_foregrip_scale", 0.05, 3.0, 0.01, 2
+	StaticText ""
+	StaticText "MAIN HAND BRACING THE OFF GUN -- MOVES LIVE", "Gold"
+	StaticText "Two-handed bracing has never been seen to work -- off by default.", "DarkGray"
+	Slider "  Along",    "wm_hs_chainsaw_off_support_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Across",   "wm_hs_chainsaw_off_support_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Up/down",  "wm_hs_chainsaw_off_support_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",      "wm_hs_chainsaw_off_support_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",    "wm_hs_chainsaw_off_support_pitch", -180, 180, 1, 0
+	Slider "  Roll",     "wm_hs_chainsaw_off_support_roll",  -180, 180, 1, 0
+	Slider "  Size",     "wm_hs_chainsaw_off_support_scale", 0.05, 3.0, 0.01, 2
+}
+
+OptionMenu "WM_MagMenu"
+{
+	Title "MAGAZINES AND ROUNDS"
+	StaticText "ON THE FLOOR", "Gold"
+	Slider "Walking over one picks it up after (tics)", "wm_walk_grace", 0, 700, 5, 0
+	StaticText "Grabbing by hand or laser works from the first tic.", "DarkGray"
+	Slider "A racked-out round lies (tics)", "wm_round_life", 35, 10500, 35, 0
+	Slider "Bounce",        "wm_bounce",      0.0, 0.8, 0.05, 2
+	Slider "Magazine glow", "wm_mag_glow",    0, 40, 1, 0
+	Slider "Round glint",   "wm_round_glint", 0, 30, 1, 0
+	StaticText "Empty magazines carry no colour. Full is green, one left is red.", "DarkGray"
+	StaticText ""
+	StaticText "LEAVING THE GUN", "Gold"
+	Slider "Drop speed (button)", "wm_drop_speed", 0.0, 8.0, 0.25, 2
+	Slider "A free hand catches a falling one within", "wm_catch_radius", 1.0, 16.0, 0.25, 2
+	Option "A map's clip becomes a magazine in your hand", "wm_clip_becomes_mag", "OnOff"
+	Slider "Throw strength",      "wm_throw_mult", 0.0, 4.0, 0.1, 1
+	Option "An emptied speedloader drops (off: it vanishes)", "wm_loader_spent_drops", "OnOff"
+	Option "Put your own gun away while working the other", "wm_stow_working_hand", "OnOff"
+	StaticText ""
+	StaticText "SIZE", "Gold"
+	Slider "Hand-to-floor ratio", "wm_world_factor", 0.05, 1.0, 0.01, 2
+	StaticText "0.34 is the renderer's own: 0.01 x vr_vunits_per_meter.", "DarkGray"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText "A revolver's hand holds its empty speedloader instead -- the same sets.", "DarkGray"
+	StaticText ""
+	StaticText "IN YOUR HAND AND ON THE FLOOR -- EVERY KIND OF GUN KEEPS ITS OWN", "Gold"
+	StaticText "Tune a revolver's speedloader and a pistol's magazine stays where it was.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, ""
+	WMAmmoProfile "Off-hand gun", 1, ""
+	Submenu "Pistol", "WM_HA_Pistol"
+	Submenu "Shotgun (pump)", "WM_HA_Shotgun"
+	Submenu "Break action (a double)", "WM_HA_BreakAction"
+	Submenu "Revolver", "WM_HA_Revolver"
+	Submenu "Rifle", "WM_HA_Rifle"
+	Submenu "SMG", "WM_HA_SMG"
+	Submenu "Chaingun", "WM_HA_Chaingun"
+	Submenu "Plasma gun", "WM_HA_Plasma"
+	Submenu "Launcher", "WM_HA_Launcher"
+	Submenu "BFG", "WM_HA_BFG"
+	Submenu "Railgun", "WM_HA_Railgun"
+	Submenu "Flamethrower", "WM_HA_Flamethrower"
+	Submenu "Chainsaw", "WM_HA_Chainsaw"
+	Submenu "Uncalibrated -- a gun whose card names no type", "WM_HA_Default"
+}
+
+// LINT-LIVE: WM_HA_Default
+OptionMenu "WM_HA_Default"
+{
+	Title "AN UNCALIBRATED GUN'S MAGAZINES AND ROUNDS"
+	StaticText "Read by a gun whose card names no type, or whose type has no sets of its own.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "default"
+	WMAmmoProfile "Off-hand gun", 1, "default"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_default_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_default_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_default_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_default_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_default_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_default_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_default_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_default_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_default_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_default_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_default_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_default_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_default_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_default_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_default_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_default_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_default_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_default_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_default_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_default_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_default_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_default_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_default_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_default_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_default_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_default_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_default_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_default_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_default_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_default_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_default_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_default_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_default_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_default_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_default_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_default_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_default_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_default_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_default_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_default_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_default_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_default_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HA_Pistol
+OptionMenu "WM_HA_Pistol"
+{
+	Title "A PISTOL'S MAGAZINES AND ROUNDS"
+	StaticText "Read by every gun whose card says type = pistol, or runs on pistol grammar.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "pistol"
+	WMAmmoProfile "Off-hand gun", 1, "pistol"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_pistol_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_pistol_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_pistol_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_pistol_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_pistol_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_pistol_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_pistol_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_pistol_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_pistol_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_pistol_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_pistol_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_pistol_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_pistol_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_pistol_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_pistol_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_pistol_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_pistol_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_pistol_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_pistol_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_pistol_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_pistol_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_pistol_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_pistol_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_pistol_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_pistol_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_pistol_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_pistol_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_pistol_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_pistol_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_pistol_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_pistol_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_pistol_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_pistol_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_pistol_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_pistol_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_pistol_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_pistol_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_pistol_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_pistol_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_pistol_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_pistol_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_pistol_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HA_Shotgun
+OptionMenu "WM_HA_Shotgun"
+{
+	Title "A PUMP SHOTGUN'S MAGAZINES AND ROUNDS"
+	StaticText "Read by every gun whose card says type = shotgun.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "shotgun"
+	WMAmmoProfile "Off-hand gun", 1, "shotgun"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_shotgun_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_shotgun_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_shotgun_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_shotgun_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_shotgun_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_shotgun_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_shotgun_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_shotgun_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_shotgun_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_shotgun_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_shotgun_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_shotgun_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_shotgun_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_shotgun_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_shotgun_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_shotgun_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_shotgun_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_shotgun_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_shotgun_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_shotgun_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_shotgun_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_shotgun_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_shotgun_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_shotgun_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_shotgun_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_shotgun_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_shotgun_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_shotgun_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_shotgun_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_shotgun_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_shotgun_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_shotgun_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_shotgun_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_shotgun_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_shotgun_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_shotgun_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_shotgun_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_shotgun_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_shotgun_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_shotgun_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_shotgun_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_shotgun_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HA_BreakAction
+OptionMenu "WM_HA_BreakAction"
+{
+	Title "A DOUBLE'S MAGAZINES AND ROUNDS"
+	StaticText "Read by every gun whose card says type = breakaction.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "breakaction"
+	WMAmmoProfile "Off-hand gun", 1, "breakaction"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_breakaction_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_breakaction_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_breakaction_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_breakaction_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_breakaction_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_breakaction_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_breakaction_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_breakaction_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_breakaction_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_breakaction_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_breakaction_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_breakaction_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_breakaction_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_breakaction_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_breakaction_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_breakaction_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_breakaction_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_breakaction_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_breakaction_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_breakaction_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_breakaction_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_breakaction_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_breakaction_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_breakaction_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_breakaction_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_breakaction_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_breakaction_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_breakaction_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_breakaction_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_breakaction_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_breakaction_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_breakaction_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_breakaction_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_breakaction_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_breakaction_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_breakaction_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_breakaction_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_breakaction_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_breakaction_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_breakaction_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_breakaction_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_breakaction_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HA_Revolver
+OptionMenu "WM_HA_Revolver"
+{
+	Title "A REVOLVER'S MAGAZINES AND ROUNDS"
+	StaticText "Read by every gun whose card says type = revolver -- its speedloaders too.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "revolver"
+	WMAmmoProfile "Off-hand gun", 1, "revolver"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_revolver_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_revolver_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_revolver_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_revolver_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_revolver_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_revolver_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_revolver_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_revolver_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_revolver_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_revolver_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_revolver_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_revolver_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_revolver_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_revolver_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_revolver_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_revolver_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_revolver_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_revolver_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_revolver_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_revolver_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_revolver_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_revolver_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_revolver_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_revolver_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_revolver_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_revolver_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_revolver_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_revolver_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_revolver_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_revolver_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_revolver_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_revolver_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_revolver_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_revolver_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_revolver_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_revolver_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_revolver_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_revolver_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_revolver_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_revolver_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_revolver_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_revolver_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HA_Rifle
+OptionMenu "WM_HA_Rifle"
+{
+	Title "A RIFLE'S MAGAZINES AND ROUNDS"
+	StaticText "Read by every gun whose card says type = rifle.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "rifle"
+	WMAmmoProfile "Off-hand gun", 1, "rifle"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_rifle_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_rifle_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_rifle_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_rifle_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_rifle_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_rifle_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_rifle_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_rifle_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_rifle_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_rifle_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_rifle_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_rifle_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_rifle_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_rifle_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_rifle_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_rifle_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_rifle_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_rifle_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_rifle_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_rifle_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_rifle_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_rifle_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_rifle_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_rifle_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_rifle_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_rifle_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_rifle_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_rifle_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_rifle_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_rifle_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_rifle_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_rifle_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_rifle_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_rifle_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_rifle_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_rifle_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_rifle_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_rifle_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_rifle_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_rifle_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_rifle_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_rifle_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HA_SMG
+OptionMenu "WM_HA_SMG"
+{
+	Title "AN SMG'S MAGAZINES AND ROUNDS"
+	StaticText "Read by every gun whose card says type = smg.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "smg"
+	WMAmmoProfile "Off-hand gun", 1, "smg"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_smg_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_smg_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_smg_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_smg_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_smg_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_smg_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_smg_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_smg_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_smg_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_smg_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_smg_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_smg_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_smg_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_smg_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_smg_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_smg_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_smg_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_smg_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_smg_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_smg_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_smg_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_smg_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_smg_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_smg_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_smg_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_smg_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_smg_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_smg_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_smg_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_smg_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_smg_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_smg_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_smg_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_smg_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_smg_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_smg_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_smg_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_smg_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_smg_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_smg_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_smg_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_smg_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HA_Chaingun
+OptionMenu "WM_HA_Chaingun"
+{
+	Title "A CHAINGUN'S MAGAZINES AND ROUNDS"
+	StaticText "Read by every gun whose card says type = chaingun.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "chaingun"
+	WMAmmoProfile "Off-hand gun", 1, "chaingun"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_chaingun_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_chaingun_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_chaingun_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_chaingun_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_chaingun_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_chaingun_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_chaingun_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_chaingun_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_chaingun_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_chaingun_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_chaingun_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_chaingun_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_chaingun_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_chaingun_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_chaingun_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_chaingun_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_chaingun_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_chaingun_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_chaingun_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_chaingun_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_chaingun_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_chaingun_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_chaingun_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_chaingun_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_chaingun_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_chaingun_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_chaingun_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_chaingun_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_chaingun_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_chaingun_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_chaingun_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_chaingun_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_chaingun_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_chaingun_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_chaingun_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_chaingun_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_chaingun_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_chaingun_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_chaingun_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_chaingun_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_chaingun_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_chaingun_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HA_Plasma
+OptionMenu "WM_HA_Plasma"
+{
+	Title "A PLASMA GUN'S MAGAZINES AND ROUNDS"
+	StaticText "Read by every gun whose card says type = plasma.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "plasma"
+	WMAmmoProfile "Off-hand gun", 1, "plasma"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_plasma_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_plasma_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_plasma_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_plasma_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_plasma_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_plasma_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_plasma_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_plasma_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_plasma_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_plasma_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_plasma_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_plasma_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_plasma_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_plasma_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_plasma_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_plasma_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_plasma_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_plasma_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_plasma_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_plasma_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_plasma_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_plasma_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_plasma_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_plasma_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_plasma_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_plasma_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_plasma_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_plasma_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_plasma_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_plasma_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_plasma_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_plasma_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_plasma_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_plasma_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_plasma_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_plasma_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_plasma_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_plasma_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_plasma_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_plasma_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_plasma_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_plasma_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HA_Launcher
+OptionMenu "WM_HA_Launcher"
+{
+	Title "A LAUNCHER'S MAGAZINES AND ROUNDS"
+	StaticText "Read by every gun whose card says type = launcher.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "launcher"
+	WMAmmoProfile "Off-hand gun", 1, "launcher"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_launcher_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_launcher_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_launcher_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_launcher_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_launcher_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_launcher_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_launcher_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_launcher_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_launcher_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_launcher_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_launcher_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_launcher_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_launcher_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_launcher_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_launcher_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_launcher_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_launcher_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_launcher_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_launcher_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_launcher_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_launcher_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_launcher_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_launcher_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_launcher_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_launcher_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_launcher_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_launcher_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_launcher_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_launcher_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_launcher_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_launcher_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_launcher_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_launcher_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_launcher_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_launcher_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_launcher_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_launcher_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_launcher_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_launcher_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_launcher_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_launcher_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_launcher_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HA_BFG
+OptionMenu "WM_HA_BFG"
+{
+	Title "A BFG'S MAGAZINES AND ROUNDS"
+	StaticText "Read by every gun whose card says type = bfg.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "bfg"
+	WMAmmoProfile "Off-hand gun", 1, "bfg"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_bfg_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_bfg_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_bfg_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_bfg_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_bfg_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_bfg_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_bfg_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_bfg_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_bfg_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_bfg_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_bfg_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_bfg_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_bfg_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_bfg_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_bfg_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_bfg_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_bfg_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_bfg_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_bfg_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_bfg_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_bfg_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_bfg_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_bfg_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_bfg_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_bfg_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_bfg_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_bfg_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_bfg_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_bfg_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_bfg_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_bfg_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_bfg_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_bfg_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_bfg_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_bfg_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_bfg_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_bfg_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_bfg_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_bfg_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_bfg_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_bfg_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_bfg_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HA_Railgun
+OptionMenu "WM_HA_Railgun"
+{
+	Title "A RAILGUN'S MAGAZINES AND ROUNDS"
+	StaticText "Read by every gun whose card says type = railgun.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "railgun"
+	WMAmmoProfile "Off-hand gun", 1, "railgun"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_railgun_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_railgun_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_railgun_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_railgun_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_railgun_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_railgun_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_railgun_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_railgun_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_railgun_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_railgun_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_railgun_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_railgun_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_railgun_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_railgun_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_railgun_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_railgun_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_railgun_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_railgun_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_railgun_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_railgun_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_railgun_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_railgun_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_railgun_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_railgun_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_railgun_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_railgun_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_railgun_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_railgun_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_railgun_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_railgun_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_railgun_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_railgun_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_railgun_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_railgun_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_railgun_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_railgun_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_railgun_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_railgun_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_railgun_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_railgun_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_railgun_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_railgun_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HA_Flamethrower
+OptionMenu "WM_HA_Flamethrower"
+{
+	Title "A FLAMETHROWER'S MAGAZINES AND ROUNDS"
+	StaticText "Read by every gun whose card says type = flamethrower.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "flamethrower"
+	WMAmmoProfile "Off-hand gun", 1, "flamethrower"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_flamethrower_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_flamethrower_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_flamethrower_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_flamethrower_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_flamethrower_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_flamethrower_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_flamethrower_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_flamethrower_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_flamethrower_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_flamethrower_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_flamethrower_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_flamethrower_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_flamethrower_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_flamethrower_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_flamethrower_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_flamethrower_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_flamethrower_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_flamethrower_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_flamethrower_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_flamethrower_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_flamethrower_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_flamethrower_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_flamethrower_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_flamethrower_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_flamethrower_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_flamethrower_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_flamethrower_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_flamethrower_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_flamethrower_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_flamethrower_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_flamethrower_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_flamethrower_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_flamethrower_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_flamethrower_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_flamethrower_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_flamethrower_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_flamethrower_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_flamethrower_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_flamethrower_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_flamethrower_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_flamethrower_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_flamethrower_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+// LINT-LIVE: WM_HA_Chainsaw
+OptionMenu "WM_HA_Chainsaw"
+{
+	Title "A CHAINSAW'S MAGAZINES AND ROUNDS"
+	StaticText "Read by every gun whose card says type = chainsaw.", "DarkGray"
+	WMAmmoProfile "Main-hand gun", 0, "chainsaw"
+	WMAmmoProfile "Off-hand gun", 1, "chainsaw"
+	StaticText ""
+	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_chainsaw_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_chainsaw_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_chainsaw_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_chainsaw_main_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_chainsaw_main_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_chainsaw_main_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_chainsaw_main_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_chainsaw_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_chainsaw_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_chainsaw_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_chainsaw_off_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_chainsaw_off_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_chainsaw_off_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_chainsaw_off_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_chainsaw_main_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_chainsaw_main_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_chainsaw_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_chainsaw_main_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_chainsaw_main_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_chainsaw_main_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_chainsaw_main_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_chainsaw_off_round_ofs_x", -100.0, 100.0, 0.25, 2
+	Slider "  Forward / back", "wm_ha_chainsaw_off_round_ofs_y", -100.0, 100.0, 0.25, 2
+	Slider "  Down / up",      "wm_ha_chainsaw_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Yaw",            "wm_ha_chainsaw_off_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_chainsaw_off_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_chainsaw_off_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_chainsaw_off_round_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A MAGAZINE ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_chainsaw_floor_mag_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_chainsaw_floor_mag_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_chainsaw_floor_mag_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_chainsaw_floor_mag_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_chainsaw_floor_mag_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_chainsaw_floor_mag_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_chainsaw_floor_mag_scale", 0.05, 4.0, 0.01, 2
+	StaticText ""
+	StaticText "A ROUND ON THE FLOOR -- MOVES LIVE", "Gold"
+	Slider "  Left / right",   "wm_ha_chainsaw_floor_round_ofs_x", -20.0, 20.0, 0.05, 2
+	Slider "  Forward / back", "wm_ha_chainsaw_floor_round_ofs_y", -20.0, 20.0, 0.05, 2
+	Slider "  Down / up",      "wm_ha_chainsaw_floor_round_ofs_z", -20.0, 20.0, 0.05, 2
+	Slider "  Yaw",            "wm_ha_chainsaw_floor_round_yaw",   -180, 180, 1, 0
+	Slider "  Pitch",          "wm_ha_chainsaw_floor_round_pitch", -180, 180, 1, 0
+	Slider "  Roll",           "wm_ha_chainsaw_floor_round_roll",  -180, 180, 1, 0
+	Slider "  Size",           "wm_ha_chainsaw_floor_round_scale", 0.05, 4.0, 0.01, 2
+}
+
+OptionMenu "WM_PouchMenu"
+{
+	Title "THE AMMO POUCH AND THE WELL"
+	StaticText "The sphere you see IS the volume tested. Green = in reach.", "DarkGray"
+	StaticText ""
+	StaticText "THE POUCH -- on your belt, in your body's frame", "Gold"
+	StaticText "Off the chest on purpose: that is where you catch things.", "DarkGray"
+	Slider "Forward / back", "wm_belt_fwd",    -30.0, 30.0, 0.5, 1
+	Slider "Left / right",   "wm_belt_side",   -30.0, 30.0, 0.5, 1
+	Slider "Down / up",      "wm_belt_up",     -40.0, 20.0, 0.5, 1
+	Slider "Size",           "wm_belt_radius", 1.0, 12.0, 0.25, 2
+	StaticText ""
+	Option "Also put pouches on the hips", "wm_hip_pouches", "OnOff"
+	Slider "Hip: out from centre", "wm_hip_side", 0.0, 25.0, 0.5, 1
+	Slider "Hip: height",          "wm_hip_up",   -40.0, 10.0, 0.5, 1
+	Slider "Hip: forward / back",  "wm_hip_fwd",  -20.0, 20.0, 0.5, 1
+	StaticText ""
+	StaticText "SEATING A MAGAZINE", "Gold"
+	Slider "The well catches it within",   "wm_well_radius", 0.5, 12.0, 0.25, 2
+	Slider "Wander off the line and it is yours at", "wm_well_letgo", 1.0, 20.0, 0.25, 2
+	Slider "The catch takes it at",        "wm_seat_at",     0.05, 0.9, 0.05, 2
+}
+
+OptionMenu "WM_FireMenu"
+{
+	Title "FIRING, FLASH AND BRASS"
+	StaticText "Vanilla damage and rate: 5 x 1d3 a shot, 19 tics between shots.", "DarkGray"
+	StaticText "One pull, one shot -- the trigger has to come back.", "DarkGray"
+	StaticText ""
+	StaticText "MUZZLE FLASH, SMOKE, SPARKS, IMPACTS AND CASINGS", "Gold"
+	StaticText "RS Ballistics draws every shot now: its menu sets how they look.", "DarkGray"
+	Submenu "RS Ballistics settings", "RSB_Options"
+	Slider "Beam slot (first of two)", "wm_flash_slot", 0, 30, 1, 0
+	StaticText ""
+	StaticText "BRASS", "Gold"
+	Slider "Ejection speed",        "wm_eject_speed", 0.0, 12.0, 0.25, 2
+	Slider "Belt links lie (tics)", "wm_casing_life", 35, 3500, 35, 0
+	StaticText ""
+	StaticText "THE ACTION", "Gold"
+	Slider "Cycle length (tics)", "wm_cycle_tics",    1, 20, 1, 0
+	Slider "How far it throws",   "wm_recoil_travel", 0.1, 1.0, 0.05, 2
+	Option "A flick shuts an open gun",          "wm_flick_close", "OnOff"
+	Slider "How hard a flick (metres a second)", "wm_flick_speed", 0.5, 5.0, 0.1, 1
+	Submenu "How far back still counts as closed, per kind of gun", "WM_FeelMenu"
+}
+
+// HOW FAR BACK STILL COUNTS AS CLOSED -- script-read thresholds, not a live page (WM_Rig.HomeAt / CloseAt).
+OptionMenu "WM_FeelMenu"
+{
+	Title "HOW FAR BACK STILL COUNTS AS CLOSED"
+	StaticText "A pump a hair back, a barrel a hair open: past this, it will not fire.", "DarkGray"
+	StaticText "0 is the card's own. Let go inside it and the part goes fully home.", "DarkGray"
+	StaticText "Read as the game runs: close the menu to feel a change.", "DarkGray"
+	StaticText ""
+	StaticText "PISTOL", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_pistol_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_pistol_shut", 0.0, 0.6, 0.01, 2
+	StaticText ""
+	StaticText "SHOTGUN (PUMP)", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_shotgun_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_shotgun_shut", 0.0, 0.6, 0.01, 2
+	StaticText ""
+	StaticText "BREAK ACTION (A DOUBLE)", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_breakaction_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_breakaction_shut", 0.0, 0.6, 0.01, 2
+	StaticText ""
+	StaticText "REVOLVER", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_revolver_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_revolver_shut", 0.0, 0.6, 0.01, 2
+	StaticText ""
+	StaticText "RIFLE", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_rifle_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_rifle_shut", 0.0, 0.6, 0.01, 2
+	StaticText ""
+	StaticText "SMG", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_smg_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_smg_shut", 0.0, 0.6, 0.01, 2
+	StaticText ""
+	StaticText "CHAINGUN", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_chaingun_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_chaingun_shut", 0.0, 0.6, 0.01, 2
+	StaticText ""
+	StaticText "PLASMA GUN", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_plasma_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_plasma_shut", 0.0, 0.6, 0.01, 2
+	StaticText ""
+	StaticText "LAUNCHER", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_launcher_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_launcher_shut", 0.0, 0.6, 0.01, 2
+	StaticText ""
+	StaticText "BFG", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_bfg_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_bfg_shut", 0.0, 0.6, 0.01, 2
+	StaticText ""
+	StaticText "RAILGUN", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_railgun_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_railgun_shut", 0.0, 0.6, 0.01, 2
+	StaticText ""
+	StaticText "FLAMETHROWER", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_flamethrower_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_flamethrower_shut", 0.0, 0.6, 0.01, 2
+	StaticText ""
+	StaticText "CHAINSAW", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_chainsaw_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_chainsaw_shut", 0.0, 0.6, 0.01, 2
+	StaticText ""
+	StaticText "UNCALIBRATED (NO TYPE)", "Gold"
+	Slider "  A hand-worked action counts as home within", "wm_feel_default_home", 0.0, 0.6, 0.01, 2
+	Slider "  An opened gun counts as shut within",        "wm_feel_default_shut", 0.0, 0.6, 0.01, 2
+}
+
+// LINT-LIVE: WM_GrabMenu
+//
+// EVERY SLIDER ON THIS PAGE MOVES SOMETHING WHILE THE PAGE IS OPEN. A menu
+// freezes the game, so a slider script reads is dead exactly when you are
+// looking at it -- the packer refuses to build this page with one on it.
+//
+// The part rows and their sliders are NOT here: they are built in code, from
+// the gun you have loaded, so they can be named ("slide", not "part 3") and
+// aimed at that part's own numbers. See WM_GrabMenu in zscript/wm/menu.zs.
+OptionMenu "WM_GrabMenu"
+{
+	Class "WM_GrabMenu"
+	Title "GRAB POINTS"
+	Option "Show grab points", "wm_show_grabs", "OnOff"
+	StaticText "The oval IS the volume tested -- if your hand looks", "DarkGray"
+	StaticText "inside it, the grab will take.", "DarkGray"
+	StaticText "A pump lists its forend and its load zones (where a shell goes in).", "DarkGray"
+	StaticText "Each part has its own reach below. A gun-wide one lives", "DarkGray"
+	StaticText "in wm_reach_override for when every part is wrong at once.", "DarkGray"
+	StaticText ""
+	StaticText "THE WHOLE GUN AT ONCE -- moves live", "Gold"
+	StaticText "For when every point sits off the gun the same way.", "DarkGray"
+	Slider "  Along the barrel (all)", "wm_grab_all_ofs_x", -20.0, 20.0, 0.25, 2
+	Slider "  Across (all)",           "wm_grab_all_ofs_y", -20.0, 20.0, 0.25, 2
+	Slider "  Up / down (all)",        "wm_grab_all_ofs_z", -20.0, 20.0, 0.25, 2
+	StaticText ""
+	Slider "See-through", "wm_marker_alpha", 0.05, 1.0, 0.05, 2
+}
+

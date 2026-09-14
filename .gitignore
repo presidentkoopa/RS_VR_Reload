@@ -1,0 +1,10 @@
+# Built by build.ps1 from the sources beside it; never committed.
+*.pk3
+__pycache__/
+*.bak
+_old/
+# Engine logs written into this folder, and run.ps1's test logs.
+doomxr-log.txt
+log-debug.txt
+wm_last.log
+logs/

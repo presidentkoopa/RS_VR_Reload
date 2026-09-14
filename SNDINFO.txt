@@ -1,0 +1,24 @@
+// ============================================================================
+// THE RELOAD SYSTEM'S OWN SOUNDS -- the ones no particular gun owns: the dry
+// click, brass, a magazine hitting the floor, a round landing. Every gun's own
+// voice (its shot, its magazine, its slide) is its weapon package's SNDINFO and
+// is named by its card; a card that names no sound for a moment is silent then.
+//
+// EVERY SOUND HERE IS FROM RS_Main's LICENSED POOL -- sounds/combatfx and
+// sounds/rs_weapon -- copied into this package rather than referenced, because
+// RS_Main is not in the load order and a sound name that resolves to nothing is
+// simply silent.
+// ============================================================================
+
+wm/dry              sounds/wm/AKEMPT
+
+$random wm/casing { wm/casing1 wm/casing2 wm/casing3 }
+wm/casing1          sounds/wm/DSCASIN1
+wm/casing2          sounds/wm/DSCASIN2
+wm/casing3          sounds/wm/DSCASIN3
+$volume wm/casing   0.6
+
+$random wm/magdrop { wm/magdrop1 wm/magdrop2 wm/magdrop3 }
+wm/magdrop1         sounds/wm/DSBOUNC1.ogg
+wm/magdrop2         sounds/wm/DSBOUNC2.ogg
+wm/magdrop3         sounds/wm/DSBOUNC3.ogg
