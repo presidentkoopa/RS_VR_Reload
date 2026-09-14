@@ -1,8 +1,8 @@
 // ============================================================================
-// WHAT A GUN DOES WITH ITS PARTS: SIX VERBS.
+// WHAT A GUN DOES WITH ITS PARTS: EIGHT VERBS.
 //
 // A part says what it IS and how it can move (card.zs). A verb says what the
-// gun DOES with it, and five cover every mechanism this system is for:
+// gun DOES with it, and these cover every mechanism this system is for:
 //
 //   CYCLE   a part travels out and back; at the far end something ejects, at
 //           the near end something is fed. A pistol slide, a pump forend, a
@@ -14,6 +14,10 @@
 //   EJECT   one slot, or every slot, of a store thrown into the world. A rod.
 //   START   a part pulled past a threshold starts the gun's engine, and springs home. A
 //           chainsaw's ripcord: the gun fires only while it runs.
+//   PULLOFF a part pulled along its dof until it comes away. A grenade's pin.
+//   RELEASE a part the holding hand's grip keeps shut, which springs off when that hand
+//           lets go. A grenade's lever. Both belong to a weapon that leaves the hand
+//           (throw.zs, THROWABLE_PLAN.md §2.3).
 //
 // Before verbs, `role` did this job twice over: `action` meant both "the part
 // that reciprocates" and "the thing Cycle animates, Hold measures against 0.60,
@@ -62,6 +66,8 @@ class WM_Verb
 	const LOAD  = 3;
 	const EJECT = 4;
 	const START = 5;   // a chainsaw's ripcord (CS-G1): the engine runs, and only then does it fire
+	const PULLOFF = 6; // a grenade's pin, pulled off along its dof
+	const RELEASE = 7; // a grenade's lever, held shut by the grip and off when that hand lets go
 
 	// WHAT LETTING GO DOES. The fix for the constant in the old Release().
 	const RET_SPRING = 0;   // it goes home by itself -- a pistol slide
@@ -175,6 +181,13 @@ class WM_Verb
 	bool    button;
 	bool    handTake;      // SWAP: a hand may take the part and pull it
 
+	// ---- PULLOFF AND RELEASE (THROWABLE_PLAN.md §2.3) ------------------------------
+	double  offAt;         // PULLOFF: pulled past here along its dof, the part comes away
+	bool    pullByHead;    // PULLOFF: `by = head`, brought to the mouth; unset `hand`, the other hand
+	bool    needsTrigger;  // PULLOFF: `needs = trigger`, only while the holding hand's trigger is held
+	bool    arms;          // PULLOFF: a throw after it is live; unset yes
+	bool    heldByGrip;    // RELEASE: `heldby = grip`, the holding hand's grip keeps it shut -- the one way
+
 	// ---- WHAT THE CARD SAID, for an override and for refusals ---------------------
 	bool    handTakeStated;
 	bool    homeAtStated;
@@ -245,6 +258,11 @@ class WM_Verb
 		needsOpen = "";
 		button    = (verbKind == SWAP);
 		handTake  = true;
+		offAt        = 0.9;
+		pullByHead   = false;
+		needsTrigger = false;
+		arms         = true;
+		heldByGrip   = true;
 
 		handTakeStated = false;
 		homeAtStated   = false;
@@ -273,6 +291,7 @@ class WM_Verb
 		c.loadAt = loadAt;  c.loadSize = loadSize;  c.loadDir = loadDir;
 		c.ridesId = ridesId;  c.ridesIndex = ridesIndex;
 		c.needsOpen = needsOpen;  c.button = button;  c.handTake = handTake;
+		c.offAt = offAt;  c.pullByHead = pullByHead;  c.needsTrigger = needsTrigger;  c.arms = arms;  c.heldByGrip = heldByGrip;
 		c.handTakeStated = handTakeStated;  c.homeAtStated = homeAtStated;  c.closeAtStated = closeAtStated;
 		for (int i = 0; i < keys.Size(); i++) { c.keys.Push(keys[i]); c.vals.Push(vals[i]); }
 		return c;
@@ -364,6 +383,8 @@ class WM_Verb
 		if (word == "load")  return LOAD;
 		if (word == "eject") return EJECT;
 		if (word == "start") return START;
+		if (word == "pulloff") return PULLOFF;
+		if (word == "release") return RELEASE;
 		return -1;
 	}
 
@@ -377,6 +398,8 @@ class WM_Verb
 			case LOAD:  return "load";
 			case EJECT: return "eject";
 			case START: return "start";
+			case PULLOFF: return "pulloff";
+			case RELEASE: return "release";
 		}
 		return String.Format("verb%d", verbKind);
 	}
@@ -477,6 +500,11 @@ class WM_Verb
 		}
 		else if (kind == START)
 			s = s .. String.Format(": pulled past %.2f the engine starts, and it springs home -- the gun fires only while its engine runs", outAt);
+		else if (kind == PULLOFF)
+			s = s .. String.Format(": pulled past %.2f by %s it comes away%s%s", offAt, pullByHead ? "the mouth" : "the other hand",
+				needsTrigger ? ", only while the holding hand's trigger is held" : "", arms ? ", arming it" : ", arming nothing");
+		else if (kind == RELEASE)
+			s = s .. ": held shut by the holding hand's grip, it springs off when that hand lets go";
 		if (needsOpen != "") s = s .. ", needs open:" .. needsOpen;
 		return s;
 	}

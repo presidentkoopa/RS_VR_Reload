@@ -451,6 +451,18 @@ class WM_Card
 	// (WM_Parser.FinishCard). None on every card before them.
 	Array<WM_Barrel> barrels;
 
+	// A WEAPON THAT LEAVES THE HAND (throw.zs): its `throw`, `route` and `fuse` blocks, its `mount`,
+	// and `pouch = whole`, checked once the card is whole (WM_Parser.ThrowableProblem). Null and
+	// false on every card before them.
+	WM_Throw throwSpec;
+	WM_Route routeSpec;
+	WM_Fuse  fuseSpec;
+	WM_Mount mountSpec;
+	bool     pouchWhole;
+	int      pouchLine;     // the line it was said on, for a refusal found once the card is whole
+
+	bool IsThrowable() const { return throwSpec != null; }
+
 	WM_Barrel FindBarrel(String barrelId)
 	{
 		for (int i = 0; i < barrels.Size(); i++)
@@ -621,7 +633,9 @@ class WM_Card
 		if (partIndex < 0 || partIndex >= parts.Size()) return false;
 		let p = parts[partIndex];
 		if (p.role == "action" || p.role == "feed" || p.role == "support") return true;
-		if (VerbIndexForPart(partIndex) >= 0) return true;
+		// A LEVER THE GRIP HOLDS (verb.zs RELEASE) is never taken by a hand: the grip on the weapon holds it.
+		int workedBy = VerbIndexForPart(partIndex);
+		if (workedBy >= 0) return verbs[workedBy].kind != WM_Verb.RELEASE;
 		// A LATCH A VERB WAITS ON (verb.zs latch, F3): a hand throws it.
 		for (int i = 0; i < verbs.Size(); i++)
 			if (verbs[i].latchIndex == partIndex) return true;
@@ -777,6 +791,9 @@ class WM_CardSet
 	// Finish derived every card's gun type (WM_Card.gunType). A set restored from a save
 	// written before gun types has not, and is read again the same way.
 	bool                typed;
+	// Finish read the throwable grammar (throw.zs). A set restored from a save written before it has no
+	// throw, route, fuse or mount on its cards, and is read again the same way.
+	bool                throwablesRead;
 
 	WM_Archetype FindArchetype(String archId)
 	{

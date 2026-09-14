@@ -462,8 +462,9 @@ class WM_System : EventHandler
 		// the rounds live on the weapon and are untouched.
 		// A SET FROM A SAVE WRITTEN BEFORE GUN TYPES (WM_CardSet.typed) is read afresh too:
 		// its cards have no type, and every gun's hands would read the uncalibrated seats.
-		if (set && set.finished && set.typed) return;
-		if (set) WM_Log.Info("the cards came back from a save written before verbs or gun types -- reading every WMCARD lump again");
+		// And one from before throwables (WM_CardSet.throwablesRead): its cards have no throw blocks.
+		if (set && set.finished && set.typed && set.throwablesRead) return;
+		if (set) WM_Log.Info("the cards came back from a save written before verbs, gun types or throwables -- reading every WMCARD lump again");
 		set = new("WM_CardSet");
 		int lump = -1;
 		int lumps = 0;
@@ -476,6 +477,7 @@ class WM_System : EventHandler
 		{
 			set.finished = true;
 			set.typed    = true;
+			set.throwablesRead = true;
 			WM_Log.Err("no WMCARD lump in the load order. The card IS the weapon -- with no card there is nothing to build.");
 			return;
 		}

@@ -47,6 +47,8 @@
 //   eject   by(hand|tilt|muzzleup) tiltaxis(barrel|up|down|x,y,z) part at from all(yes|no) needs button(yes|no)
 //   start   part outat -- one a card; the gun fires only while its engine runs (card pullsound,
 //           startsound, idlesound, stopsound)
+//   pulloff part offat by(hand|head) needs(trigger|none) arms(yes|no) -- a thrown weapon's pin
+//   release part heldby(grip) -- a thrown weapon's lever
 //
 // An open verb is open past `openat` and SHUT again only back at `closeat` (default
 // 0.05); in between it is neither, and a gun with one not shut does not fire. Opening
@@ -124,6 +126,15 @@
 // same id changes only the keys it states; a new id is added. A card naming an
 // archetype no lump declared -- or one that was itself refused -- is refused.
 //
+// -------------------------------------------------------------- THROWABLES
+//
+// A weapon that leaves the hand (throw.zs): `throw`, `route` and `fuse` each open ALONE, `mount <id>`
+// opens with its id, and each closes with `end` -- one of each a card, on a card only.
+// `pouch = whole` is a card key. `pulloff` and `release` are verb blocks like any other, so an
+// archetype may hold them. Whether it all fits together -- a route or a fuse with no throw, a catch
+// on a weapon that never comes back, a stow with no mount -- is decided once the card is whole
+// (ThrowableProblem).
+//
 // ------------------------------------------ A KEY IS NEVER A BLOCK HEADER
 //
 // `store = mag` and `part = slide` are keys in a verb block. Read as headers
@@ -154,6 +165,10 @@ class WM_Parser
 		WM_Store     curStore = null;
 		WM_Verb      curVerb  = null;
 		WM_Barrel    curBarrel = null;   // a `barrel <id>` block open on this card (card.zs WM_Barrel)
+		WM_Throw     curThrow = null;    // a `throw` block open on this card (throw.zs)
+		WM_Route     curRoute = null;    // a `route` block
+		WM_Fuse      curFuse  = null;    // a `fuse` block
+		WM_Mount     curMount = null;    // a `mount <id>` block
 		int          surfaceTotal = 0;   // moving surfaces named by this card's closed parts
 
 		for (int ln = 0; ln < lines.Size(); ln++)
@@ -175,7 +190,7 @@ class WM_Parser
 			bool archLine   = IsHeader(head, "archetype", nWords, second);
 			if (weaponLine || archLine)
 			{
-				if (card && !refused) Accept(set, card, curStore, curVerb, curBarrel, sourceName, ln + 1);
+				if (card && !refused) Accept(set, card, curStore, curVerb, curBarrel, ThrowableBlockOpen(curThrow, curRoute, curFuse, curMount), sourceName, ln + 1);
 				if (arch && !refused) Refuse(sourceName, ln + 1, "archetype " .. arch.id, "its block was never closed with `end`");
 				card     = null;
 				arch     = null;
@@ -185,6 +200,10 @@ class WM_Parser
 				curStore = null;
 				curVerb  = null;
 				curBarrel = null;
+				curThrow = null;
+				curRoute = null;
+				curFuse  = null;
+				curMount = null;
 				surfaceTotal = 0;
 				if (weaponLine)
 				{
@@ -220,6 +239,7 @@ class WM_Parser
 			}
 
 			String lower = raw.MakeLower();
+			String thrOpen = ThrowableBlockOpen(curThrow, curRoute, curFuse, curMount);   // "" when none is open
 			if (lower == "end")
 			{
 				if (curDof != null) curDof = null;
@@ -271,6 +291,24 @@ class WM_Parser
 					else card.barrels.Push(curBarrel);
 					curBarrel = null;
 				}
+				// A THROWABLE'S BLOCKS (throw.zs): one of each a card. How they fit together is checked once
+				// the card is whole (ThrowableProblem).
+				else if (thrOpen != "")
+				{
+					if ((curThrow && card.throwSpec) || (curRoute && card.routeSpec) || (curFuse && card.fuseSpec) || (curMount && card.mountSpec))
+					{
+						Refuse(sourceName, ln + 1, thrOpen, "a card has one block of this kind");
+						refused = true;
+					}
+					else if (curThrow) card.throwSpec = curThrow;
+					else if (curRoute) card.routeSpec = curRoute;
+					else if (curFuse)  card.fuseSpec  = curFuse;
+					else               card.mountSpec = curMount;
+					curThrow = null;
+					curRoute = null;
+					curFuse  = null;
+					curMount = null;
+				}
 				else if (curVerb != null)
 				{
 					// ONE ID PER VERB in a card or an archetype. Complete or not is
@@ -311,6 +349,7 @@ class WM_Parser
 				else if (curVerb != null)  partWhy = "a part cannot open inside a verb block -- close the verb with `end` first";
 				else if (curPart != null)  partWhy = "a part cannot open inside another part -- close it with `end` first";
 				else if (curBarrel != null) partWhy = "a part cannot open inside a barrel block -- close the barrel with `end` first";
+				else if (thrOpen != "")     partWhy = String.Format("a part cannot open inside a %s block -- close it with `end` first", thrOpen);
 				if (partWhy != "")
 				{
 					Refuse(sourceName, ln + 1, raw, partWhy);
@@ -333,6 +372,7 @@ class WM_Parser
 				else if (curStore != null) whyNot = "a store cannot open inside another store -- close it with `end` first";
 				else if (curVerb != null)  whyNot = "a store cannot open inside a verb block -- close the verb with `end` first";
 				else if (curBarrel != null) whyNot = "a store cannot open inside a barrel block -- close the barrel with `end` first";
+				else if (thrOpen != "")     whyNot = String.Format("a store cannot open inside a %s block -- close it with `end` first", thrOpen);
 				else if (nWords > 2)       whyNot = "one key per line: `store <name>` alone, then its keys, then `end`";
 				if (whyNot != "")
 				{
@@ -355,6 +395,7 @@ class WM_Parser
 				else if (curStore != null)  barrelWhy = "a barrel cannot open inside a store block -- close the store with `end` first";
 				else if (curVerb != null)   barrelWhy = "a barrel cannot open inside a verb block -- close the verb with `end` first";
 				else if (curBarrel != null) barrelWhy = "a barrel cannot open inside another barrel -- close it with `end` first";
+				else if (thrOpen != "")     barrelWhy = String.Format("a barrel cannot open inside a %s block -- close it with `end` first", thrOpen);
 				else if (nWords > 2)        barrelWhy = "one key per line: `barrel <id>` alone, then its keys, then `end`";
 				if (barrelWhy != "")
 				{
@@ -364,6 +405,33 @@ class WM_Parser
 				}
 				curBarrel = NewBarrel(Unquote(second));
 				curBarrel.line = ln + 1;
+				continue;
+			}
+
+			// A THROWABLE'S BLOCKS (throw.zs): `throw`, `route` and `fuse` open ALONE -- `throw = ...` is a
+			// key no card has, so it is refused as unknown -- and `mount <id>` opens with its id.
+			bool throwHead = (head == "throw" || head == "route" || head == "fuse") && (nWords == 1 || second.Left(1) != "=");
+			if (throwHead || IsHeader(head, "mount", nWords, second))
+			{
+				String thrWhy = "";
+				if (arch != null)           thrWhy = String.Format("an archetype holds verb blocks only -- a %s block is declared on each weapon's own card", head);
+				else if (curPart != null)   thrWhy = String.Format("a %s block cannot open inside a part -- close the part with `end` first", head);
+				else if (curStore != null)  thrWhy = String.Format("a %s block cannot open inside a store -- close the store with `end` first", head);
+				else if (curVerb != null)   thrWhy = String.Format("a %s block cannot open inside a verb block -- close the verb with `end` first", head);
+				else if (curBarrel != null) thrWhy = String.Format("a %s block cannot open inside a barrel -- close the barrel with `end` first", head);
+				else if (thrOpen != "")     thrWhy = String.Format("a %s block cannot open inside a %s block -- close it with `end` first", head, thrOpen);
+				else if (throwHead && nWords > 1)  thrWhy = String.Format("one key per line: `%s` alone, then its keys, then `end`", head);
+				else if (!throwHead && nWords > 2) thrWhy = "one key per line: `mount <id>` alone, then its keys, then `end`";
+				if (thrWhy != "")
+				{
+					Refuse(sourceName, ln + 1, raw, thrWhy);
+					refused = true;
+					continue;
+				}
+				if (head == "throw")      { curThrow = new("WM_Throw"); curThrow.Init(); curThrow.line = ln + 1; }
+				else if (head == "route") { curRoute = new("WM_Route"); curRoute.Init(); curRoute.line = ln + 1; }
+				else if (head == "fuse")  { curFuse  = new("WM_Fuse");  curFuse.Init();  curFuse.line  = ln + 1; }
+				else                      { curMount = new("WM_Mount"); curMount.Init(Unquote(second)); curMount.line = ln + 1; }
 				continue;
 			}
 
@@ -377,6 +445,7 @@ class WM_Parser
 				else if (curStore != null) verbWhy = "a verb block cannot open inside a store -- close the store with `end` first";
 				else if (curVerb != null)  verbWhy = "a verb block cannot open inside another verb -- close it with `end` first";
 				else if (curBarrel != null) verbWhy = "a verb block cannot open inside a barrel -- close the barrel with `end` first";
+				else if (thrOpen != "")     verbWhy = String.Format("a verb block cannot open inside a %s block -- close it with `end` first", thrOpen);
 				else if (nWords > 2)       verbWhy = String.Format("one key per line: `%s <id>` alone, then its keys, then `end`", head);
 				if (verbWhy != "")
 				{
@@ -457,6 +526,10 @@ class WM_Parser
 			else if (curPart != null)  ok = PartKey(curPart, key, val);
 			else if (curStore != null) { why = StoreKey(curStore, key, val); ok = (why == ""); }
 			else if (curBarrel != null) { why = BarrelKey(curBarrel, key, val); ok = (why == ""); }
+			else if (curThrow != null)  { why = ThrowKey(curThrow, key, val); ok = (why == ""); }
+			else if (curRoute != null)  { why = RouteKey(curRoute, key, val); ok = (why == ""); }
+			else if (curFuse != null)   { why = FuseKey(curFuse, key, val); ok = (why == ""); }
+			else if (curMount != null)  { why = MountKey(curMount, key, val); ok = (why == ""); }
 			else if (curVerb != null)  { why = VerbKey(curVerb, key, val); ok = (why == ""); }
 			else if (arch != null)
 			{
@@ -484,7 +557,7 @@ class WM_Parser
 			}
 		}
 
-		if (card && !refused) Accept(set, card, curStore, curVerb, curBarrel, sourceName, lines.Size());
+		if (card && !refused) Accept(set, card, curStore, curVerb, curBarrel, ThrowableBlockOpen(curThrow, curRoute, curFuse, curMount), sourceName, lines.Size());
 		if (arch && !refused) Refuse(sourceName, lines.Size(), "archetype " .. arch.id, "its block was never closed with `end`");
 		return set;
 	}
@@ -496,17 +569,33 @@ class WM_Parser
 		return head == keyword && nWords >= 2 && second.Left(1) != "=";
 	}
 
+	// THE THROWABLE BLOCK OPEN ON THIS CARD (throw.zs), as its header -- "throw", "route", "fuse" or
+	// "mount <id>" -- or "" when none is.
+	private static String ThrowableBlockOpen(WM_Throw t, WM_Route r, WM_Fuse f, WM_Mount m)
+	{
+		if (t != null) return "throw";
+		if (r != null) return "route";
+		if (f != null) return "fuse";
+		if (m != null) return "mount " .. m.id;
+		return "";
+	}
+
 	// A CARD IS ACCEPTED ONCE IT IS WHOLE: its stores complete -- declared, or
 	// synthesised here for a card that declared none -- and then it joins the
 	// set. A store or verb block still open at the end of its card is refused
 	// rather than dropped: dropping a store would synthesise the pistol pair in
 	// its place and say nothing, and dropping a verb would synthesise the old
 	// behaviour in its place.
-	private static void Accept(WM_CardSet set, WM_Card card, WM_Store openStore, WM_Verb openVerb, WM_Barrel openBarrel, String src, int line)
+	private static void Accept(WM_CardSet set, WM_Card card, WM_Store openStore, WM_Verb openVerb, WM_Barrel openBarrel, String openThrowable, String src, int line)
 	{
 		if (openBarrel != null)
 		{
 			Refuse(src, line, "barrel " .. openBarrel.id, "its block was never closed with `end`");
+			return;
+		}
+		if (openThrowable != "")
+		{
+			Refuse(src, line, openThrowable, "its block was never closed with `end`");
 			return;
 		}
 		if (openStore != null)
@@ -548,6 +637,7 @@ class WM_Parser
 		set.cards.Copy(kept);
 		set.finished = true;
 		set.typed    = true;
+		set.throwablesRead = true;
 	}
 
 	private static String, String, String, int FinishCard(WM_CardSet set, WM_Card card)
@@ -700,6 +790,14 @@ class WM_Parser
 			return "hands = 2 needs a part with role = support -- where the other hand holds it",
 				card.weaponClass .. " hands", card.sourceName, (card.handsLine > 0) ? card.handsLine : card.mechanismLine;
 
+		// 3f. A WEAPON THAT LEAVES THE HAND (throw.zs): its throw, route, fuse, mount and pouch, and the verbs
+		//     that work its pin and lever, fitting together. A card with none of them fits.
+		String thrBad, thrWhat;
+		int    thrLine;
+		[thrBad, thrWhat, thrLine] = ThrowableProblem(card);
+		if (thrBad != "")
+			return thrBad, thrWhat .. " (" .. card.weaponClass .. ")", card.sourceName, (thrLine > 0) ? thrLine : card.mechanismLine;
+
 		// 4. A PART THE OLD CODE WORKED AND NO VERB DOES. Not a refusal: step 4 demotes
 		//    role and this becomes normal. But with wm_verbs on, a hand can still take
 		//    it by its role and nothing will happen, so it is said.
@@ -780,6 +878,108 @@ class WM_Parser
 				return String.Format("%s %s names %s -- firesfrom = magazine has no chamber", WM_Verb.KindName(v.kind), v.id, named);
 		}
 		return "";
+	}
+
+	// WHY A THROWABLE'S PIECES DO NOT FIT TOGETHER (throw.zs), with what to name and its line, or "" when
+	// they do. Settles a throw's unstated `spends` as it goes: 1, or 0 for a weapon that comes back.
+	private static String, String, int ThrowableProblem(WM_Card card)
+	{
+		let t = card.throwSpec;
+		let r = card.routeSpec;
+		let f = card.fuseSpec;
+		let m = card.mountSpec;
+
+		// ONE PIN AND ONE LEVER a weapon.
+		int pullIndex  = -1;
+		int leverIndex = -1;
+		for (int i = 0; i < card.verbs.Size(); i++)
+		{
+			let v = card.verbs[i];
+			if (v.kind == WM_Verb.PULLOFF)
+			{
+				if (pullIndex >= 0)
+					return String.Format("pulloff %s already pulls this weapon's pin -- a card has one pulloff verb", card.verbs[pullIndex].id), "pulloff " .. v.id, v.line;
+				pullIndex = i;
+			}
+			else if (v.kind == WM_Verb.RELEASE)
+			{
+				if (leverIndex >= 0)
+					return String.Format("release %s already holds this weapon's lever -- a card has one release verb", card.verbs[leverIndex].id), "release " .. v.id, v.line;
+				leverIndex = i;
+			}
+		}
+
+		if (!t)
+		{
+			String noThrow = "this card has no throw block -- the weapon itself leaving the hand";
+			if (r) return "a route steers a thrown weapon, and " .. noThrow, "route", r.line;
+			if (f) return "a fuse runs on a thrown weapon, and " .. noThrow, "fuse", f.line;
+			if (m) return "a mount holds a weapon that leaves the hand, and " .. noThrow, "mount " .. m.id, m.line;
+			if (card.pouchWhole) return "pouch = whole hands a whole thrown weapon from the reserve, and " .. noThrow, "pouch", card.pouchLine;
+			if (pullIndex >= 0)
+				return "a pulloff pulls a thrown weapon's pin, and " .. noThrow, "pulloff " .. card.verbs[pullIndex].id, card.verbs[pullIndex].line;
+			if (leverIndex >= 0)
+				return "a release lets a thrown weapon's lever fly, and " .. noThrow, "release " .. card.verbs[leverIndex].id, card.verbs[leverIndex].line;
+			return "", "", 0;
+		}
+
+		// ---- THE THROW ----------------------------------------------------------------
+		if (t.on == WM_Throw.ON_UNSTATED)
+			return "a throw block needs on = trigger | grip -- the let-go that throws it", "throw", t.line;
+		if (t.flightClass == "")
+			return "a throw block needs flight = \"<actor>\" -- what flies", "throw", t.line;
+		if (card.firesFrom != WM_Card.FIRES_NOTHING)
+			return "a thrown weapon's shot is the weapon leaving the hand -- say firesfrom = none", "throw", (card.firesFromLine > 0) ? card.firesFromLine : t.line;
+		if (card.barrels.Size() > 0)
+			return String.Format("barrel %s -- a thrown weapon has no second barrel", card.barrels[0].id), "throw", t.line;
+		if (!t.spendsStated) t.spends = t.returns ? 0 : 1;
+		if (t.returns)
+		{
+			if (t.spends > 0)
+				return String.Format("spends = %d -- a weapon that comes back is the same one, and spends nothing: say spends = 0", t.spends), "throw", t.line;
+			if (t.after == WM_Throw.AFTER_NEXT)
+				return "after = next puts the next one in the hand at once -- a weapon that comes back is the same one: say after = previous or empty", "throw", t.line;
+			if (t.miss == WM_Throw.MISS_STOW && !m)
+				return String.Format("miss = stow%s puts a returning weapon back on its mount, and this card has no mount block -- declare one, or say miss = drop",
+					t.missStated ? "" : " (unset)"), "throw", t.line;
+			if (f) return "a fuse goes off -- a weapon that comes back has none", "fuse", f.line;
+		}
+		else
+		{
+			if (t.catchByGrip)   return "catch = grip takes back a weapon that comes back, and this one does not -- say returns = yes", "throw", t.line;
+			if (t.recallByGrip)  return "recall = grip turns a flying weapon home early, and this one never comes back -- say returns = yes", "throw", t.line;
+			if (t.missStated)    return "miss says what becomes of a returning weapon not caught, and this one never comes back", "throw", t.line;
+		}
+		if (t.catchAtStated && !t.catchByGrip)
+			return "catchat is the radius catch = grip takes it back in -- this throw has no catch", "throw", t.line;
+		if (card.pouchWhole && t.spends < 1)
+			return "pouch = whole hands a whole one from the reserve a throw spends, and this throw spends nothing", "pouch", card.pouchLine;
+
+		// ---- THE ROUTE ----------------------------------------------------------------
+		if (r)
+		{
+			if (!r.paintByFire) return "a route needs paint = fire -- how it is painted", "route", r.line;
+			if (t.on == WM_Throw.ON_TRIGGER)
+				return "a route is painted while fire is held, and this weapon is thrown on letting go of fire -- every throw would fly off along what it painted: say on = grip", "route", r.line;
+		}
+
+		// ---- THE FUSE -----------------------------------------------------------------
+		if (f)
+		{
+			if (f.tics <= 0) return "a fuse needs tics = <from its start to the blast>", "fuse", f.line;
+			if (f.starts == WM_Fuse.STARTS_UNSTATED) return "a fuse needs starts = pulloff | release | throw -- what starts it", "fuse", f.line;
+			if (f.blastClass == "") return "a fuse needs blast = \"<actor>\" -- what goes off", "fuse", f.line;
+			if (f.starts == WM_Fuse.STARTS_PULLOFF && pullIndex < 0) return "starts = pulloff, and this card has no pulloff verb -- no pin to pull", "fuse", f.line;
+			if (f.starts == WM_Fuse.STARTS_RELEASE && leverIndex < 0) return "starts = release, and this card has no release verb -- no lever to fly", "fuse", f.line;
+		}
+
+		// ---- THE MOUNT ----------------------------------------------------------------
+		if (m)
+		{
+			if (m.at == WM_Mount.AT_UNSTATED) return "a mount needs at = back_left | back_right | forearm_off -- where on the body", "mount " .. m.id, m.line;
+			if (!m.holdsWeapon) return "a mount needs holds = weapon -- what lives there", "mount " .. m.id, m.line;
+		}
+		return "", "", 0;
 	}
 
 	// Returns WHY an index key is refused, or "" when it is taken (WM_Part.indexDof, G13).
@@ -1112,6 +1312,13 @@ class WM_Parser
 			if (v.ret != WM_Verb.RET_SPRING)
 				return "a start verb's part springs home when let go -- it takes no return";
 		}
+		else if (v.kind == WM_Verb.PULLOFF || v.kind == WM_Verb.RELEASE)
+		{
+			// A PIN OR A LEVER comes away in one motion along one dof (THROWABLE_PLAN.md §2.3). One of each a
+			// card, and only on a thrown weapon: both checked with its throw (ThrowableProblem).
+			if (part && part.dof2)
+				return String.Format("part %s has a dof2 -- a %s comes away in one motion along one dof", part.id, (v.kind == WM_Verb.PULLOFF) ? "pin" : "lever");
+		}
 		return "";
 	}
 
@@ -1244,6 +1451,15 @@ class WM_Parser
 			else if (handsWord == "2") c.handsNeeded = 2;
 			else return "hands is 1 (one hand fires it -- the default) or 2 (it fires only while the other hand holds its role = support part)";
 			c.handsLine = line;
+		}
+		// A THROWN WEAPON'S POUCH (throw.zs): `pouch = whole` hands a whole one from the reserve. Checked
+		// against its throw once the card is whole (ThrowableProblem).
+		else if (key == "pouch")
+		{
+			if (Unquote(val).MakeLower() != "whole")
+				return "pouch is whole -- the pouch hands a whole thrown weapon from the reserve; unset, it hands what the gun's verbs load";
+			c.pouchWhole = true;
+			c.pouchLine  = line;
 		}
 		else if (key == "mechanism")
 		{
@@ -1597,6 +1813,184 @@ class WM_Parser
 		return "";
 	}
 
+	// ---- A THROWN WEAPON'S KEYS (throw.zs) ------------------------------------------
+	//
+	// Each returns WHY a key is refused, or "" when it is taken. Words and numbers are checked here; how
+	// the blocks fit together, once the card is whole (ThrowableProblem).
+	private static String ThrowKey(WM_Throw t, String key, String val)
+	{
+		String w  = Unquote(val);
+		String lw = w.MakeLower();
+		if (key == "on")
+		{
+			if (lw == "trigger")   t.on = WM_Throw.ON_TRIGGER;
+			else if (lw == "grip") t.on = WM_Throw.ON_GRIP;
+			else return "on is trigger (letting go of fire throws it) or grip (letting go of the grip throws it)";
+		}
+		else if (key == "minspeed")
+		{
+			if (!IsNumber(lw) || lw.ToDouble() <= 0 || lw.ToDouble() > 20)
+				return "minspeed is metres a second at release, above 0, at most 20 -- slower is a drop";
+			t.minSpeed = lw.ToDouble();
+		}
+		else if (key == "flight")
+		{
+			if (w == "") return "flight names the actor that flies, in quotes";
+			t.flightClass = w;
+		}
+		else if (key == "speedband")
+		{
+			Array<String> band;
+			lw.Split(band, ",", TOK_SKIPEMPTY);
+			if (band.Size() != 2) return "speedband is two numbers, lo, hi -- the release speed clamped to that share of the flight's own speed";
+			String lo = band[0]; lo.StripLeftRight();
+			String hi = band[1]; hi.StripLeftRight();
+			if (!IsNumber(lo) || !IsNumber(hi) || lo.ToDouble() <= 0 || hi.ToDouble() < lo.ToDouble() || hi.ToDouble() > 10)
+				return "speedband is lo, hi -- lo above 0, hi at least lo and at most 10";
+			t.speedBandLo     = lo.ToDouble();
+			t.speedBandHi     = hi.ToDouble();
+			t.speedBandStated = true;
+		}
+		else if (key == "spin" || key == "plane")
+		{
+			bool fromWrist = false;
+			if (lw == "wrist") fromWrist = true;
+			else if (lw != "none") return String.Format("%s is wrist or none", key);
+			if (key == "spin") t.spinFromWrist  = fromWrist;
+			else               t.planeFromWrist = fromWrist;
+		}
+		else if (key == "spends")
+		{
+			if (!IsWhole(lw) || lw.ToInt() > 100) return "spends is a whole number of rounds a throw spends from the reserve, 0 to 100";
+			t.spends       = lw.ToInt();
+			t.spendsStated = true;
+		}
+		else if (key == "after")
+		{
+			if (lw == "empty")         t.after = WM_Throw.AFTER_EMPTY;
+			else if (lw == "next")     t.after = WM_Throw.AFTER_NEXT;
+			else if (lw == "previous") t.after = WM_Throw.AFTER_PREVIOUS;
+			else return "after is empty (the hand holds nothing: reach the pouch), next (the next one at once) or previous (the weapon held before it)";
+		}
+		else if (key == "returns")
+		{
+			int returnsYn = ReadYesNo(lw);
+			if (returnsYn < 0) return "returns is yes or no";
+			t.returns = (returnsYn > 0);
+		}
+		else if (key == "catch" || key == "recall")
+		{
+			bool byGrip = false;
+			if (lw == "grip") byGrip = true;
+			else if (lw != "none") return String.Format("%s is grip or none", key);
+			if (key == "catch") t.catchByGrip  = byGrip;
+			else                t.recallByGrip = byGrip;
+		}
+		else if (key == "catchat")
+		{
+			if (!IsNumber(lw) || lw.ToDouble() <= 0 || lw.ToDouble() > 64)
+				return "catchat is map units, above 0, at most 64 -- how near the hand a returning weapon is caught";
+			t.catchAt       = lw.ToDouble();
+			t.catchAtStated = true;
+		}
+		else if (key == "miss")
+		{
+			if (lw == "stow")      t.miss = WM_Throw.MISS_STOW;
+			else if (lw == "drop") t.miss = WM_Throw.MISS_DROP;
+			else return "miss is stow (back on its mount) or drop (it falls)";
+			t.missStated = true;
+		}
+		else return "unknown key in a throw block -- on, minspeed, flight, speedband, spin, plane, spends, after, returns, catch, catchat, miss or recall";
+		return "";
+	}
+
+	private static String RouteKey(WM_Route r, String key, String val)
+	{
+		String w  = Unquote(val);
+		String lw = w.MakeLower();
+		if (key == "paint")
+		{
+			if (lw != "fire") return "paint is fire -- the route is painted while fire is held";
+			r.paintByFire = true;
+		}
+		else if (key == "range")
+		{
+			if (!IsNumber(lw) || lw.ToDouble() < 64 || lw.ToDouble() > 8192) return "range is map units from the hand, 64 to 8192";
+			r.range = lw.ToDouble();
+		}
+		else if (key == "cone")
+		{
+			if (!IsNumber(lw) || lw.ToDouble() <= 0 || lw.ToDouble() > 90) return "cone is degrees off the hand's aim, above 0, at most 90";
+			r.cone = lw.ToDouble();
+		}
+		else if (key == "max")
+		{
+			if (!IsWhole(lw) || lw.ToInt() < 1 || lw.ToInt() > WM_Route.MOST_TARGETS)
+				return String.Format("max is a whole number of targets, 1 to %d", WM_Route.MOST_TARGETS);
+			r.mostTargets = lw.ToInt();
+		}
+		else if (key == "every")
+		{
+			if (!IsWhole(lw) || lw.ToInt() < 1 || lw.ToInt() > 35) return "every is a whole number of tics between scans, 1 to 35";
+			r.everyTics = lw.ToInt();
+		}
+		else if (key == "mark")
+			r.markClass = (lw == "none") ? "" : w;
+		else return "unknown key in a route block -- paint, range, cone, max, every or mark";
+		return "";
+	}
+
+	private static String FuseKey(WM_Fuse f, String key, String val)
+	{
+		String w  = Unquote(val);
+		String lw = w.MakeLower();
+		if (key == "tics")
+		{
+			if (!IsWhole(lw) || lw.ToInt() < 1 || lw.ToInt() > 1050) return "tics is a whole number from its start to the blast, 1 to 1050 (30 seconds)";
+			f.tics = lw.ToInt();
+		}
+		else if (key == "starts")
+		{
+			if (lw == "pulloff")      f.starts = WM_Fuse.STARTS_PULLOFF;
+			else if (lw == "release") f.starts = WM_Fuse.STARTS_RELEASE;
+			else if (lw == "throw")   f.starts = WM_Fuse.STARTS_THROW;
+			else return "starts is pulloff (the pin coming out), release (the lever flying) or throw (leaving the hand)";
+		}
+		else if (key == "blast")
+		{
+			if (w == "") return "blast names the actor that goes off, in quotes";
+			f.blastClass = w;
+		}
+		else if (key == "cookoff")
+		{
+			if (lw == "player")    f.cookOffAtPlayer = true;
+			else if (lw == "none") f.cookOffAtPlayer = false;
+			else return "cookoff is player (run out in the hand, it goes off at the player) or none";
+		}
+		else if (key == "dud")
+			f.dudClass = (lw == "none") ? "" : w;
+		else return "unknown key in a fuse block -- tics, starts, blast, cookoff or dud";
+		return "";
+	}
+
+	private static String MountKey(WM_Mount m, String key, String val)
+	{
+		String lw = Unquote(val).MakeLower();
+		if (key == "at")
+		{
+			int atKind = WM_Mount.AtFromWord(lw);
+			if (atKind == WM_Mount.AT_UNSTATED) return "at is back_left, back_right (reached over that shoulder) or forearm_off (riding the off hand's arm)";
+			m.at = atKind;
+		}
+		else if (key == "holds")
+		{
+			if (lw != "weapon") return "holds is weapon -- the weapon itself lives there";
+			m.holdsWeapon = true;
+		}
+		else return "unknown key in a mount block -- at or holds";
+		return "";
+	}
+
 	// ---- VERB KEYS ---------------------------------------------------------------
 	//
 	// Returns WHY a verb key is refused, or "" when it is taken -- and keeps every
@@ -1676,6 +2070,12 @@ class WM_Parser
 		{
 			if (w == "") return "rides names a part of this card, or none";
 			v.ridesId = (lw == "none") ? "" : w;
+		}
+		else if (key == "by" && v.kind == WM_Verb.PULLOFF)
+		{
+			if (lw == "hand")      v.pullByHead = false;
+			else if (lw == "head") v.pullByHead = true;
+			else return "a pulloff's by is hand (the other hand pulls it) or head (it is brought to the mouth)";
 		}
 		else if (key == "by")
 		{
@@ -1850,6 +2250,28 @@ class WM_Parser
 				return "a load's subject is shell, round or loader -- what the hand brings to it";
 			v.subject = lw;
 		}
+		else if (key == "offat")
+		{
+			if (frac <= 0) return "offat is a number above 0, at most 1 -- pulled past it along its dof, the part comes away";
+			v.offAt = frac;
+		}
+		else if (key == "arms")
+		{
+			int armsYn = ReadYesNo(lw);
+			if (armsYn < 0) return "arms is yes (a throw after the pin is out is live) or no";
+			v.arms = (armsYn > 0);
+		}
+		else if (key == "heldby")
+		{
+			if (lw != "grip") return "heldby is grip -- the holding hand's grip keeps it shut";
+			v.heldByGrip = true;
+		}
+		else if (key == "needs" && v.kind == WM_Verb.PULLOFF)
+		{
+			if (lw == "trigger")   v.needsTrigger = true;
+			else if (lw == "none") v.needsTrigger = false;
+			else return "a pulloff's needs is trigger (only while the holding hand's trigger is held) or none";
+		}
 		else if (key == "needs")
 		{
 			if (lw == "none") v.needsOpen = "";
@@ -1888,6 +2310,10 @@ class WM_Parser
 				|| key == "tiltaxis" || key == "button";
 		if (verbKind == WM_Verb.START)
 			return key == "part" || key == "outat";
+		if (verbKind == WM_Verb.PULLOFF)
+			return key == "part" || key == "offat" || key == "by" || key == "needs" || key == "arms";
+		if (verbKind == WM_Verb.RELEASE)
+			return key == "part" || key == "heldby";
 		return false;
 	}
 
@@ -1895,7 +2321,7 @@ class WM_Parser
 	private static String VerbKeyOwners(String key)
 	{
 		String owners = "";
-		for (int k = WM_Verb.CYCLE; k <= WM_Verb.START; k++)
+		for (int k = WM_Verb.CYCLE; k <= WM_Verb.RELEASE; k++)
 			if (VerbTakesKey(k, key)) owners = owners .. ((owners == "") ? "" : " / ") .. WM_Verb.KindName(k);
 		if (owners == "") return "";
 		return "a " .. owners .. " block";

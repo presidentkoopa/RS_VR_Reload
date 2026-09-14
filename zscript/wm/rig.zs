@@ -320,6 +320,15 @@ class WM_Rig play
 		WM_Log.Info(String.Format("%s hand: %s shot -- %s; fires from %s%s%s", HandName(), card.weaponClass, GunShotText(),
 			firesText, card.noCasing ? "; no casing" : "",
 			card.NeedsTwoHands() ? "; hands 2 -- fires only while the other hand holds its support grip" : ""));
+		// A WEAPON THAT LEAVES THE HAND (throw.zs), once per bind: its throw, route, fuse and mount.
+		if (card.throwSpec)
+		{
+			WM_Log.Info(String.Format("%s hand: %s throw -- %s%s", HandName(), card.weaponClass, card.throwSpec.Describe(),
+				card.pouchWhole ? "; the pouch hands a whole one" : ""));
+			if (card.routeSpec) WM_Log.Info(String.Format("%s hand: %s route -- %s", HandName(), card.weaponClass, card.routeSpec.Describe()));
+			if (card.fuseSpec)  WM_Log.Info(String.Format("%s hand: %s fuse -- %s", HandName(), card.weaponClass, card.fuseSpec.Describe()));
+			if (card.mountSpec) WM_Log.Info(String.Format("%s hand: %s %s", HandName(), card.weaponClass, card.mountSpec.Describe()));
+		}
 		// EVERY SECOND BARREL (card.zs WM_Barrel), once per bind: its input, store, shot, ammo and gate.
 		for (int bi = 0; bi < card.barrels.Size(); bi++)
 		{
