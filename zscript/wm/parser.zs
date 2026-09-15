@@ -1648,8 +1648,8 @@ class WM_Parser
 	private static String CardKey(WM_Card c, String key, String val, int line)
 	{
 		if      (key == "prop")       c.propClass = Unquote(val);
-		else if (key == "hidesurface") c.hideSurfaces.Push(Unquote(val));   // card.zs WM_Card.hideSurfaces
-		else if (key == "hidejoint")   c.hideJoints.Push(Unquote(val));     // card.zs WM_Card.hideJoints
+		else if (key == "hidesurface") { c.hideSurfaces.Push(Unquote(val)); c.hideSurfaceLines.Push(line); }   // card.zs WM_Card.hideSurfaces
+		else if (key == "hidejoint")   { c.hideJoints.Push(Unquote(val));   c.hideJointLines.Push(line); }     // card.zs WM_Card.hideJoints
 		else if (key == "hand")       c.hand = (Unquote(val).MakeLower() == "off") ? 1 : 0;
 		else if (key == "model")      ReadPair(val, c.modelPath, c.modelFile);
 		else if (key == "skin")       ReadPair(val, c.skinPath,  c.skinFile);

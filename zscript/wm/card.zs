@@ -324,6 +324,9 @@ class WM_Card
 	// -- a duplicate magazine the artist parked for an animation. Either may repeat. Re-asserted every tic (WM_Rig.Pose).
 	Array<String> hideSurfaces;
 	Array<String> hideJoints;
+	// The line each was said on, in step with the names -- the card checker (cardvalidator.zs) cites it.
+	Array<int>    hideSurfaceLines;
+	Array<int>    hideJointLines;
 
 	String modelPath, modelFile;
 	String skinPath,  skinFile;
