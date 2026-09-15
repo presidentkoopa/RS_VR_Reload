@@ -2469,8 +2469,55 @@ class WM_Rig play
 		if (k < verbOpen.Size()) verbOpen[k] = false;
 		PlaySnd(SlotSound("cyclehome", card.cycleHomeSound));
 		level.VRHaptic(hand, 0.5, 12.0);
+		// SLAMFIRE (WM_Gun.AltMode slamfire): the action home with the second button held fires the gun. This machine saw
+		// the hand close it, so it tells every machine (WM_System.NetworkProcess `wm_slam`); the gun's own Ready fires it
+		// there if the button is still held and the gun can fire. Not for the test control (drawn < 0).
+		let slamGun = WM_Gun(gunItem);
+		if (drawn >= 0 && slamGun && slamGun.AltModeKind() == WM_Gun.ALT_SLAMFIRE && slamGun.AltIsDown())
+			EventHandler.SendNetworkEvent("wm_slam", hand);
 		WM_Log.Info(String.Format("%s gun: [verbs] cycle %s HOME %s -- %s; stores now %s", HandName(), v.id, DrawnText(drawn),
 			homeText, ammo.StoreCounts()));
+	}
+
+	// FAN THE HAMMER (WM_Gun.AltMode fan): with this gun's trigger held, the OTHER hand sweeping into the card's hammer
+	// part fires a round. Seen here, on the machine whose controllers these are, and sent as a network event
+	// (WM_System.NetworkProcess `wm_fan`) so every machine fires it from the same event; the gun caps the rate itself
+	// (WM_Gun.AltFanMax). A sweep is the other hand ARRIVING inside the hammer's reach -- its grab ball, at least
+	// FAN_REACH -- moving at FAN_MIN_SPEED or more: once per arrival, so a hand resting on the hammer fires nothing more.
+	// The hammer's point is its grab point, or its hinge pivot when the card gives it no grab.
+	const FAN_MIN_SPEED = 40.0;   // map units a second, about 1.2 m/s
+	const FAN_REACH     = 4.0;    // map units
+	bool fanInside;
+	int  fanSentTic;
+
+	void FanGesture(PlayerPawn pmo)
+	{
+		let g = WM_Gun(gunItem);
+		if (!pmo || !g || !card || !prop || !resolved || stowed || g.AltModeKind() != WM_Gun.ALT_FAN || !g.TriggerIsDown())
+		{
+			fanInside = false;
+			return;
+		}
+		WM_Part hammer = null;
+		for (int i = 0; i < card.parts.Size(); i++)
+		{
+			if (card.parts[i].role ~== "hammer") { hammer = card.parts[i]; break; }
+		}
+		if (!hammer) return;
+		Vector3 point = hammer.grabAt;
+		if (point.Length() < 0.0001 && hammer.dof) point = hammer.dof.pivot;
+		Vector3 at = World(point);
+		double reach = max(hammer.grabRadius, FAN_REACH);
+		int other = 1 - hand;
+		Vector3 handAt  = (other == 0) ? pmo.AttackPos : pmo.OffhandPos;
+		Vector3 handVel = (other == 0) ? pmo.AttackVel : pmo.OffhandVel;
+		bool inside = (handAt - at).Length() <= reach;
+		if (inside && !fanInside && handVel.Length() >= FAN_MIN_SPEED && level.maptime != fanSentTic)
+		{
+			fanSentTic = level.maptime;
+			EventHandler.SendNetworkEvent("wm_fan", hand);
+		}
+		fanInside = inside;
 	}
 
 	static String DrawnText(double drawn)

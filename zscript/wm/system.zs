@@ -613,6 +613,7 @@ class WM_System : EventHandler
 		for (int r = 0; r < 2; r++) ph.rigs[r].BarrelSmoke();
 		for (int r = 0; r < 2; r++) ph.rigs[r].ChargeLook();
 		for (int r = 0; r < 2; r++) ph.rigs[r].RecoilLook();
+		for (int r = 0; r < 2; r++) ph.rigs[r].FanGesture(pmo);
 		for (int h = 0; h < 2; h++) PinHand(ph, pmo, h);
 		for (int h = 0; h < 2; h++) PoseHand(ph, pmo, h);
 		DragPouches(ph, pmo);
@@ -3320,6 +3321,19 @@ class WM_System : EventHandler
 		// hands of the player who SENT them, never on this machine's console player -- another player's drop
 		// must not drop your magazine. A machine makes hands only for the player it works (ForPlayer), so on any
 		// other machine the event finds no hands and does nothing; P2's commands close that gap.
+		// THE GUN'S OWN SECOND BUTTON, FROM ITS OWNER'S HANDS (WM_Gun.AltMode fan / slamfire): seen on the shooter's
+		// machine (WM_Rig.FanGesture, WM_Rig.StrokeHome) and sent as a network event, so every machine takes the round
+		// from the same event. It acts on the SENDER's gun in that hand, found on the player -- which every machine has,
+		// where hands exist only on the machine that works them. The gun's own Ready fires it (WM_Gun.OnFanEvent).
+		if (e.Name ~== "wm_fan" || e.Name ~== "wm_slam")
+		{
+			if (!pmo || !pmo.player) return;
+			let altGun = WM_Gun((e.Args[0] == 1) ? pmo.player.OffhandWeapon : pmo.player.ReadyWeapon);
+			if (!altGun) return;
+			if (e.Name ~== "wm_fan") altGun.OnFanEvent();
+			else altGun.OnSlamEvent();
+			return;
+		}
 		let ph = HandsIfAny(e.Player);
 		if (!ph || !pmo) return;
 		if (e.Name ~== "wm_drop_main") { if (ph.rigs[0]) ButtonDrop(ph, pmo, 0); return; }

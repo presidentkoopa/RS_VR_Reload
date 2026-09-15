@@ -100,6 +100,13 @@ class WM_Gun : Weapon
 		releaseTicCount      = (has && s.releaseTicsStated)      ? s.releaseTicCount      : def.releaseTicCount;
 		spinUpTicCount       = (has && s.spinUpTicsStated)       ? s.spinUpTicCount       : def.spinUpTicCount;
 		spinDownTicCount     = (has && s.spinDownTicsStated)     ? s.spinDownTicCount     : def.spinDownTicCount;
+		altModeName          = (has && s.altModeStated)          ? s.altModeName          : def.altModeName;
+		altBurstCount        = (has && s.altBurstStated)         ? s.altBurstCount        : def.altBurstCount;
+		altBurstTicCount     = (has && s.altBurstTicsStated)     ? s.altBurstTicCount     : def.altBurstTicCount;
+		altRateScaleValue    = (has && s.altRateScaleStated)     ? s.altRateScaleValue    : def.altRateScaleValue;
+		altDamageScaleValue  = (has && s.altDamageScaleStated)   ? s.altDamageScaleValue  : def.altDamageScaleValue;
+		altFanMaxCount       = (has && s.altFanMaxStated)        ? s.altFanMaxCount       : def.altFanMaxCount;
+		spreadShapeName      = (has && s.spreadShapeStated)      ? s.spreadShapeName      : def.spreadShapeName;
 		roundProfileName     = (has && s.roundProfileStated)     ? s.roundProfileName     : def.roundProfileName;
 		flashProfileName     = (has && s.flashProfileStated)     ? s.flashProfileName     : def.flashProfileName;
 		altFlashProfileName  = (has && s.altFlashProfileStated)  ? s.altFlashProfileName  : def.altFlashProfileName;
@@ -235,6 +242,28 @@ class WM_Gun : Weapon
 	//                               barrel on that button spins on its trigger alone.
 	//   WM_Gun.SpinDownTics N       full-speed barrels to still, in tics. 0 (unset) is twice
 	//                               SpinUpTics. At most 350.
+	//   WM_Gun.AltMode "mode"       THE GUN'S OWN SECOND BUTTON (Vanilla+ round 1), on a gun whose card puts no second
+	//                               barrel there -- a barrel wins. "" (unset) keeps the button blocked, as before.
+	//                                 burst        a press fires AltBurst rounds, one every AltBurstTics
+	//                                 selectfire   a press steps the trigger: single -> a burst of AltBurst -> full
+	//                                              auto -> single. Starts single. Clicks as it steps.
+	//                                 shred        held, it fires full auto every FireTics / AltRateScale
+	//                                 slamfire     held, the gun fires each time its action comes home by hand
+	//                                 onebarrel    a press fires the next loaded chamber alone
+	//                                 doubleshell  a press spends two rounds (two chambers) as ONE shot of the usual
+	//                                              pellets, each at AltDamageScale; with one left it fires plainly
+	//                                 fan          with the trigger held, the OTHER hand sweeping into the card's
+	//                                              hammer part fires a round -- at most AltFanMax a second, each in
+	//                                              twice the spread (WM_Rig.FanGesture sends it as a network event)
+	//                               All off the owner's usercmd and the gun's own saved state, on every machine.
+	//   WM_Gun.AltBurst N           burst rounds (burst, and select fire's burst). 0 (unset) is 3; at most 30.
+	//   WM_Gun.AltBurstTics N       tics between a burst's rounds. 0 (unset) is 4; at most 350.
+	//   WM_Gun.AltRateScale x       shred fires every FireTics / x. 0 (unset) is 2; at most 10.
+	//   WM_Gun.AltDamageScale x     doubleshell's damage on each RSB_Bullet pellet whose ShotDamage is set. 0 (unset) is
+	//                               2; at most 10.
+	//   WM_Gun.AltFanMax N          fanned rounds a second at most. 0 (unset) is 8; at most 35.
+	//   WM_Gun.SpreadShape "shape"  "box" or "" (unset): sideways and up drawn apart, as before. "cone": a ROUND cone, a
+	//                               point drawn evenly over a disc whose radius is the larger of ShotSpread's two.
 	//
 	// FIRE HOLD AND RELEASE: a subclass that does something for as long as the trigger is
 	// held -- a flamethrower's stream -- overrides FireHeld(int) and FireReleased(int) (below).
@@ -249,6 +278,21 @@ class WM_Gun : Weapon
 	const MAX_SHOT_PELLETS = 64;
 	const MAX_CHAMBERS_PER_PULL = 8;
 	const MAX_ROUNDS_PER_SHOT = 1000;
+	// WM_Gun.AltMode's modes, and the kind of shot a Fire cycle is taking (altShotKind).
+	const ALT_NONE        = 0;
+	const ALT_BURST       = 1;
+	const ALT_SELECTFIRE  = 2;
+	const ALT_SHRED       = 3;
+	const ALT_SLAMFIRE    = 4;
+	const ALT_ONEBARREL   = 5;
+	const ALT_DOUBLESHELL = 6;
+	const ALT_FAN         = 7;
+	const ALT_SHOT_NORMAL      = 0;
+	const ALT_SHOT_SHRED       = 1;
+	const ALT_SHOT_ONEBARREL   = 2;
+	const ALT_SHOT_DOUBLESHELL = 3;
+	const ALT_SHOT_FAN         = 4;
+	const FAN_SPREAD_SCALE = 2.0;
 	int    shotPelletCount;
 	double shotSpreadYaw;
 	double shotSpreadPitch;
@@ -277,6 +321,25 @@ class WM_Gun : Weapon
 	// THE BARRELS' SPIN SO FAR (WM_Gun.SpinUpTics), a whole count so every machine keeps it exactly: up by
 	// SpinDownTicsEach() a tic toward SpinFull(), down by SpinUpTicsEach() a tic toward 0. Saved with the gun.
 	int    spinCount;
+	// THE GUN'S OWN SECOND BUTTON (WM_Gun.AltMode and its numbers) and the round cone (WM_Gun.SpreadShape).
+	String altModeName;
+	int    altBurstCount;
+	int    altBurstTicCount;
+	double altRateScaleValue;
+	double altDamageScaleValue;
+	int    altFanMaxCount;
+	String spreadShapeName;
+	// THEIR PLAYSIM STATE, saved with the gun and stepped alike on every machine: the rounds still to come in a burst; the
+	// select-fire mode (0 single, 1 burst, 2 full auto); the second button last tic, for DoEffect's press edge; the kind
+	// of shot this Fire cycle is (ALT_SHOT_*); a slamfire and a fanned round waiting for Ready (from the owner's network
+	// events); and the map tic of the last fanned round, for the rate cap.
+	int    burstShotsLeft;
+	int    selectFireMode;
+	bool   altWasDown;
+	int    altShotKind;
+	bool   slamPending;
+	bool   fanPending;
+	int    fanLastTic;
 	String roundProfileName;
 	String flashProfileName;
 	String altFlashProfileName;
@@ -312,6 +375,13 @@ class WM_Gun : Weapon
 	property ReleaseTics: releaseTicCount;
 	property SpinUpTics: spinUpTicCount;
 	property SpinDownTics: spinDownTicCount;
+	property AltMode: altModeName;
+	property AltBurst: altBurstCount;
+	property AltBurstTics: altBurstTicCount;
+	property AltRateScale: altRateScaleValue;
+	property AltDamageScale: altDamageScaleValue;
+	property AltFanMax: altFanMaxCount;
+	property SpreadShape: spreadShapeName;
 	property RoundProfile: roundProfileName;
 	property FlashProfile: flashProfileName;
 	property AltFlashProfile: altFlashProfileName;
@@ -348,6 +418,30 @@ class WM_Gun : Weapon
 	bool   SpunUp() const           { return SpinUpTicsEach() <= 0 || spinCount >= SpinFull(); }
 	// 0 still .. 1 full speed, for the barrels' look (WM_Rig.Spin).
 	double SpinFraction() const     { int f = SpinFull(); return (f > 0) ? clamp(double(spinCount) / f, 0.0, 1.0) : 0.0; }
+
+	// WM_Gun.AltMode's word as its ALT_* mode: "" is ALT_NONE, a word it does not know -1 (the sheet refuses it).
+	// clearscope: the sheet reader asks it from data context.
+	clearscope static int AltModeWord(String word)
+	{
+		if (word == "")             return ALT_NONE;
+		if (word ~== "burst")       return ALT_BURST;
+		if (word ~== "selectfire")  return ALT_SELECTFIRE;
+		if (word ~== "shred")       return ALT_SHRED;
+		if (word ~== "slamfire")    return ALT_SLAMFIRE;
+		if (word ~== "onebarrel")   return ALT_ONEBARREL;
+		if (word ~== "doubleshell") return ALT_DOUBLESHELL;
+		if (word ~== "fan")         return ALT_FAN;
+		return -1;
+	}
+	int    AltModeKind() const        { return max(AltModeWord(altModeName), ALT_NONE); }
+	int    AltBurstEach() const       { return (altBurstCount > 0) ? clamp(altBurstCount, 1, 30) : 3; }
+	int    AltBurstTicsEach() const   { return (altBurstTicCount > 0) ? clamp(altBurstTicCount, 1, 350) : 4; }
+	double AltRateScaleEach() const   { return (altRateScaleValue > 0) ? clamp(altRateScaleValue, 0.1, 10.0) : 2.0; }
+	double AltDamageScaleEach() const { return (altDamageScaleValue > 0) ? clamp(altDamageScaleValue, 0.1, 10.0) : 2.0; }
+	int    AltFanMaxEach() const      { return (altFanMaxCount > 0) ? clamp(altFanMaxCount, 1, 35) : 8; }
+	bool   SpreadCone() const         { return spreadShapeName ~== "cone"; }
+	// HELD FIRE: the class's FullAuto, or select fire's own mode when the gun has one.
+	bool   FiresFullAuto() const      { return (AltModeKind() == ALT_SELECTFIRE) ? (selectFireMode == 2) : fullAutoFire; }
 
 	// THE SAW'S PUFF (WM_Gun.SawPuff), found by name as it cuts, so a class from another package is never a
 	// compile-time reference. Unset, or a name that is no actor (said once): RS_Ballistics' RSB_SawPuff; without
@@ -449,6 +543,19 @@ class WM_Gun : Weapon
 			s = s .. String.Format(", RECOVERS %d tics after a firing run", ReleaseTicsEach());
 		if (SpinUpTicsEach() > 0)
 			s = s .. String.Format(", SPINS UP %d tics before a burst (trigger or second button; runs down over %d)", SpinUpTicsEach(), SpinDownTicsEach());
+		switch (AltModeKind())
+		{
+		case ALT_BURST:       s = s .. String.Format(", ALT: a burst of %d, a round every %d tics", AltBurstEach(), AltBurstTicsEach()); break;
+		case ALT_SELECTFIRE:  s = s .. String.Format(", ALT: select fire (single / burst of %d every %d tics / full auto), now %s", AltBurstEach(), AltBurstTicsEach(),
+		                              (selectFireMode == 2) ? "full auto" : ((selectFireMode == 1) ? "burst" : "single")); break;
+		case ALT_SHRED:       s = s .. String.Format(", ALT: held, full auto every %d tics", max(int(CycleTics() / AltRateScaleEach() + 0.5), 1)); break;
+		case ALT_SLAMFIRE:    s = s .. ", ALT: held, SLAMFIRE -- fires each time the action comes home"; break;
+		case ALT_ONEBARREL:   s = s .. ", ALT: one barrel at a time"; break;
+		case ALT_DOUBLESHELL: s = s .. String.Format(", ALT: two rounds as one shot at %gx damage", AltDamageScaleEach()); break;
+		case ALT_FAN:         s = s .. String.Format(", ALT: FAN THE HAMMER with the other hand, at most %d a second", AltFanMaxEach()); break;
+		default: break;
+		}
+		if (SpreadCone()) s = s .. ", a ROUND spread cone";
 		return s .. String.Format(" -- from the weapon class %s", GetClassName());
 	}
 
@@ -541,6 +648,11 @@ class WM_Gun : Weapon
 	{
 		Super.DoEffect();
 		SpinStep();
+		// SELECT FIRE (WM_Gun.AltMode selectfire): a press of this hand's second button steps the trigger's mode, off the
+		// owner's usercmd on every machine. Read here rather than in Ready, so it steps mid-run too.
+		bool altNow = AltIsDown();
+		if (altNow && !altWasDown && AltModeKind() == ALT_SELECTFIRE && !AltBarrel()) StepSelectFire();
+		altWasDown = altNow;
 		if (altMustRelease && !AltIsDown()) altMustRelease = false;
 		if (fireStarted && TriggerIsDown())
 		{
@@ -555,6 +667,53 @@ class WM_Gun : Weapon
 			fireStarted  = false;
 			if (heldFor > 0) FireReleased(heldFor);
 		}
+	}
+
+	// SELECT FIRE STEPS: single -> burst -> full auto -> single. A burst under way stops. The click is heard by everyone
+	// near; the buzz is the holder's own hand only.
+	void StepSelectFire()
+	{
+		selectFireMode = (selectFireMode + 1) % 3;
+		burstShotsLeft = 0;
+		if (!Owner) return;
+		Owner.A_StartSound("wm/dry", CHAN_AUTO, CHANF_DEFAULT, 0.6);
+		if (Owner.player && Owner.PlayerNumber() == consoleplayer) level.VRHaptic(Hand(), 0.4, 8.0 + 6.0 * selectFireMode);
+	}
+
+	// A FANNED ROUND (WM_Gun.AltMode fan), from the owner's `wm_fan` network event (WM_System.NetworkProcess), on every
+	// machine: waiting for Ready, which fires it while the trigger is held. At most AltFanMax a second, however many
+	// events arrive.
+	void OnFanEvent()
+	{
+		if (AltModeKind() != ALT_FAN) return;
+		int gap = max(35 / AltFanMaxEach(), 1);
+		if (fanLastTic > 0 && level.maptime - fanLastTic < gap) return;
+		fanLastTic = level.maptime;
+		fanPending = true;
+	}
+
+	// A SLAMFIRE ROUND (WM_Gun.AltMode slamfire), from the owner's `wm_slam` network event: the action came home with the
+	// second button held. Ready fires it if the button is still held and the gun can fire.
+	void OnSlamEvent()
+	{
+		if (AltModeKind() != ALT_SLAMFIRE) return;
+		slamPending = true;
+	}
+
+	// A DOUBLESHELL PELLET'S DAMAGE (WM_Gun.AltDamageScale): an RSB_Bullet's own damage, set from the class's ShotDamage,
+	// times the scale. A round whose damage is its profile's (ShotDamage unset) cannot be scaled here; said once.
+	void ScaleShotDamage(Actor shot, double scale)
+	{
+		let r = RSB_Bullet(shot);
+		if (!r) return;
+		if (r.damageMin <= 0)
+		{
+			WM_Log.Once(WM_Log.LV_WARN, "dblscale:" .. GetClassName(), String.Format(
+				"%s: doubleshell's damage scale needs the sheet's shotdamage -- its rounds keep their profile's damage", GetClassName()));
+			return;
+		}
+		r.damageMin = max(int(r.damageMin * scale + 0.5), 1);
+		r.damageMax = max(int(r.damageMax * scale + 0.5), r.damageMin);
 	}
 
 	// ---- THE DRAWN GUN, FOR EFFECTS ----------------------------------------------------
@@ -690,14 +849,59 @@ class WM_Gun : Weapon
 	// READY. The trigger has to come back before the next pull (mustRelease). The second button
 	// fires only a card's second barrel (WM_Barrel), once a pull (altMustRelease); a class whose
 	// card has none keeps it blocked, as it always was, so pressing it never enters AltFire.
-	action void WM_Ready()
+	action State WM_Ready()
 	{
 		invoker.refireCount = 0;   // back in Ready, any held run has ended
+		invoker.burstShotsLeft = 0;
+		invoker.altShotKind = ALT_SHOT_NORMAL;
 		if (invoker.mustRelease && !WM_TriggerDown()) invoker.mustRelease = false;
+		// THE GUN'S OWN SECOND BUTTON (WM_Gun.AltMode), on a gun whose card puts no second barrel there: straight to Fire,
+		// with this cycle's kind of shot said, off the owner's usercmd and the gun's own saved state on every machine. Not
+		// while this hand has a weapon change pending, so a switch is never held off.
+		int mode = invoker.AltModeKind();
+		bool switching = player && player.PendingWeapon != WP_NOCHANGE
+			&& (player.PendingWeapon ? player.PendingWeapon.bOffhandWeapon : false) == invoker.bOffhandWeapon;
+		if (mode != ALT_NONE && !switching && !invoker.AltBarrel())
+		{
+			bool altDown  = WM_AltDown();
+			bool altFresh = altDown && !invoker.altMustRelease;
+			if (mode == ALT_BURST && altFresh)
+			{
+				invoker.altMustRelease = true;
+				invoker.burstShotsLeft = invoker.AltBurstEach();
+				return ResolveState("Fire");
+			}
+			if (mode == ALT_SHRED && altDown)
+			{
+				invoker.altShotKind = ALT_SHOT_SHRED;
+				return ResolveState("Fire");
+			}
+			if ((mode == ALT_ONEBARREL || mode == ALT_DOUBLESHELL) && altFresh)
+			{
+				invoker.altMustRelease = true;
+				invoker.altShotKind = (mode == ALT_ONEBARREL) ? ALT_SHOT_ONEBARREL : ALT_SHOT_DOUBLESHELL;
+				return ResolveState("Fire");
+			}
+			if (mode == ALT_SLAMFIRE && invoker.slamPending)
+			{
+				invoker.slamPending = false;
+				if (altDown) return ResolveState("Fire");
+			}
+			if (mode == ALT_FAN && invoker.fanPending)
+			{
+				invoker.fanPending = false;
+				if (WM_TriggerDown())
+				{
+					invoker.altShotKind = ALT_SHOT_FAN;
+					return ResolveState("Fire");
+				}
+			}
+		}
 		int readyFlags = 0;
 		if (invoker.mustRelease) readyFlags |= WRF_NOPRIMARY;
 		if (invoker.altMustRelease || !invoker.AltBarrel()) readyFlags |= WRF_NOSECONDARY;
 		A_WeaponReady(readyFlags);
+		return null;
 	}
 
 	// ONE QUESTION TO THE SYSTEM, AND ONE ANNOUNCEMENT. The weapon owns no
@@ -717,10 +921,23 @@ class WM_Gun : Weapon
 		int most = invoker.ChambersEachPull();
 		// WHAT THIS PULL SPENDS from a gun with no chamber (WM_Gun.RoundsPerShot): 1 unset.
 		int rounds = invoker.RoundsEachShot();
+		// THIS CYCLE'S KIND OF SHOT (WM_Gun.AltMode, said by Ready): one barrel fires one chamber; a double shell two
+		// chambers, or twice the rounds, as ONE shot -- or the plain shot when there is not that much to fire.
+		int shotKind = invoker.altShotKind;
+		if (shotKind == ALT_SHOT_ONEBARREL) most = 1;
+		bool dbl = (shotKind == ALT_SHOT_DOUBLESHELL) && sys && sys.CanFire(pn, h, 2, rounds * 2, invoker);
+		if (dbl)
+		{
+			most = 2;
+			rounds *= 2;
+		}
 		if (!sys || !sys.CanFire(pn, h, most, rounds, invoker))
 		{
 			// A gun that stops firing stops holding: FireReleased on the next DoEffect.
 			invoker.fireStarted = false;
+			// ...and a burst or an alt shot under way ends with it.
+			invoker.burstShotsLeft = 0;
+			invoker.altShotKind = ALT_SHOT_NORMAL;
 			// NOT YET THIS GUN'S RIG (put in the hand since the system last bound one): no click, and no dry told
 			// to the gun that was there before. Back to Ready with the trigger free; the next tic's pull finds it bound.
 			if (sys && sys.RigBoundElsewhere(pn, h, invoker))
@@ -736,6 +953,14 @@ class WM_Gun : Weapon
 		// the class's number. Asked before a pellet leaves, and OnShot spends exactly
 		// that many on the same tic, so the pellets and the spent cases always agree.
 		int chambers = (most > 1) ? sys.ChambersToFire(pn, h, most) : 1;
+		// A double shell on a chamber gun with only one chamber loaded is that chamber's plain shot.
+		if (dbl && chambers < 2 && sys.FiresFrom(invoker.GetClassName()) == WM_Card.FIRES_CHAMBER) dbl = false;
+		// SELECT FIRE'S BURST (WM_Gun.AltMode selectfire, mode 1): the first shot of a pull starts a burst of AltBurst.
+		if (shotKind == ALT_SHOT_NORMAL && invoker.burstShotsLeft == 0 && invoker.refireCount == 0
+			&& invoker.selectFireMode == 1 && invoker.AltModeKind() == ALT_SELECTFIRE)
+			invoker.burstShotsLeft = invoker.AltBurstEach();
+		// A BURST'S ROUND (burst, or select fire's): one fewer still to come.
+		if (invoker.burstShotsLeft > 0) invoker.burstShotsLeft--;
 		// A GUN THAT FIRES FROM THE RESERVE (card `firesfrom = reserve`) PAYS HERE, in the
 		// weapon's own action, which runs on every machine in a netgame -- never in the rig,
 		// which runs on one. RoundsPerShot of Weapon.AmmoType1, by DepleteAmmo, which honours
@@ -766,7 +991,7 @@ class WM_Gun : Weapon
 			sys.OnShot(pn, h, chambers, rounds);
 			return ResolveState(null);
 		}
-		int    nPellets = invoker.PelletsPerShot() * chambers;
+		int    nPellets = invoker.PelletsPerShot() * (dbl ? 1 : chambers);
 		double sprH     = invoker.ShotYawSpread();
 		double sprV     = invoker.ShotPitchSpread();
 		// THE FIRST SHOTS OF A HOLD FLY DEAD ON (WM_Gun.FirstShotsAccurate N): one pellet, and one of the first N shots of a
@@ -775,6 +1000,12 @@ class WM_Gun : Weapon
 		{
 			sprH = 0;
 			sprV = 0;
+		}
+		// A FANNED ROUND (WM_Gun.AltMode fan) is never aimed: twice the spread.
+		if (shotKind == ALT_SHOT_FAN)
+		{
+			sprH *= FAN_SPREAD_SCALE;
+			sprV *= FAN_SPREAD_SCALE;
 		}
 		// RECOIL (WM_Gun.RecoilStep), once this shot and after the dead-on test: its bloom widens the spread, and each round
 		// below leaves turned by the kick so far. Not for a rail, which aims and scatters itself; a saw returned above.
@@ -828,6 +1059,7 @@ class WM_Gun : Weapon
 			if (shot) RSB_Recoil.Turn(shot, kickYaw, kickPitch);
 			if (shot && (sprH > 0 || sprV > 0)) invoker.ScatterShot(shot, sprH, sprV);
 			invoker.LaunchRound(shot, player, h, true);
+			if (dbl) invoker.ScaleShotDamage(shot, invoker.AltDamageScaleEach());
 		}
 		invoker.fireStarted = true;
 		sys.OnShot(pn, h, chambers, rounds);
@@ -842,8 +1074,8 @@ class WM_Gun : Weapon
 	// still WM_TryFire's: the chamber and the verbs decide, and an empty one clicks once.
 	action State WM_HoldFire()
 	{
-		if (!player || player.health <= 0) return null;
-		if (player.PendingWeapon != WP_NOCHANGE && player.PendingWeapon.bOffhandWeapon == invoker.bOffhandWeapon) return null;
+		if (!player || player.health <= 0) { invoker.burstShotsLeft = 0; return null; }
+		if (player.PendingWeapon != WP_NOCHANGE && player.PendingWeapon.bOffhandWeapon == invoker.bOffhandWeapon) { invoker.burstShotsLeft = 0; return null; }
 		// THE SECOND BARREL BETWEEN SHOTS (card.zs WM_Barrel): a full-auto gun held down never
 		// reaches Ready, so its second button is read here too, at the end of every cycle. The
 		// card is asked only while that button is down, so a class with no second barrel is not.
@@ -852,7 +1084,22 @@ class WM_Gun : Weapon
 			invoker.bAltFire = true;
 			return ResolveState("AltFire");
 		}
-		if (!invoker.fullAutoFire || !WM_TriggerDown()) return null;
+		// A BURST STILL GOING (WM_Gun.AltMode burst, or select fire's): round again, trigger or no trigger.
+		if (invoker.burstShotsLeft > 0)
+		{
+			invoker.bAltFire = false;
+			invoker.refireCount++;
+			return ResolveState("Fire");
+		}
+		// SHRED (WM_Gun.AltMode shred): the second button still held, round again at its rate. Any other alt shot is done.
+		if (invoker.altShotKind == ALT_SHOT_SHRED && WM_AltDown())
+		{
+			invoker.bAltFire = false;
+			invoker.refireCount++;
+			return ResolveState("Fire");
+		}
+		invoker.altShotKind = ALT_SHOT_NORMAL;
+		if (!invoker.FiresFullAuto() || !WM_TriggerDown()) return null;
 		invoker.bAltFire = false;
 		invoker.refireCount++;   // vanilla A_ReFire's player.refire++: the next shot is a refire
 		return ResolveState("Fire");
@@ -927,7 +1174,13 @@ class WM_Gun : Weapon
 	// class waits 18 more tics -- 19 in all, the cadence the fixed 10 + 4 + 5 gave.
 	action void WM_FireWait()
 	{
-		A_SetTics(max(invoker.CycleTics() - 1, 0));
+		// A burst's next round comes AltBurstTics after this one; shred cycles FireTics / AltRateScale; a fanned round
+		// is ready again as soon as the fan cap allows (WM_Gun.AltMode). Every other shot waits its class's cycle.
+		int tics = invoker.CycleTics();
+		if (invoker.burstShotsLeft > 0)                         tics = invoker.AltBurstTicsEach();
+		else if (invoker.altShotKind == ALT_SHOT_SHRED)         tics = max(int(tics / invoker.AltRateScaleEach() + 0.5), 1);
+		else if (invoker.altShotKind == ALT_SHOT_FAN)           tics = max(35 / invoker.AltFanMaxEach(), 1);
+		A_SetTics(max(tics - 1, 0));
 	}
 
 	// THE RECOVERY AFTER A FIRING RUN (WM_Gun.ReleaseTics). Reached only when WM_HoldFire let the
@@ -1028,8 +1281,23 @@ class WM_Gun : Weapon
 		double spd = shot.Vel.Length();
 		if (spd < 0.000001) return;
 		Vector3 dir = shot.Vel / spd;
-		double yaw  = VectorAngle(dir.X, dir.Y) + (frandom[WMSpread](0, 1) - frandom[WMSpread](0, 1)) * spreadYaw;
-		double elev = atan2(dir.Z, dir.XY.Length()) + (frandom[WMSpread](0, 1) - frandom[WMSpread](0, 1)) * spreadPitch;
+		double yawOff, elevOff;
+		if (SpreadCone())
+		{
+			// A ROUND CONE (WM_Gun.SpreadShape cone): a point drawn evenly over a disc whose radius is the larger spread --
+			// sideways and up alike, never a box's corners. The same named RNG.
+			double radius = max(spreadYaw, spreadPitch) * sqrt(frandom[WMSpread](0, 1));
+			double around = frandom[WMSpread](0, 360);
+			yawOff  = radius * cos(around);
+			elevOff = radius * sin(around);
+		}
+		else
+		{
+			yawOff  = (frandom[WMSpread](0, 1) - frandom[WMSpread](0, 1)) * spreadYaw;
+			elevOff = (frandom[WMSpread](0, 1) - frandom[WMSpread](0, 1)) * spreadPitch;
+		}
+		double yaw  = VectorAngle(dir.X, dir.Y) + yawOff;
+		double elev = atan2(dir.Z, dir.XY.Length()) + elevOff;
 		double ce = cos(elev);
 		shot.Vel = (ce * cos(yaw), ce * sin(yaw), sin(elev)) * spd;
 		shot.angle = yaw;

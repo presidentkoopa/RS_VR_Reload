@@ -15,6 +15,9 @@
 //     trailprofile = "<profile>"   chargetics = N                chargesound = "<sound>"
 //     shotsaw = yes | no           sawsounds = "<full>", "<hit>" sawpuff = "<actor>"
 //     spinuptics = N               spindowntics = N
+//     altmode = burst | selectfire | shred | slamfire | onebarrel | doubleshell | fan    (WM_Gun.AltMode)
+//     altburst = N                 altbursttics = N              altratescale = x
+//     altdamagescale = x           altfanmax = N                 spreadshape = box | cone
 //     roundprofile, flashprofile, altflashprofile, ejectaprofile = "<RS_Ballistics profile>"
 //     recoilprofile, altrecoilprofile = "<RS_Ballistics recoil profile>"   (RECOIL_PLAN.md; stored, read by nothing yet)
 //     # FROM THE CARD
@@ -100,6 +103,13 @@ class WM_Sheet
 	int    releaseTicCount;                     bool releaseTicsStated;
 	int    spinUpTicCount;                      bool spinUpTicsStated;
 	int    spinDownTicCount;                    bool spinDownTicsStated;
+	String altModeName;                         bool altModeStated;
+	int    altBurstCount;                       bool altBurstStated;
+	int    altBurstTicCount;                    bool altBurstTicsStated;
+	double altRateScaleValue;                   bool altRateScaleStated;
+	double altDamageScaleValue;                 bool altDamageScaleStated;
+	int    altFanMaxCount;                      bool altFanMaxStated;
+	String spreadShapeName;                     bool spreadShapeStated;
 	String roundProfileName;                    bool roundProfileStated;
 	String flashProfileName;                    bool flashProfileStated;
 	String altFlashProfileName;                 bool altFlashProfileStated;
@@ -371,6 +381,41 @@ class WM_SheetReader
 		{
 			if (!IsWhole(lw) || lw.ToInt(10) > 350) return "spindowntics is a whole number of tics, 0 (twice spinuptics) to 350";
 			s.spinDownTicCount = lw.ToInt(10);  s.spinDownTicsStated = true;
+		}
+		else if (key == "altmode")
+		{
+			if (WM_Gun.AltModeWord(lw) < 0) return "altmode is burst, selectfire, shred, slamfire, onebarrel, doubleshell or fan";
+			s.altModeName = lw;  s.altModeStated = true;
+		}
+		else if (key == "altburst")
+		{
+			if (!IsWhole(lw) || lw.ToInt(10) > 30) return "altburst is a whole number of rounds, 0 (unset: 3) to 30";
+			s.altBurstCount = lw.ToInt(10);  s.altBurstStated = true;
+		}
+		else if (key == "altbursttics")
+		{
+			if (!IsWhole(lw) || lw.ToInt(10) > 350) return "altbursttics is a whole number of tics between a burst's rounds, 0 (unset: 4) to 350";
+			s.altBurstTicCount = lw.ToInt(10);  s.altBurstTicsStated = true;
+		}
+		else if (key == "altratescale")
+		{
+			if (!IsNumber(lw) || lw.ToDouble() < 0.0 || lw.ToDouble() > 10.0) return "altratescale is a number, 0 (unset: 2) to 10 -- shred fires every firetics / altratescale";
+			s.altRateScaleValue = lw.ToDouble();  s.altRateScaleStated = true;
+		}
+		else if (key == "altdamagescale")
+		{
+			if (!IsNumber(lw) || lw.ToDouble() < 0.0 || lw.ToDouble() > 10.0) return "altdamagescale is a number, 0 (unset: 2) to 10 -- a doubleshell pellet's damage times this";
+			s.altDamageScaleValue = lw.ToDouble();  s.altDamageScaleStated = true;
+		}
+		else if (key == "altfanmax")
+		{
+			if (!IsWhole(lw) || lw.ToInt(10) > 35) return "altfanmax is a whole number of fanned rounds a second, 0 (unset: 8) to 35";
+			s.altFanMaxCount = lw.ToInt(10);  s.altFanMaxStated = true;
+		}
+		else if (key == "spreadshape")
+		{
+			if (lw != "box" && lw != "cone") return "spreadshape is box or cone";
+			s.spreadShapeName = lw;  s.spreadShapeStated = true;
 		}
 		else if (key == "roundprofile")    { s.roundProfileName    = word;  s.roundProfileStated    = true; }
 		else if (key == "flashprofile")    { s.flashProfileName    = word;  s.flashProfileStated    = true; }
@@ -653,6 +698,13 @@ class WM_SheetReader
 		Row("releasetics",        String.Format("%d", has && s.releaseTicsStated ? s.releaseTicCount : def.releaseTicCount), has && s.releaseTicsStated, "class");
 		Row("spinuptics",         String.Format("%d", has && s.spinUpTicsStated ? s.spinUpTicCount : def.spinUpTicCount),    has && s.spinUpTicsStated, "class");
 		Row("spindowntics",       String.Format("%d", has && s.spinDownTicsStated ? s.spinDownTicCount : def.spinDownTicCount), has && s.spinDownTicsStated, "class");
+		Row("altmode",            Quoted(has && s.altModeStated ? s.altModeName : def.altModeName),                          has && s.altModeStated, "class");
+		Row("altburst",           String.Format("%d", has && s.altBurstStated ? s.altBurstCount : def.altBurstCount),        has && s.altBurstStated, "class");
+		Row("altbursttics",       String.Format("%d", has && s.altBurstTicsStated ? s.altBurstTicCount : def.altBurstTicCount), has && s.altBurstTicsStated, "class");
+		Row("altratescale",       String.Format("%g", has && s.altRateScaleStated ? s.altRateScaleValue : def.altRateScaleValue), has && s.altRateScaleStated, "class");
+		Row("altdamagescale",     String.Format("%g", has && s.altDamageScaleStated ? s.altDamageScaleValue : def.altDamageScaleValue), has && s.altDamageScaleStated, "class");
+		Row("altfanmax",          String.Format("%d", has && s.altFanMaxStated ? s.altFanMaxCount : def.altFanMaxCount),    has && s.altFanMaxStated, "class");
+		Row("spreadshape",        Quoted(has && s.spreadShapeStated ? s.spreadShapeName : def.spreadShapeName),              has && s.spreadShapeStated, "class");
 		Row("roundprofile",       Quoted(has && s.roundProfileStated ? s.roundProfileName : def.roundProfileName),           has && s.roundProfileStated, "class");
 		Row("flashprofile",       Quoted(has && s.flashProfileStated ? s.flashProfileName : def.flashProfileName),           has && s.flashProfileStated, "class");
 		Row("altflashprofile",    Quoted(has && s.altFlashProfileStated ? s.altFlashProfileName : def.altFlashProfileName),  has && s.altFlashProfileStated, "class");
@@ -707,6 +759,13 @@ class WM_SheetReader
 				if (s.releaseTicsStated && s.releaseTicCount != def.releaseTicCount)            diffs += Diff(who, "releasetics", String.Format("%d", def.releaseTicCount), String.Format("%d", s.releaseTicCount));
 				if (s.spinUpTicsStated && s.spinUpTicCount != def.spinUpTicCount)               diffs += Diff(who, "spinuptics", String.Format("%d", def.spinUpTicCount), String.Format("%d", s.spinUpTicCount));
 				if (s.spinDownTicsStated && s.spinDownTicCount != def.spinDownTicCount)         diffs += Diff(who, "spindowntics", String.Format("%d", def.spinDownTicCount), String.Format("%d", s.spinDownTicCount));
+				if (s.altModeStated && !(s.altModeName ~== def.altModeName))                    diffs += Diff(who, "altmode", Quoted(def.altModeName), Quoted(s.altModeName));
+				if (s.altBurstStated && s.altBurstCount != def.altBurstCount)                   diffs += Diff(who, "altburst", String.Format("%d", def.altBurstCount), String.Format("%d", s.altBurstCount));
+				if (s.altBurstTicsStated && s.altBurstTicCount != def.altBurstTicCount)         diffs += Diff(who, "altbursttics", String.Format("%d", def.altBurstTicCount), String.Format("%d", s.altBurstTicCount));
+				if (s.altRateScaleStated && abs(s.altRateScaleValue - def.altRateScaleValue) > 1e-6)     diffs += Diff(who, "altratescale", String.Format("%g", def.altRateScaleValue), String.Format("%g", s.altRateScaleValue));
+				if (s.altDamageScaleStated && abs(s.altDamageScaleValue - def.altDamageScaleValue) > 1e-6) diffs += Diff(who, "altdamagescale", String.Format("%g", def.altDamageScaleValue), String.Format("%g", s.altDamageScaleValue));
+				if (s.altFanMaxStated && s.altFanMaxCount != def.altFanMaxCount)                diffs += Diff(who, "altfanmax", String.Format("%d", def.altFanMaxCount), String.Format("%d", s.altFanMaxCount));
+				if (s.spreadShapeStated && !(s.spreadShapeName ~== def.spreadShapeName))        diffs += Diff(who, "spreadshape", Quoted(def.spreadShapeName), Quoted(s.spreadShapeName));
 				if (s.roundProfileStated && s.roundProfileName != def.roundProfileName)         diffs += Diff(who, "roundprofile", Quoted(def.roundProfileName), Quoted(s.roundProfileName));
 				if (s.flashProfileStated && s.flashProfileName != def.flashProfileName)         diffs += Diff(who, "flashprofile", Quoted(def.flashProfileName), Quoted(s.flashProfileName));
 				if (s.altFlashProfileStated && s.altFlashProfileName != def.altFlashProfileName) diffs += Diff(who, "altflashprofile", Quoted(def.altFlashProfileName), Quoted(s.altFlashProfileName));
