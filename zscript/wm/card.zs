@@ -290,11 +290,13 @@ class WM_Card
 	Vector3 exhaustPort;
 	Vector3 exhaustDir;
 	bool    exhaustStated;
-	// WHICH MAGAZINES FIT. A family, not a gun: every gun in "pistol" takes every
+	// WHICH MAGAZINES AND ROUNDS FIT. A family, not a gun: every gun in "pistol" takes every
 	// "pistol" magazine. The magazine mesh is shared across guns, so a rule that
 	// only let a magazine back into the gun it came out of could not be followed
-	// from a headset -- two magazines on the floor look identical. Unstated means
-	// "pistol", which is what every card written before this was.
+	// from a headset -- two magazines on the floor look identical. A card that takes a
+	// magazine or a round from a hand (TakesFromHand) must state it (WM_Parser FinishCard 3g:
+	// warned now, refused once every card states one). Unstated still reads as "pistol", which
+	// only matters to a card that takes something -- and those are the ones the check names.
 	String magFamily;
 
 	String FamilyOfMags() const { return (magFamily == "") ? "pistol" : magFamily; }
@@ -592,6 +594,18 @@ class WM_Card
 	}
 
 	// ---- PARTS AND VERBS BY NAME ----------------------------------------------
+
+	// A CARD THAT TAKES A MAGAZINE OR A ROUND FROM A HAND: a swap, a load (the main barrel's or a second barrel's), or a
+	// detachable counted store -- the cards whose magFamily decides what fits (WM_Parser FinishCard 3g). Asked once the
+	// card is whole, after Finish synthesised any verbs.
+	bool TakesFromHand()
+	{
+		for (int i = 0; i < verbs.Size(); i++)
+			if (verbs[i].kind == WM_Verb.SWAP || verbs[i].kind == WM_Verb.LOAD) return true;
+		for (int i = 0; i < stores.Size(); i++)
+			if (!stores[i].placeholder && stores[i].kind == WM_Store.COUNTED && stores[i].detach) return true;
+		return false;
+	}
 
 	int FindPartIndex(String partId)
 	{

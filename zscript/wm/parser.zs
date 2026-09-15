@@ -95,6 +95,11 @@
 // A card's `casing = yes | none`: none is a gun with no cases -- plasma, a rail, a rocket,
 // flame -- so no brass leaves it, on the shot or when a store is emptied (WM_Card.noCasing).
 //
+// A card's `magfamily = <word>` says which magazines and loose rounds fit it: each carries the
+// family of the gun it was made for, and seats or loads only into a gun of that family. Every
+// card that takes one from a hand -- a swap, a load, a detachable store -- states it
+// (FinishCard 3g: warned while MAGFAMILY_REQUIRED is 0, refused once it is 1).
+//
 // A part's `roundsurface = <surface>, <store>, <slot|any>` is one more surface of that
 // part, moving with it, drawn only while that slot of that slotted store holds a case
 // (live or spent) -- `any`, while any slot does. A cylinder's rounds, a double's shells.
@@ -709,6 +714,11 @@ class WM_Parser
 	// A card whose base cannot be built leaves the set, said with its line. Load-time data, read alike on every machine.
 	const MAX_BASE_DEPTH = 8;
 
+	// A CARD THAT TAKES A MAGAZINE OR A ROUND FROM A HAND MUST STATE ITS FAMILY (FinishCard 3g). 0 while the weapon
+	// packages' cards catch up -- the card is loaded and warned; 1 refuses it. Flip it once every card states one. A number,
+	// because a ZScript constant is a number or a string, never a bool.
+	const MAGFAMILY_REQUIRED = 0;
+
 	static void ResolveBases(WM_CardSet set)
 	{
 		Array<WM_Card> kept;
@@ -1001,6 +1011,17 @@ class WM_Parser
 		[thrBad, thrWhat, thrLine] = ThrowableProblem(card);
 		if (thrBad != "")
 			return thrBad, thrWhat .. " (" .. card.weaponClass .. ")", card.sourceName, (thrLine > 0) ? thrLine : card.mechanismLine;
+
+		// 3g. WHICH MAGAZINES AND ROUNDS FIT (WM_Card.magFamily), on a card that takes one from a hand -- a swap, a load
+		//     (a second barrel's too), a detachable store. Unstated it counts as "pistol", so a pistol round fits whatever
+		//     else leans on that default: the 09-15 sweep found a machine gun's grenade launcher taking one. Said loudly
+		//     while MAGFAMILY_REQUIRED is 0; refused once it is 1, after every card in the load order states its family.
+		if (card.magFamily == "" && card.TakesFromHand())
+		{
+			String famWhy = "magfamily is not stated, and this card takes a magazine or a round from a hand -- say which fit: magfamily = <word> (unstated it counts as \"pistol\")";
+			if (MAGFAMILY_REQUIRED != 0) return famWhy, card.weaponClass .. " magfamily", card.sourceName, card.mechanismLine;
+			WM_Log.Warn(card.weaponClass .. ": " .. famWhy);
+		}
 
 		// 4. A PART THE OLD CODE WORKED AND NO VERB DOES. Not a refusal: step 4 demotes
 		//    role and this becomes normal. But with wm_verbs on, a hand can still take
