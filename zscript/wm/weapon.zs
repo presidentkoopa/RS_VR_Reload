@@ -98,6 +98,8 @@ class WM_Gun : Weapon
 		sawHitSoundName      = (has && s.sawSoundsStated)        ? s.sawHitSoundName      : def.sawHitSoundName;
 		sawPuffName          = (has && s.sawPuffStated)          ? s.sawPuffName          : def.sawPuffName;
 		releaseTicCount      = (has && s.releaseTicsStated)      ? s.releaseTicCount      : def.releaseTicCount;
+		spinUpTicCount       = (has && s.spinUpTicsStated)       ? s.spinUpTicCount       : def.spinUpTicCount;
+		spinDownTicCount     = (has && s.spinDownTicsStated)     ? s.spinDownTicCount     : def.spinDownTicCount;
 		roundProfileName     = (has && s.roundProfileStated)     ? s.roundProfileName     : def.roundProfileName;
 		flashProfileName     = (has && s.flashProfileStated)     ? s.flashProfileName     : def.flashProfileName;
 		altFlashProfileName  = (has && s.altFlashProfileStated)  ? s.altFlashProfileName  : def.altFlashProfileName;
@@ -223,6 +225,16 @@ class WM_Gun : Weapon
 	//                               Vanilla's plasma rifle ends a burst `PLSG B 20 A_ReFire`: 20.
 	//                               0 (unset) is ready at once, as before. Not after a dry click
 	//                               or a second barrel's shot. At most 350.
+	//   WM_Gun.SpinUpTics N         A SPIN-UP before a burst: barrels that must turn N tics before a
+	//                               round leaves -- a minigun. The trigger, or the holding hand's
+	//                               second button, spins them up (SpinStep, from DoEffect); with
+	//                               neither down they run down over SpinDownTics. A pull on barrels
+	//                               at full speed fires at once, so holding the second button keeps
+	//                               the gun ready; a pull on slower ones waits in SpinUp. 0 (unset)
+	//                               fires on the pull. At most 350. A gun whose card puts a second
+	//                               barrel on that button spins on its trigger alone.
+	//   WM_Gun.SpinDownTics N       full-speed barrels to still, in tics. 0 (unset) is twice
+	//                               SpinUpTics. At most 350.
 	//
 	// FIRE HOLD AND RELEASE: a subclass that does something for as long as the trigger is
 	// held -- a flamethrower's stream -- overrides FireHeld(int) and FireReleased(int) (below).
@@ -260,6 +272,11 @@ class WM_Gun : Weapon
 	String sawHitSoundName;
 	String sawPuffName;
 	int    releaseTicCount;
+	int    spinUpTicCount;
+	int    spinDownTicCount;
+	// THE BARRELS' SPIN SO FAR (WM_Gun.SpinUpTics), a whole count so every machine keeps it exactly: up by
+	// SpinDownTicsEach() a tic toward SpinFull(), down by SpinUpTicsEach() a tic toward 0. Saved with the gun.
+	int    spinCount;
 	String roundProfileName;
 	String flashProfileName;
 	String altFlashProfileName;
@@ -293,6 +310,8 @@ class WM_Gun : Weapon
 	property SawSounds: sawFullSoundName, sawHitSoundName;
 	property SawPuff: sawPuffName;
 	property ReleaseTics: releaseTicCount;
+	property SpinUpTics: spinUpTicCount;
+	property SpinDownTics: spinDownTicCount;
 	property RoundProfile: roundProfileName;
 	property FlashProfile: flashProfileName;
 	property AltFlashProfile: altFlashProfileName;
@@ -322,6 +341,13 @@ class WM_Gun : Weapon
 	String SawFullSound()          { return WM_SoundPick.ForActor(Owner, GetClassName(), "sawfull", (sawFullSoundName != "") ? sawFullSoundName : "weapons/sawfull"); }
 	String SawHitSound()           { return WM_SoundPick.ForActor(Owner, GetClassName(), "sawhit", (sawHitSoundName != "") ? sawHitSoundName : "weapons/sawhit"); }
 	int    ReleaseTicsEach() const { return clamp(releaseTicCount, 0, 350); }
+	int    SpinUpTicsEach() const   { return clamp(spinUpTicCount, 0, 350); }
+	int    SpinDownTicsEach() const { int d = clamp(spinDownTicCount, 0, 350); return (d > 0) ? d : max(SpinUpTicsEach() * 2, 1); }
+	// Full speed as a whole count, up-tics x down-tics, so a tic's rise and a tic's fall are both whole steps.
+	int    SpinFull() const         { return SpinUpTicsEach() * SpinDownTicsEach(); }
+	bool   SpunUp() const           { return SpinUpTicsEach() <= 0 || spinCount >= SpinFull(); }
+	// 0 still .. 1 full speed, for the barrels' look (WM_Rig.Spin).
+	double SpinFraction() const     { int f = SpinFull(); return (f > 0) ? clamp(double(spinCount) / f, 0.0, 1.0) : 0.0; }
 
 	// THE SAW'S PUFF (WM_Gun.SawPuff), found by name as it cuts, so a class from another package is never a
 	// compile-time reference. Unset, or a name that is no actor (said once): RS_Ballistics' RSB_SawPuff; without
@@ -421,6 +447,8 @@ class WM_Gun : Weapon
 				(chargeSoundName != "") ? " (" .. chargeSoundName .. ")" : "");
 		if (ReleaseTicsEach() > 0)
 			s = s .. String.Format(", RECOVERS %d tics after a firing run", ReleaseTicsEach());
+		if (SpinUpTicsEach() > 0)
+			s = s .. String.Format(", SPINS UP %d tics before a burst (trigger or second button; runs down over %d)", SpinUpTicsEach(), SpinDownTicsEach());
 		return s .. String.Format(" -- from the weapon class %s", GetClassName());
 	}
 
@@ -497,9 +525,22 @@ class WM_Gun : Weapon
 		return sys ? sys.AltBarrelFor(GetClassName()) : null;
 	}
 
+	// THE BARRELS' SPIN, A TIC ON (WM_Gun.SpinUpTics): toward full while this hand's trigger is down, or its second
+	// button when the card puts no barrel there; toward still otherwise. From DoEffect -- every tic, every machine,
+	// off the owner's usercmd -- because WM_Charge holds the shot on it: gameplay, never the console player's.
+	void SpinStep()
+	{
+		int up = SpinUpTicsEach();
+		if (up <= 0) { spinCount = 0; return; }
+		bool want = TriggerIsDown() || (AltIsDown() && !AltBarrel());
+		if (want) spinCount = min(spinCount + SpinDownTicsEach(), SpinFull());
+		else      spinCount = max(spinCount - up, 0);
+	}
+
 	override void DoEffect()
 	{
 		Super.DoEffect();
+		SpinStep();
 		if (altMustRelease && !AltIsDown()) altMustRelease = false;
 		if (fireStarted && TriggerIsDown())
 		{
@@ -904,6 +945,8 @@ class WM_Gun : Weapon
 	// The trigger coming back mid-charge does not cancel it, as in vanilla.
 	action State WM_Charge()
 	{
+		// THE SPIN-UP FIRST (WM_Gun.SpinUpTics): barrels not yet at full speed hold the shot in SpinUp.
+		if (!invoker.SpunUp()) return ResolveState("SpinUp");
 		int tics = invoker.ChargeTicsEach();
 		if (tics <= 0) return null;
 		invoker.mustRelease = true;
@@ -933,6 +976,17 @@ class WM_Gun : Weapon
 	{
 		invoker.chargeBeganTic = level.maptime;
 		A_SetTics(max(invoker.ChargeTicsEach(), 1));
+	}
+
+	// THE SPIN-UP'S WAIT (WM_Gun.SpinUpTics), a tic at a time while DoEffect spins the barrels: at full speed, round
+	// to Fire, which now passes; the trigger let go first, or a switch pending for this hand, back to Ready with
+	// nothing fired. Off the owner's usercmd, on every machine.
+	action State WM_SpinWait()
+	{
+		if (invoker.SpunUp()) return ResolveState("Fire");
+		if (!player || player.health <= 0 || !WM_TriggerDown()) return ResolveState("Ready");
+		if (player.PendingWeapon != WP_NOCHANGE && player.PendingWeapon.bOffhandWeapon == invoker.bOffhandWeapon) return ResolveState("Ready");
+		return null;
 	}
 
 	// THIS CLASS'S DAMAGE ON ONE ROUND. Unset (0), the round keeps its own roll.
@@ -1009,6 +1063,10 @@ class WM_Gun : Weapon
 	Charge:
 		TNT1 A 1 WM_ChargeWait();
 		Goto Fire+1;
+	SpinUp:
+		// The spin-up (WM_Gun.SpinUpTics): a tic at a time until the barrels are at full speed.
+		TNT1 A 1 WM_SpinWait();
+		Loop;
 	AltFire:
 		// A card's second barrel (card.zs WM_Barrel): its shot, its wait, then a held full-auto
 		// trigger goes round to Fire as at the end of Fire. Reached only when the card has one:

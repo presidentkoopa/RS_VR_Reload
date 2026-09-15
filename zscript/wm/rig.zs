@@ -1473,9 +1473,14 @@ class WM_Rig play
 				}
 			}
 			double was = p.spinSpeed;
-			if (want) p.spinSpeed = (p.spinUpTics > 0) ? min(1.0, was + 1.0 / p.spinUpTics) : 1.0;
-			else      p.spinSpeed = (p.spinDownTics > 0) ? max(0.0, was - 1.0 / p.spinDownTics) : 0.0;
-			if (want && was <= 0.0) rising = true;
+			// A GUN THAT SPINS UP FOR REAL (WM_Gun.SpinUpTics): its barrels show the gun's own spin, trigger or second
+			// button, so they reach full speed on the very tic it may fire. Still only read: the gun keeps the count.
+			let realSpin = WM_Gun(gunItem);
+			if (p.spinBy == WM_Part.SPIN_TRIGGER && realSpin && realSpin.SpinUpTicsEach() > 0)
+				p.spinSpeed = stowed ? 0.0 : realSpin.SpinFraction();
+			else if (want) p.spinSpeed = (p.spinUpTics > 0) ? min(1.0, was + 1.0 / p.spinUpTics) : 1.0;
+			else           p.spinSpeed = (p.spinDownTics > 0) ? max(0.0, was - 1.0 / p.spinDownTics) : 0.0;
+			if (p.spinSpeed > 0.0 && was <= 0.0) rising = true;
 			if (was >= 1.0 && p.spinSpeed < 1.0) falling = true;
 			if (p.spinSpeed >= 1.0) full = true;
 			double period = p.dof.degrees;
@@ -2969,6 +2974,21 @@ class WM_Rig play
 	}
 
 	// The load point a hand at `at` is deepest inside, as an index into card.verbs; -1.
+	// HOW DEEP INTO THE NEAREST LOAD POINT THAT WOULD TAKE m: LoadDepth's measure (1.0 on its oval, less inside), or a
+	// large number when none would take it. For the load guide's buzz (WM_System.LoadBuzz); decides nothing.
+	double LoadNearDepth(Vector3 at, WM_LooseMag m)
+	{
+		double best = 1e9;
+		if (!card || !m || !LoadTakes(m) || !LoadActive()) return best;
+		for (int k = 0; k < card.verbs.Size(); k++)
+		{
+			let v = card.verbs[k];
+			if (v.kind != WM_Verb.LOAD || LoadWhy(v, m) != "") continue;
+			best = min(best, LoadDepth(k, at));
+		}
+		return best;
+	}
+
 	int LoadVerbAt(Vector3 at)
 	{
 		if (!card) return -1;

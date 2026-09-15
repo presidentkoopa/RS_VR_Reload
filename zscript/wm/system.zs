@@ -1632,6 +1632,24 @@ class WM_System : EventHandler
 		m.Vel = (0, 0, 0);
 	}
 
+	// THE LOAD GUIDE (the owner, 09-15): a round this hand carries buzzes the hand as it nears a load point that would
+	// take it -- a faint pulse now and then within twice the point's oval, quick firm ones inside it -- so a rocket
+	// finds the front of its tube by feel. PRESENTATION on this machine's own controllers: the console player's hands
+	// only, and it decides nothing.
+	private void LoadBuzz(PlayerPawn pmo, int h, WM_Rig rig, WM_LooseMag m)
+	{
+		if (!pmo || !pmo.player || pmo.PlayerNumber() != consoleplayer || !rig || !m) return;
+		double depth = rig.LoadNearDepth(HandPos(pmo, h), m);
+		if (depth <= 1.0)
+		{
+			if (level.maptime % 5 == 0) level.VRHaptic(h, 0.3, 18.0);
+		}
+		else if (depth <= 2.0)
+		{
+			if (level.maptime % 12 == 0) level.VRHaptic(h, 0.12, 10.0);
+		}
+	}
+
 	private void Carry(WM_PlayerHands ph, PlayerPawn pmo, int h, WM_Rig rig, bool squeeze)
 	{
 		let st = ph.hstate[h];
@@ -1651,6 +1669,7 @@ class WM_System : EventHandler
 		// and a magazine is every carry a pistol has.
 		int lk = -1;
 		if (!st.preview && rig.LoadTakes(m) && rig.LoadActive()) lk = rig.LoadVerbAt(HandPos(pmo, h));
+		if (!st.preview) LoadBuzz(pmo, h, rig, m);
 		if (squeeze || st.preview)
 		{
 			if (lk >= 0) LoadHover(h, rig, lk, m);

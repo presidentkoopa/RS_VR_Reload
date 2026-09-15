@@ -14,6 +14,7 @@
 //     shotclass = "<actor>"        shotrail = yes | no           railcolors = spiral, core   (0xRRGGBB ok)
 //     trailprofile = "<profile>"   chargetics = N                chargesound = "<sound>"
 //     shotsaw = yes | no           sawsounds = "<full>", "<hit>" sawpuff = "<actor>"
+//     spinuptics = N               spindowntics = N
 //     roundprofile, flashprofile, altflashprofile, ejectaprofile = "<RS_Ballistics profile>"
 //     recoilprofile, altrecoilprofile = "<RS_Ballistics recoil profile>"   (RECOIL_PLAN.md; stored, read by nothing yet)
 //     # FROM THE CARD
@@ -97,6 +98,8 @@ class WM_Sheet
 	String sawFullSoundName, sawHitSoundName;   bool sawSoundsStated;
 	String sawPuffName;                         bool sawPuffStated;
 	int    releaseTicCount;                     bool releaseTicsStated;
+	int    spinUpTicCount;                      bool spinUpTicsStated;
+	int    spinDownTicCount;                    bool spinDownTicsStated;
 	String roundProfileName;                    bool roundProfileStated;
 	String flashProfileName;                    bool flashProfileStated;
 	String altFlashProfileName;                 bool altFlashProfileStated;
@@ -358,6 +361,16 @@ class WM_SheetReader
 		{
 			if (!IsWhole(lw) || lw.ToInt(10) > 350) return "releasetics is a whole number of tics, 0 to 350";
 			s.releaseTicCount = lw.ToInt(10);  s.releaseTicsStated = true;
+		}
+		else if (key == "spinuptics")
+		{
+			if (!IsWhole(lw) || lw.ToInt(10) > 350) return "spinuptics is a whole number of tics, 0 (fires on the pull) to 350";
+			s.spinUpTicCount = lw.ToInt(10);  s.spinUpTicsStated = true;
+		}
+		else if (key == "spindowntics")
+		{
+			if (!IsWhole(lw) || lw.ToInt(10) > 350) return "spindowntics is a whole number of tics, 0 (twice spinuptics) to 350";
+			s.spinDownTicCount = lw.ToInt(10);  s.spinDownTicsStated = true;
 		}
 		else if (key == "roundprofile")    { s.roundProfileName    = word;  s.roundProfileStated    = true; }
 		else if (key == "flashprofile")    { s.flashProfileName    = word;  s.flashProfileStated    = true; }
@@ -639,6 +652,8 @@ class WM_SheetReader
 		Row("sawsounds",          has && s.sawSoundsStated ? Quoted(s.sawFullSoundName) .. ", " .. Quoted(s.sawHitSoundName) : Quoted(def.sawFullSoundName) .. ", " .. Quoted(def.sawHitSoundName), has && s.sawSoundsStated, "class");
 		Row("sawpuff",            Quoted(has && s.sawPuffStated ? s.sawPuffName : def.sawPuffName),                          has && s.sawPuffStated, "class");
 		Row("releasetics",        String.Format("%d", has && s.releaseTicsStated ? s.releaseTicCount : def.releaseTicCount), has && s.releaseTicsStated, "class");
+		Row("spinuptics",         String.Format("%d", has && s.spinUpTicsStated ? s.spinUpTicCount : def.spinUpTicCount),    has && s.spinUpTicsStated, "class");
+		Row("spindowntics",       String.Format("%d", has && s.spinDownTicsStated ? s.spinDownTicCount : def.spinDownTicCount), has && s.spinDownTicsStated, "class");
 		Row("roundprofile",       Quoted(has && s.roundProfileStated ? s.roundProfileName : def.roundProfileName),           has && s.roundProfileStated, "class");
 		Row("flashprofile",       Quoted(has && s.flashProfileStated ? s.flashProfileName : def.flashProfileName),           has && s.flashProfileStated, "class");
 		Row("altflashprofile",    Quoted(has && s.altFlashProfileStated ? s.altFlashProfileName : def.altFlashProfileName),  has && s.altFlashProfileStated, "class");
@@ -691,6 +706,8 @@ class WM_SheetReader
 					diffs += Diff(who, "sawsounds", Quoted(def.sawFullSoundName) .. ", " .. Quoted(def.sawHitSoundName), Quoted(s.sawFullSoundName) .. ", " .. Quoted(s.sawHitSoundName));
 				if (s.sawPuffStated && s.sawPuffName != def.sawPuffName)                        diffs += Diff(who, "sawpuff", Quoted(def.sawPuffName), Quoted(s.sawPuffName));
 				if (s.releaseTicsStated && s.releaseTicCount != def.releaseTicCount)            diffs += Diff(who, "releasetics", String.Format("%d", def.releaseTicCount), String.Format("%d", s.releaseTicCount));
+				if (s.spinUpTicsStated && s.spinUpTicCount != def.spinUpTicCount)               diffs += Diff(who, "spinuptics", String.Format("%d", def.spinUpTicCount), String.Format("%d", s.spinUpTicCount));
+				if (s.spinDownTicsStated && s.spinDownTicCount != def.spinDownTicCount)         diffs += Diff(who, "spindowntics", String.Format("%d", def.spinDownTicCount), String.Format("%d", s.spinDownTicCount));
 				if (s.roundProfileStated && s.roundProfileName != def.roundProfileName)         diffs += Diff(who, "roundprofile", Quoted(def.roundProfileName), Quoted(s.roundProfileName));
 				if (s.flashProfileStated && s.flashProfileName != def.flashProfileName)         diffs += Diff(who, "flashprofile", Quoted(def.flashProfileName), Quoted(s.flashProfileName));
 				if (s.altFlashProfileStated && s.altFlashProfileName != def.altFlashProfileName) diffs += Diff(who, "altflashprofile", Quoted(def.altFlashProfileName), Quoted(s.altFlashProfileName));
