@@ -1966,7 +1966,10 @@ class WM_Rig play
 		// One flash per hand at a time: a new shot retires the old flash first, so the old one clearing
 		// its beam slot cannot blank the new. Which beam slot a hand uses is the rig's (wm_flash_slot).
 		if (lastFlash) lastFlash.Destroy();
-		lastFlash = RSB_Flash.Fire(profile, at, fwd, int(Cvf("wm_flash_slot", 4.0)) + hand, pmo.Vel);
+		// WHO FIRED, AND FROM WHICH HAND (RS_Ballistics df0c301): a volumetric flash (engine #15) then rides this gun's hand --
+		// the rig's hand is the player's main (0) or off (1) hand, RSB_Flash's own numbering -- instead of hanging where the
+		// shot left. Looks only: RSB_Flash is client-side.
+		lastFlash = RSB_Flash.Fire(profile, at, fwd, int(Cvf("wm_flash_slot", 4.0)) + hand, pmo.Vel, pmo.PlayerNumber(), hand);
 		// THE BARREL HEATS with the shot, from the same profile (RSB_Barrel, kept per gun actor). A profile with
 		// no `barrelheat` adds none, so a second barrel's flash never heats the main one. BarrelSmoke shows it.
 		RSB_Barrel.Shot(gunItem, profile);
