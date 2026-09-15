@@ -79,6 +79,10 @@ written. **Every one of those files is touched here too.**
    - `WM_CardValidator : DataValidator` runs the card set build (WMCARD lumps, bases, sheets, borrowed models, Finish) at the -norun exit.
    - Every refused card becomes `DataValidator.Refuse(where, why)`, so the compile check fails on exit code 1338 or "DATA REFUSED" instead of a gun silently not loading in play.
    - Default off. Only the check passes the flag.
+   - **2026-09-15: written, both halves, desk-only.**
+     - Engine hunks: `Engine docs/DATA_VALIDATORS_HUNKS.py`. The exit code is 1339, because 1338 restarts the engine.
+     - Mod side staged at `_staged/DATA_VALIDATOR_MOD_HUNKS.py`; its dry run passes all 5 anchors. It adds `WM_Parser.BuildCardSet`, the one pipeline LoadCards and the validator share; `WM_CardValidator`; and refusal routing in the two `Refuse` funnels.
+     - Apply the mod side (`--write`, then a check) only once an exe with DataValidator is installed; against an older exe the pk3 would not compile.
 4. **The bone drive, gun side.** The owner said yes after the current effects (2026-09-15) and chose one shared solver; see `Engine docs/MODEL_JOINT_DRIVE_PLAN.md`. It waits for the engine pieces A-D and the Body IK lane's (uzdxrema-a4) section 8 agreement.
    - **A's proof:** the replay harness showing the shared solver matches today's surface drive (plain slide, slide with turn, hinge, two stages, a fast split crossing), then the owner's feel check on the Pistolet slide, a pump and a break-top.
    - **Card grammar:** `joint = <name>` on a part, `hidesurface = <mesh>`, `hidejoint = <name>`.
