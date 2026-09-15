@@ -126,6 +126,20 @@
 // same id changes only the keys it states; a new id is added. A card naming an
 // archetype no lump declared -- or one that was itself refused -- is refused.
 //
+// ------------------------------------------------------------- INHERITANCE
+//
+// A card's `base = <id>` starts it from another card: a FRESH COPY of that card, read again
+// from its own lump (so no part, and none of the live state on one, is shared), with this
+// card's own lines laid over it (ResolveBases, as the cards load, before any sheet borrows a
+// card). Every key it states replaces the base's. A `part`, `store`, `verb` or `barrel`
+// block under an id the base has REPLACES that one whole, in its place; a new id is added.
+// `remove part <id>` (or store, verb, barrel), on a line after `base`, takes one of the
+// base's away. The base's synthesised stores are dropped and synthesised again for the whole
+// card, so a child that declares a store gets no pistol pair beside it. A base may have a
+// base, up to MAX_BASE_DEPTH; a base that cannot be built leaves the child unloaded, said
+// with its line. A twin gun -- the same mesh on another skin, with other handling sounds, in
+// the other hand, or reloaded another way -- is its base plus the lines that differ.
+//
 // -------------------------------------------------------------- THROWABLES
 //
 // A weapon that leaves the hand (throw.zs): `throw`, `route` and `fuse` each open ALONE, `mount <id>`
@@ -150,14 +164,16 @@
 
 class WM_Parser
 {
-	static WM_CardSet ParseAll(String text, String sourceName, WM_CardSet into = null)
+	static WM_CardSet ParseAll(String text, String sourceName, WM_CardSet into = null, WM_Card overlayOnto = null)
 	{
 		let set = into ? into : new("WM_CardSet");
 
 		Array<String> lines;
 		text.Split(lines, "\n");
 
-		WM_Card      card     = null;
+		// A CHILD CARD'S OWN LINES laid over a fresh copy of its base (FreshCard): the copy is the card being read, a
+		// block under an id it already has replaces that one, and `remove` takes one away. null for every lump read.
+		WM_Card      card     = overlayOnto;
 		WM_Archetype arch     = null;
 		bool         refused  = false;
 		WM_Part      curPart  = null;
@@ -190,6 +206,8 @@ class WM_Parser
 			bool archLine   = IsHeader(head, "archetype", nWords, second);
 			if (weaponLine || archLine)
 			{
+				// A CHILD'S OWN LINES end at the next card (BlockBody stops there too).
+				if (overlayOnto) break;
 				if (card && !refused) Accept(set, card, curStore, curVerb, curBarrel, ThrowableBlockOpen(curThrow, curRoute, curFuse, curMount), sourceName, ln + 1);
 				if (arch && !refused) Refuse(sourceName, ln + 1, "archetype " .. arch.id, "its block was never closed with `end`");
 				card     = null;
@@ -258,24 +276,36 @@ class WM_Parser
 						Refuse(sourceName, ln + 1, "part " .. curPart.id, stageWhy);
 						refused = true;
 					}
-					else if (surfaceTotal > WM_Rig.SLOTS)
+					else if (!overlayOnto && surfaceTotal > WM_Rig.SLOTS)
 					{
 						Refuse(sourceName, ln + 1, "part " .. curPart.id, String.Format(
 							"the parts so far name %d moving surfaces and a gun has %d override slots -- past that a part never moves",
 							surfaceTotal, WM_Rig.SLOTS));
 						refused = true;
 					}
+					// A CHILD'S PART UNDER A BASE PART'S ID replaces it, in its place. Its surfaces are counted once the
+					// card is whole (FreshCard).
+					else if (overlayOnto && card.FindPartIndex(curPart.id) >= 0) card.parts[card.FindPartIndex(curPart.id)] = curPart;
 					else card.parts.Push(curPart);
 					curPart = null;
 				}
 				else if (curStore != null)
 				{
+					// A CHILD'S STORE UNDER A BASE STORE'S NAME replaces it, in its place.
+					int baseStore = -1;
+					if (overlayOnto)
+					{
+						for (int k = 0; k < card.stores.Size(); k++)
+							if (card.stores[k].id ~== curStore.id) { baseStore = k; break; }
+					}
+					if (baseStore >= 0) card.stores.Delete(baseStore);
 					String bad = StoreProblem(card, curStore);
 					if (bad != "")
 					{
 						Refuse(sourceName, ln + 1, "store " .. curStore.id, bad);
 						refused = true;
 					}
+					else if (baseStore >= 0) card.stores.Insert(baseStore, curStore);
 					else card.stores.Push(curStore);
 					curStore = null;
 				}
@@ -283,10 +313,17 @@ class WM_Parser
 				{
 					// ONE ID PER BARREL on a card. What it names is checked once the card is whole
 					// (FinishCard, BarrelProblem): its store and verbs may come after it.
-					if (card.FindBarrel(curBarrel.id) != null)
+					let twinBarrel = card.FindBarrel(curBarrel.id);
+					if (twinBarrel != null && !overlayOnto)
 					{
 						Refuse(sourceName, ln + 1, "barrel " .. curBarrel.id, "a barrel by that id is already declared on this card");
 						refused = true;
+					}
+					// A CHILD'S BARREL UNDER A BASE BARREL'S ID replaces it, in its place.
+					else if (twinBarrel != null)
+					{
+						for (int k = 0; k < card.barrels.Size(); k++)
+							if (card.barrels[k] == twinBarrel) card.barrels[k] = curBarrel;
 					}
 					else card.barrels.Push(curBarrel);
 					curBarrel = null;
@@ -295,7 +332,8 @@ class WM_Parser
 				// the card is whole (ThrowableProblem).
 				else if (thrOpen != "")
 				{
-					if ((curThrow && card.throwSpec) || (curRoute && card.routeSpec) || (curFuse && card.fuseSpec) || (curMount && card.mountSpec))
+					// (A child's block of a kind its base already has replaces the base's.)
+					if (!overlayOnto && ((curThrow && card.throwSpec) || (curRoute && card.routeSpec) || (curFuse && card.fuseSpec) || (curMount && card.mountSpec)))
 					{
 						Refuse(sourceName, ln + 1, thrOpen, "a card has one block of this kind");
 						refused = true;
@@ -316,11 +354,17 @@ class WM_Parser
 					WM_Verb twin = null;
 					if (card) twin = card.FindVerb(curVerb.id);
 					else      twin = arch.FindVerb(curVerb.id);
-					if (twin != null)
+					if (twin != null && !overlayOnto)
 					{
 						Refuse(sourceName, ln + 1, WM_Verb.KindName(curVerb.kind) .. " " .. curVerb.id,
 							"a verb by that id is already declared here -- ids name verbs, so each is said once");
 						refused = true;
+					}
+					// A CHILD'S VERB UNDER A BASE VERB'S ID replaces it, in its place.
+					else if (twin != null)
+					{
+						for (int k = 0; k < card.verbs.Size(); k++)
+							if (card.verbs[k] == twin) card.verbs[k] = curVerb;
 					}
 					else if (card) card.verbs.Push(curVerb);
 					else           arch.verbs.Push(curVerb);
@@ -338,6 +382,52 @@ class WM_Parser
 				}
 				// Otherwise it is the weapon line's own `end`, which closes nothing:
 				// the card runs to the next `weapon` or `archetype` line.
+				continue;
+			}
+
+			// `remove part|store|verb|barrel <id>` (INHERITANCE): a card with a base takes one of the base's away. On the
+			// card's own first reading only its words are checked; it is done as the card is built from its base (FreshCard).
+			if (head == "remove" && nWords >= 2 && second.Left(1) != "=")
+			{
+				String rmKind = second.MakeLower();
+				String rmId   = (nWords == 3) ? Unquote(words[2]) : "";
+				String rmWhy  = "";
+				if (arch != null) rmWhy = "an archetype holds verb blocks only -- remove belongs on a card with a base";
+				else if (curPart != null || curStore != null || curVerb != null || curBarrel != null || curDof != null || thrOpen != "")
+					rmWhy = "remove sits between blocks -- close the open block with `end` first";
+				else if (card.baseId == "") rmWhy = "remove takes something from a base card -- say base = <card> on an earlier line";
+				else if (nWords != 3 || (rmKind != "part" && rmKind != "store" && rmKind != "verb" && rmKind != "barrel"))
+					rmWhy = "remove part <id>, remove store <id>, remove verb <id> or remove barrel <id> -- one a line";
+				else if (overlayOnto)
+				{
+					bool removed = false;
+					if (rmKind == "part")
+					{
+						int rp = card.FindPartIndex(rmId);
+						if (rp >= 0) { card.parts.Delete(rp); removed = true; }
+					}
+					else if (rmKind == "store")
+					{
+						for (int k = 0; k < card.stores.Size() && !removed; k++)
+							if (card.stores[k].id ~== rmId) { card.stores.Delete(k); removed = true; }
+					}
+					else if (rmKind == "verb")
+					{
+						for (int k = 0; k < card.verbs.Size() && !removed; k++)
+							if (card.verbs[k].id ~== rmId) { card.verbs.Delete(k); removed = true; }
+					}
+					else
+					{
+						for (int k = 0; k < card.barrels.Size() && !removed; k++)
+							if (card.barrels[k].id ~== rmId) { card.barrels.Delete(k); removed = true; }
+					}
+					if (!removed) rmWhy = String.Format("the base card has no %s %s to remove", rmKind, rmId);
+				}
+				if (rmWhy != "")
+				{
+					Refuse(sourceName, ln + 1, raw, rmWhy);
+					refused = true;
+				}
 				continue;
 			}
 
@@ -610,6 +700,120 @@ class WM_Parser
 		}
 		card.SynthesiseStores();
 		set.cards.Push(card);
+	}
+
+	// ---- INHERITANCE: A CARD THAT STARTS FROM ANOTHER (card `base = <id>`) --------------------------------
+	//
+	// Every card with a base is built whole in its own place in the set -- the order is kept, because CardForAmmo and
+	// Equip read it -- before any sheet borrows a card (sheet.zs BorrowModels) and before Finish checks it like any card.
+	// A card whose base cannot be built leaves the set, said with its line. Load-time data, read alike on every machine.
+	const MAX_BASE_DEPTH = 8;
+
+	static void ResolveBases(WM_CardSet set)
+	{
+		Array<WM_Card> kept;
+		for (int i = 0; i < set.cards.Size(); i++)
+		{
+			let c = set.cards[i];
+			if (c.baseId == "") { kept.Push(c); continue; }
+			let built = FreshCard(set, c.weaponClass);
+			if (built) kept.Push(built);
+		}
+		set.cards.Clear();
+		for (int i = 0; i < kept.Size(); i++) set.cards.Push(kept[i]);
+	}
+
+	// A FRESH, WHOLE COPY OF CARD <id>: read again from its own WMCARD lump -- no part object shared with the card the set
+	// already holds -- and, when it has a base, built from a fresh copy of that base with its own lines laid over it.
+	// null when it cannot be built, with the reason said. sheet.zs BorrowModels takes its copies here, so a gun that
+	// borrows a card with a base gets it whole. A refusal in a lump is printed again as that lump is read again.
+	static WM_Card FreshCard(WM_CardSet set, String id, int depth = 0)
+	{
+		WM_Card rec = null;
+		for (int i = 0; i < set.cards.Size(); i++)
+			if (set.cards[i].weaponClass ~== id && set.cards[i].modelId == "") { rec = set.cards[i]; break; }
+		if (!rec)
+		{
+			Console.Printf("\c[Red]WM ERROR\c- a card starts from or borrows %s, and no card by that id was read (or it was refused).", id);
+			return null;
+		}
+		String text = Wads.ReadLump(rec.sourceLump);
+		let scratch = new("WM_CardSet");
+		ParseAll(text, "WMCARD", scratch);
+		WM_Card own = null;
+		for (int i = 0; i < scratch.cards.Size(); i++)
+			if (scratch.cards[i].weaponClass ~== id) { own = scratch.cards[i]; break; }
+		if (!own)
+		{
+			Console.Printf("\c[Red]WM ERROR\c- card %s could not be read again from its WMCARD lump.", id);
+			return null;
+		}
+		own.sourceLump = rec.sourceLump;
+		if (own.baseId == "") return own;
+
+		if (depth >= MAX_BASE_DEPTH)
+		{
+			Refuse(own.sourceName, own.baseLine, "base " .. own.baseId, String.Format("cards more than %d deep -- does a base lead back to this card?", MAX_BASE_DEPTH));
+			return null;
+		}
+		let built = FreshCard(set, own.baseId, depth + 1);
+		if (!built)
+		{
+			Refuse(own.sourceName, own.baseLine, "base " .. own.baseId, "that base card could not be built, so this card is not loaded");
+			return null;
+		}
+		// THE BASE'S SYNTHESISED STORES go: the whole card is synthesised again as it is accepted, from its own keys.
+		for (int k = built.stores.Size() - 1; k >= 0; k--)
+			if (built.stores[k].synthesised) built.stores.Delete(k);
+		built.weaponClass = own.weaponClass;
+		let whole = new("WM_CardSet");
+		ParseAll(BlockBody(text, own.weaponClass), own.sourceName, whole, built);
+		if (whole.cards.Size() == 0) return null;    // refused as its own lines were laid over the base, with the line
+		int surfaces = 0;
+		for (int p = 0; p < built.parts.Size(); p++) surfaces += built.parts[p].surfaceNames.Size();
+		if (surfaces > WM_Rig.SLOTS)
+		{
+			Refuse(own.sourceName, own.baseLine, "base " .. own.baseId, String.Format(
+				"with its base's parts the card names %d moving surfaces and a gun has %d override slots -- past that a part never moves",
+				surfaces, WM_Rig.SLOTS));
+			return null;
+		}
+		built.sourceName = own.sourceName;
+		built.sourceLump = rec.sourceLump;
+		built.modelId    = "";
+		built.baseId     = own.baseId;
+		built.baseLine   = own.baseLine;
+		return built;
+	}
+
+	// CARD <weaponClass>'S OWN LINES from its lump's text: an empty line for every line up to and including its `weapon`
+	// line, so each keeps its number for a refusal, then its lines up to the next `weapon` or `archetype` line.
+	static String BlockBody(String text, String weaponClass)
+	{
+		Array<String> lines;
+		text.Split(lines, "\n");
+		String body = "";
+		bool inside = false;
+		for (int ln = 0; ln < lines.Size(); ln++)
+		{
+			String raw = lines[ln];
+			int hash = raw.IndexOf("#");
+			if (hash >= 0) raw = raw.Left(hash);
+			raw.StripLeftRight();
+			Array<String> words;
+			raw.Split(words, " ", TOK_SKIPEMPTY);
+			String head   = words.Size() > 0 ? words[0].MakeLower() : "";
+			String second = words.Size() > 1 ? words[1] : "";
+			if (IsHeader(head, "weapon", words.Size(), second) || IsHeader(head, "archetype", words.Size(), second))
+			{
+				if (inside) break;
+				inside = (head == "weapon" && Unquote(second) ~== weaponClass);
+				body = body .. "\n";
+				continue;
+			}
+			body = body .. (inside ? lines[ln] : "") .. "\n";
+		}
+		return body;
 	}
 
 	// ---- AFTER EVERY LUMP: MECHANISMS, SYNTHESIS, AND WHAT EACH VERB NAMES --------
@@ -1468,6 +1672,16 @@ class WM_Parser
 		{
 			c.mechanism     = Unquote(val);
 			c.mechanismLine = line;
+		}
+		// THE CARD THIS ONE STARTS FROM (INHERITANCE): built whole from a fresh copy of that card as the cards load
+		// (ResolveBases, FreshCard).
+		else if (key == "base")
+		{
+			String baseWord = Unquote(val);
+			if (baseWord == "") return "base names the card this one starts from: base = <that card's weapon class>";
+			if (baseWord ~== c.weaponClass) return "base names this card itself -- a card starts from a different card";
+			c.baseId   = baseWord;
+			c.baseLine = line;
 		}
 		// THE SHOT MOVED TO THE WEAPON CLASS. Refused like any unknown key -- the
 		// card is skipped, the rest load -- but saying where the number goes now, so

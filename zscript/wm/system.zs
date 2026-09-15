@@ -499,8 +499,9 @@ class WM_System : EventHandler
 		// And one from before throwables (WM_CardSet.throwablesRead): its cards have no throw blocks.
 		// And one from before weapon sheets (WM_CardSet.sheetsRead): no sheet was ever laid over its cards.
 		// And one from before borrowed model cards (WM_CardSet.modelsRead): its cards never recorded their lumps.
-		if (set && set.finished && set.typed && set.throwablesRead && set.sheetsRead && set.modelsRead) return;
-		if (set) WM_Log.Info("the cards came back from a save written before verbs, gun types, throwables, weapon sheets or borrowed models -- reading every WMCARD and WMSHEET lump again");
+		// And one from before card bases (WM_CardSet.basesRead): no card was ever built from its base.
+		if (set && set.finished && set.typed && set.throwablesRead && set.sheetsRead && set.modelsRead && set.basesRead) return;
+		if (set) WM_Log.Info("the cards came back from a save written before verbs, gun types, throwables, weapon sheets, borrowed models or card bases -- reading every WMCARD and WMSHEET lump again");
 		set = new("WM_CardSet");
 		int lump = -1;
 		int lumps = 0;
@@ -519,9 +520,15 @@ class WM_System : EventHandler
 			set.throwablesRead = true;
 			set.sheetsRead = true;
 			set.modelsRead = true;
+			set.basesRead = true;
 			WM_Log.Err("no WMCARD lump in the load order. The card IS the weapon -- with no card there is nothing to build.");
 			return;
 		}
+		// A CARD THAT STARTS FROM ANOTHER (`base = <id>`, parser.zs INHERITANCE) is built whole now, in its own place in the
+		// order, before any sheet borrows a card or lays keys over one.
+		WM_Parser.ResolveBases(set);
+		set.basesRead = true;
+
 		// THE WEAPON SHEETS (sheet.zs): every WMSHEET lump in the load order, laid over the cards' own capacity,
 		// firesfrom, firesound and barrel shots BEFORE Finish, so Finish checks each card as its sheet leaves it.
 		// Their shot keys reach the guns themselves at WorldLoaded and as each gun is made (ApplySheet).

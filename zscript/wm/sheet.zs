@@ -468,9 +468,8 @@ class WM_SheetReader
 			}
 			// A MODEL THAT IS ITSELF A COPY is read from its own model's lump, under that model's id.
 			String lumpId = (model.modelId != "") ? model.modelId : model.weaponClass;
-			let scratch = new("WM_CardSet");
-			WM_Parser.ParseAll(Wads.ReadLump(model.sourceLump), "WMCARD", scratch);
-			let copy = FindCard(scratch, lumpId);
+			// A FRESH, WHOLE COPY (WM_Parser.FreshCard): read again from its lump, and built from its base when it has one.
+			let copy = WM_Parser.FreshCard(cardSet, lumpId);
 			if (!copy)
 			{
 				Console.Printf("\c[Red]WM ERROR\c- the sheet for %s: model %s could not be read again from its WMCARD lump. The gun has no card.",
@@ -609,7 +608,7 @@ class WM_SheetReader
 		}
 
 		Console.Printf("\c[Gold]WM CARD %s\c- -- model card %s; sheet %s; class %s",
-			weaponClass, c ? ((c.modelId != "") ? c.modelId .. " (this gun's own copy)" : c.weaponClass .. " (" .. c.sourceName .. ")") : "none",
+			weaponClass, c ? (((c.modelId != "") ? c.modelId .. " (this gun's own copy)" : c.weaponClass .. " (" .. c.sourceName .. ")") .. ((c.baseId != "") ? ", starting from " .. c.baseId : "")) : "none",
 			s ? String.Format("%s line %d", s.sourceName, s.line) : "none", gc ? "WM_Gun" : "NOT a WM_Gun class");
 		bool has = (s != null);
 		if (c)

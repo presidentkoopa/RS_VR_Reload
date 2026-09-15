@@ -279,6 +279,10 @@ class WM_Card
 	String modelId;
 	// The WMCARD lump this card was read from (WM_System.LoadCards), so a gun that borrows it can read its own copy.
 	int    sourceLump;
+	// THE CARD THIS ONE STARTS FROM: card `base = <id>` (WM_Parser.ResolveBases and FreshCard), or "". Built whole as the
+	// cards load, from a fresh copy of that card with this card's own lines laid over it; baseLine is that key's line.
+	String baseId;
+	int    baseLine;
 
 	// AN ENGINE'S EXHAUST PORT (card `exhaustport = x, y, z`, `exhaustdir = x, y, z`, model space like ejectport): where
 	// a motor's smoke leaves the gun and the way it blows, for RS_Ballistics' RSB_Exhaust while the engine runs
@@ -814,6 +818,9 @@ class WM_CardSet
 	// LoadCards recorded each card's lump and gave every gun that names a model its own copy (sheet.zs BorrowModels).
 	// A set restored from a save written before that has not, and is read again the same way.
 	bool                modelsRead;
+	// LoadCards built every card with a base whole (WM_Parser.ResolveBases). A set restored from a save written before
+	// inheritance has not, and is read again the same way.
+	bool                basesRead;
 
 	WM_Archetype FindArchetype(String archId)
 	{
