@@ -754,6 +754,10 @@ class WM_SheetReader
 	{
 		Console.Printf("\c[Red]WM ERROR\c- refused %s line %d -- \"%s\": %s. That sheet is skipped; its gun keeps its class's and card's values.",
 			src, line, what, why);
+		// THE COMPILE CHECK (zscript/wm/cardvalidator.zs): while the engine runs the data validators, the same refusal
+		// fails the check. False in play.
+		if (DataValidation.Running())
+			DataValidation.Refuse(String.Format("%s line %d", src, line), String.Format("sheet '%s': %s", what, why));
 	}
 
 	private static String Unquote(String s)

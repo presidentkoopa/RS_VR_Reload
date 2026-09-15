@@ -854,6 +854,59 @@ class WM_Parser
 		set.throwablesRead = true;
 	}
 
+	// EVERY CARD AND SHEET IN THE LOAD ORDER, BUILT AND CHECKED. The one pipeline, shared by WM_System.LoadCards (at
+	// WorldLoaded) and WM_CardValidator (a compile check run with -validatedata), so the check proves exactly what
+	// play loads:
+	//   every WMCARD lump, each card remembering its lump (a gun that borrows it reads its own copy from there);
+	//   ResolveBases -- a card that starts from another (`base = <id>`) is built whole, in its own place in the order,
+	//   before any sheet borrows a card or lays keys over one;
+	//   every WMSHEET lump, laid over the cards' own capacity, firesfrom, firesound and barrel shots BEFORE Finish, so
+	//   Finish checks each card as its sheet leaves it (the shot keys reach the guns at WorldLoaded, ApplySheet);
+	//   BorrowModels first -- a gun that names a model card gets its own copy, so its sheet's card keys land on that copy;
+	//   Finish last, with every lump read, because an archetype may live in a later one.
+	// With no WMCARD lump the set comes back empty and marked read, and nothing else runs.
+	// Returns the set, the WMCARD lumps read and the WMSHEET lumps read.
+	static WM_CardSet, int, int BuildCardSet()
+	{
+		let set = new("WM_CardSet");
+		int lump = -1;
+		int lumps = 0;
+		while ((lump = Wads.FindLump("WMCARD", lump + 1, Wads.GLOBALNAMESPACE)) >= 0)
+		{
+			int cardsBefore = set.cards.Size();
+			ParseAll(Wads.ReadLump(lump), "WMCARD", set);
+			for (int c = cardsBefore; c < set.cards.Size(); c++) set.cards[c].sourceLump = lump;
+			lumps++;
+		}
+		if (lumps == 0)
+		{
+			set.finished = true;
+			set.typed    = true;
+			set.throwablesRead = true;
+			set.sheetsRead = true;
+			set.modelsRead = true;
+			set.basesRead = true;
+			return set, 0, 0;
+		}
+		ResolveBases(set);
+		set.basesRead = true;
+
+		int sheetLumps = 0;
+		lump = -1;
+		while ((lump = Wads.FindLump("WMSHEET", lump + 1, Wads.GLOBALNAMESPACE)) >= 0)
+		{
+			WM_SheetReader.ParseAll(Wads.ReadLump(lump), "WMSHEET", set);
+			sheetLumps++;
+		}
+		WM_SheetReader.BorrowModels(set);
+		set.modelsRead = true;
+		WM_SheetReader.ApplyToCards(set);
+		set.sheetsRead = true;
+
+		Finish(set);
+		return set, lumps, sheetLumps;
+	}
+
 	private static String, String, String, int FinishCard(WM_CardSet set, WM_Card card)
 	{
 		// 1. THE MECHANISM: an archetype's verbs, with the card's own blocks laid over
@@ -2630,6 +2683,10 @@ class WM_Parser
 	{
 		Console.Printf("\c[Red]WM ERROR\c- refused %s line %d -- \"%s\": %s. That weapon is skipped; the rest load.",
 			src, line, what, why);
+		// THE COMPILE CHECK (zscript/wm/cardvalidator.zs): while the engine runs the data validators, the same refusal
+		// fails the check. False in play.
+		if (DataValidation.Running())
+			DataValidation.Refuse(String.Format("%s line %d", src, line), String.Format("card '%s': %s", what, why));
 	}
 
 	private static String Unquote(String s)

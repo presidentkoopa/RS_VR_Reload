@@ -502,54 +502,20 @@ class WM_System : EventHandler
 		// And one from before card bases (WM_CardSet.basesRead): no card was ever built from its base.
 		if (set && set.finished && set.typed && set.throwablesRead && set.sheetsRead && set.modelsRead && set.basesRead) return;
 		if (set) WM_Log.Info("the cards came back from a save written before verbs, gun types, throwables, weapon sheets, borrowed models or card bases -- reading every WMCARD and WMSHEET lump again");
-		set = new("WM_CardSet");
-		int lump = -1;
-		int lumps = 0;
-		while ((lump = Wads.FindLump("WMCARD", lump + 1, Wads.GLOBALNAMESPACE)) >= 0)
-		{
-			int cardsBefore = set.cards.Size();
-			WM_Parser.ParseAll(Wads.ReadLump(lump), "WMCARD", set);
-			// EACH CARD KNOWS ITS LUMP, so a gun that borrows it reads its own copy from there (sheet.zs BorrowModels).
-			for (int c = cardsBefore; c < set.cards.Size(); c++) set.cards[c].sourceLump = lump;
-			lumps++;
-		}
+		// THE ONE PIPELINE (WM_Parser.BuildCardSet): every WMCARD lump, the card bases, every WMSHEET lump, the borrowed
+		// model cards, the sheets laid over the cards, and Finish -- the very call the compile check makes through
+		// WM_CardValidator, so the check proves exactly what play loads.
+		WM_CardSet built;
+		int lumps, sheetLumps;
+		[built, lumps, sheetLumps] = WM_Parser.BuildCardSet();
+		set = built;
 		if (lumps == 0)
 		{
-			set.finished = true;
-			set.typed    = true;
-			set.throwablesRead = true;
-			set.sheetsRead = true;
-			set.modelsRead = true;
-			set.basesRead = true;
 			WM_Log.Err("no WMCARD lump in the load order. The card IS the weapon -- with no card there is nothing to build.");
 			return;
 		}
-		// A CARD THAT STARTS FROM ANOTHER (`base = <id>`, parser.zs INHERITANCE) is built whole now, in its own place in the
-		// order, before any sheet borrows a card or lays keys over one.
-		WM_Parser.ResolveBases(set);
-		set.basesRead = true;
-
-		// THE WEAPON SHEETS (sheet.zs): every WMSHEET lump in the load order, laid over the cards' own capacity,
-		// firesfrom, firesound and barrel shots BEFORE Finish, so Finish checks each card as its sheet leaves it.
-		// Their shot keys reach the guns themselves at WorldLoaded and as each gun is made (ApplySheet).
-		int sheetLumps = 0;
-		lump = -1;
-		while ((lump = Wads.FindLump("WMSHEET", lump + 1, Wads.GLOBALNAMESPACE)) >= 0)
-		{
-			WM_SheetReader.ParseAll(Wads.ReadLump(lump), "WMSHEET", set);
-			sheetLumps++;
-		}
-		// A GUN THAT NAMES A MODEL CARD gets its own copy of it first, so its sheet's card keys land on that copy.
-		WM_SheetReader.BorrowModels(set);
-		set.modelsRead = true;
-		WM_SheetReader.ApplyToCards(set);
-		set.sheetsRead = true;
 		if (sheetLumps > 0)
 			WM_Log.Info(String.Format("%d weapon sheet(s) from %d WMSHEET lump(s)", set.sheets.Size(), sheetLumps));
-
-		// MECHANISMS, SYNTHESIS AND EVERY VERB CHECKED -- only now, with every lump
-		// read, because an archetype may live in a later one.
-		WM_Parser.Finish(set);
 		WM_Log.Info(String.Format("%d card(s) and %d archetype(s) from %d WMCARD lump(s); wm_verbs %s",
 			set.cards.Size(), set.archetypes.Size(), lumps,
 			WM_Verb.Enabled() ? "ON -- the verbs run the guns" : "OFF -- the old role code runs the guns"));
