@@ -11,14 +11,18 @@
 // it to DataValidation.Refuse while a validation run is on -- so a card or sheet the game would skip fails the check,
 // in the same words the game prints. card_lint.py stays an editor-side lint; this is the proof.
 //
-// AND THE NAMES A CARD GIVES ITS MODEL. A card names parts of its mesh -- a part's `surface` and `joint`, the card's
+// AND THE NAMES A CARD GIVES ITS MODELS. A card names parts of its mesh -- a part's `surface` and `joint`, the card's
 // `hidesurface` and `hidejoint` -- and in play a name the mesh lacks is only found at bind (WM_Rig.Resolve), as a
-// log line, on a gun that then quietly does not move. So the check reads the card's model file itself (WM_ModelNames
-// below) and refuses a name that is not in it, in the same DATA REFUSED form as a bad key. Names match without case,
-// as the engine's FName lookups do (FindModelSurfaceIndex, FindBoneIndex).
-//   Model index 0 only -- the card's own `model`. A part on another MODELDEF model (`model = N`) is not checked.
-//   A model file no loaded package has, or a format other than IQM and MD3, is said and not refused: which packages
-//   a check loads is not the card's fault, and the card is right or wrong only against a file that is there.
+// log line, on a gun that then quietly does not move. So the check finds each named model's names and refuses a name
+// that is not among them, in the same DATA REFUSED form as a bad key. Names match without case, as the engine's
+// FName lookups do (FindModelSurfaceIndex, FindModelJointIndex).
+//   MODEL 0 is the card's own `model`, which WM_Rig.Bind puts on the prop: its file is read (WM_ModelNames below).
+//   MODEL N (a part's `model = N`) is the prop class's own MODELDEF model N -- the card replaces model 0 only -- so the
+//   engine is asked what that class's MODELDEF gives index N (Actor.GetClassModelFile / GetClassModelSurfaceName /
+//   GetClassModelJointName, engine build 10): the model the rig's lookups find in play.
+//   A model file no loaded package has, a format other than IQM and MD3, or a model N the class's MODELDEF does not
+//   load is said and not refused: which packages a check loads is not the card's fault, and a card is right or wrong
+//   only against a model that is there.
 //
 // NOTHING ELSE RUNS: no level, no pawns, no handler. The set it builds is thrown away.
 // ============================================================================
@@ -45,11 +49,14 @@ class WM_CardValidator : DataValidator
 			[n, m] = CheckModelNames(set.cards[i]);
 			names += n;
 			missing += m;
+			[n, m] = CheckOtherModelNames(set.cards[i]);
+			names += n;
+			missing += m;
 		}
-		Console.Printf("WM data check: %d model name(s) checked in %d model file(s); %d not in their model", names, models.Size(), missing);
+		Console.Printf("WM data check: %d model name(s) checked (%d model file(s) read); %d not in their model", names, models.Size(), missing);
 	}
 
-	// How many names this card gives its model, and how many of them were refused.
+	// Model 0: how many names this card gives it, and how many of them were refused.
 	private int, int CheckModelNames(WM_Card card)
 	{
 		if (card.modelFile == "") return 0, 0;
@@ -83,7 +90,7 @@ class WM_CardValidator : DataValidator
 			{
 				names++;
 				if (!m.HasSurface(p.surfaceNames[s]))
-					missing += Miss(card, p.line, what, m, p.surfaceNames[s], String.Format(
+					missing += Miss(card, p.line, what, m.fullName, p.surfaceNames[s], String.Format(
 						"surface = %s -- %s has no surface by that name, so this part never moves. IT HAS: %s",
 						p.surfaceNames[s], m.fullName, m.SurfaceList()));
 			}
@@ -91,7 +98,7 @@ class WM_CardValidator : DataValidator
 			{
 				names++;
 				if (!m.HasJoint(p.jointName))
-					missing += Miss(card, p.line, what, m, p.jointName, String.Format(
+					missing += Miss(card, p.line, what, m.fullName, p.jointName, String.Format(
 						"joint = %s -- %s, so this part never moves", p.jointName, m.NoJointBecause()));
 			}
 		}
@@ -100,7 +107,7 @@ class WM_CardValidator : DataValidator
 			names++;
 			if (m.HasSurface(card.hideSurfaces[k])) continue;
 			int line = (k < card.hideSurfaceLines.Size()) ? card.hideSurfaceLines[k] : card.mechanismLine;
-			missing += Miss(card, line, card.weaponClass .. " hidesurface", m, card.hideSurfaces[k], String.Format(
+			missing += Miss(card, line, card.weaponClass .. " hidesurface", m.fullName, card.hideSurfaces[k], String.Format(
 				"hidesurface = %s -- %s has no surface by that name, so nothing is hidden. IT HAS: %s",
 				card.hideSurfaces[k], m.fullName, m.SurfaceList()));
 		}
@@ -109,15 +116,103 @@ class WM_CardValidator : DataValidator
 			names++;
 			if (m.HasJoint(card.hideJoints[k])) continue;
 			int line = (k < card.hideJointLines.Size()) ? card.hideJointLines[k] : card.mechanismLine;
-			missing += Miss(card, line, card.weaponClass .. " hidejoint", m, card.hideJoints[k], String.Format(
+			missing += Miss(card, line, card.weaponClass .. " hidejoint", m.fullName, card.hideJoints[k], String.Format(
 				"hidejoint = %s -- %s, so nothing is hidden", card.hideJoints[k], m.NoJointBecause()));
 		}
 		return names, missing;
 	}
 
-	private int Miss(WM_Card card, int line, String what, WM_ModelNames m, String name, String why)
+	// Model N (a part's `model = N`, N above 0): the prop class's own MODELDEF model N, asked of the engine.
+	private int, int CheckOtherModelNames(WM_Card card)
 	{
-		String key = String.Format("%s|%s|%d|%s", m.fullName, card.sourceName, line, name);
+		int names = 0, missing = 0;
+		class<Actor> prop = null;
+		bool looked = false;
+		for (int i = 0; i < card.parts.Size(); i++)
+		{
+			let p = card.parts[i];
+			if (p.modelIndex <= 0 || (p.jointName == "" && p.surfaceNames.Size() == 0)) continue;
+			if (!looked)
+			{
+				prop = (class<Actor>)(Object.FindClass(card.propClass, "Actor"));
+				looked = true;
+			}
+			if (!prop)
+			{
+				Console.Printf("WM data check: %s's prop %s is no actor class -- part %s on model %d is not checked",
+					card.weaponClass, card.propClass, p.id, p.modelIndex);
+				continue;
+			}
+			int mi = p.modelIndex;
+			String file = Actor.GetClassModelFile(prop, mi);
+			if (file == "")
+			{
+				Console.Printf("WM data check: %s -- %s's MODELDEF loads no model %d, so part %s on it is not checked",
+					card.weaponClass, card.propClass, mi, p.id);
+				continue;
+			}
+			String what = String.Format("part %s (%s)", p.id, card.weaponClass);
+			for (int s = 0; s < p.surfaceNames.Size(); s++)
+			{
+				names++;
+				if (!ClassModelHasSurface(prop, mi, p.surfaceNames[s]))
+					missing += Miss(card, p.line, what, file, p.surfaceNames[s], String.Format(
+						"surface = %s on model %d -- %s has no surface by that name, so this part never moves. IT HAS: %s",
+						p.surfaceNames[s], mi, file, ClassModelSurfaceList(prop, mi)));
+			}
+			if (p.jointName != "")
+			{
+				names++;
+				if (!ClassModelHasJoint(prop, mi, p.jointName))
+					missing += Miss(card, p.line, what, file, p.jointName, String.Format(
+						"joint = %s on model %d -- %s has no joint by that name (IT HAS: %s), so this part never moves",
+						p.jointName, mi, file, ClassModelJointList(prop, mi)));
+			}
+		}
+		return names, missing;
+	}
+
+	private static bool ClassModelHasSurface(class<Actor> prop, int mi, String name)
+	{
+		int count = Actor.GetClassModelSurfaceCount(prop, mi);
+		for (int k = 0; k < count; k++)
+		{
+			String have = "" .. Actor.GetClassModelSurfaceName(prop, mi, k);
+			if (have ~== name) return true;
+		}
+		return false;
+	}
+
+	private static bool ClassModelHasJoint(class<Actor> prop, int mi, String name)
+	{
+		int count = Actor.GetClassModelJointCount(prop, mi);
+		for (int k = 0; k < count; k++)
+		{
+			String have = "" .. Actor.GetClassModelJointName(prop, mi, k);
+			if (have ~== name) return true;
+		}
+		return false;
+	}
+
+	private static String ClassModelSurfaceList(class<Actor> prop, int mi)
+	{
+		String s = "";
+		int count = Actor.GetClassModelSurfaceCount(prop, mi);
+		for (int k = 0; k < count; k++) s = s .. (k > 0 ? ", " : "") .. Actor.GetClassModelSurfaceName(prop, mi, k);
+		return (s == "") ? "none" : s;
+	}
+
+	private static String ClassModelJointList(class<Actor> prop, int mi)
+	{
+		String s = "";
+		int count = Actor.GetClassModelJointCount(prop, mi);
+		for (int k = 0; k < count; k++) s = s .. (k > 0 ? ", " : "") .. Actor.GetClassModelJointName(prop, mi, k);
+		return (s == "") ? "no joints -- only a rigged IQM has any" : s;
+	}
+
+	private int Miss(WM_Card card, int line, String what, String file, String name, String why)
+	{
+		String key = String.Format("%s|%s|%d|%s", file, card.sourceName, line, name);
 		key = key.MakeLower();
 		if (said.Find(key) != said.Size()) return 0;
 		said.Push(key);

@@ -567,8 +567,8 @@ class WM_Rig play
 				part.surfaceRound.Push(part.RoundBindFor(part.surfaceNames[s]));
 				found++;
 			}
-			// A JOINT PART (card `joint`): there when the model has a joint by that name.
-			if (part.jointName != "" && prop.FindBoneIndex(Name(part.jointName)) >= 0) found++;
+			// A JOINT PART (card `joint`): there when its model (part.modelIndex) has a joint by that name.
+			if (part.jointName != "" && prop.FindModelJointIndex(part.modelIndex, Name(part.jointName)) >= 0) found++;
 		}
 		hideSurfaceIdx.Clear();
 		for (int k = 0; k < card.hideSurfaces.Size(); k++)
@@ -582,16 +582,24 @@ class WM_Rig play
 		for (int i = 0; i < card.parts.Size(); i++)
 		{
 			let part = card.parts[i];
-			if (part.jointName != "" && prop.FindBoneIndex(Name(part.jointName)) < 0)
+			// On the part's own model index, read-only (engine build 10). Not FindBoneIndex: that asks model 0 only and
+			// aborts on an actor without decoupled animations -- which every WM_Prop is.
+			if (part.jointName != "" && prop.FindModelJointIndex(part.modelIndex, Name(part.jointName)) < 0)
 			{
-				WM_Log.Err(String.Format("part '%s' names joint '%s', which this model does not have -- it will not move", part.id, part.jointName));
+				String joints = "";
+				int jointTotal = prop.GetModelJointCount(part.modelIndex);
+				for (int k = 0; k < jointTotal; k++)
+					joints = joints .. (k > 0 ? ", " : "") .. prop.GetModelJointName(part.modelIndex, k);
+				WM_Log.Err(String.Format("part '%s' names joint '%s', which model %d does not have -- it will not move. IT HAS: %s",
+					part.id, part.jointName, part.modelIndex, (jointTotal > 0) ? joints : "no joints"));
 				continue;
 			}
 			if (part.surfaceNames.Size() > 0 && part.surfaces.Size() < part.surfaceNames.Size())
 			{
 				String have = "";
-				for (int k = 0; k < total; k++)
-					have = have .. (k > 0 ? ", " : "") .. prop.GetModelSurfaceName(0, k);
+				int partTotal = prop.GetModelSurfaceCount(part.modelIndex);
+				for (int k = 0; k < partTotal; k++)
+					have = have .. (k > 0 ? ", " : "") .. prop.GetModelSurfaceName(part.modelIndex, k);
 				WM_Log.Err(String.Format("part '%s' names a surface this mesh does not have -- IT HAS: %s", part.id, have));
 				continue;
 			}
