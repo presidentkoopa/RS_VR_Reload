@@ -60,6 +60,37 @@ written. **Every one of those files is touched here too.**
 | 46 | The four twin guns become INHERITANCE children (the owner's go by multiple choice, 2026-09-15) | **WRITTEN**, desk-side, no check needed (card data; the runtime builder is the installed 8220cc3). RS_VR_Weapons commits the cards.<br>• **Cards:**<br>&nbsp;&nbsp;– WMCARD.08 WM_PlasmaRifleBlue `base = WM_PlasmaRifle` (hand, prop, skin): 52 → 6 lines.<br>&nbsp;&nbsp;– WMCARD.03 WM_Sunset `base = WM_Moonlight` (hand, prop, skin, magskin): 68 → 7.<br>&nbsp;&nbsp;– WMCARD.11 WM_BFG `base = WM_BFGHeavy` (hand, prop, magskinempty, magout/in sounds): 51 → 8.<br>&nbsp;&nbsp;– WMCARD.10 WM_RocketLauncher `base = WM_RPG` (hand, prop, capacity 7, magfamily rocket, fire/load sounds; `remove part emptychamber`, its own store drum, part drum and load muzzle): 65 → 40.<br>• **Proof** (scratchpad convert_twins.py, through card_lint's resolve): each child as built equals the card as it stood -- every part, store, verb and barrel identical in order, every key identical -- except the Rocket Launcher inheriting the RPG's loose-drum magmodel/magskin/magscale/magcenter and magazine sounds, which a gun with no swap never shows or plays (a loose round lands on casingSound). card_lint `--wmcard` and `--sheets` at 0.<br>• **Bake ledger:** empty today (read-only look). tools/bake_defaults.py now follows `base =`: an inherited part resolves on its base, and a changed bake says whether to override it in the twin or change the base. Tested on a scratch ini.<br>• **Proof owed** (a game run): `wm_card` on each of the four prints the same parts and verbs as before, plus ", starting from <base>". |
 | -- | G17 check: a feed part with two surfaces | ANSWERED: both hide on detach and return on seat (Pose hides every surface of a non-present part). No fix. |
 
+## AGENDA: the reload lane's next items, in order (written 2026-09-15 at the owner's close of day)
+
+**State:** the lane is stopped. Rows 44 and 45 were compiled and installed in the 09-15 04:54 batch; the first check refused `MAGFAMILY_REQUIRED = false`, so it is now the number 0. Nothing below starts until the owner or the build lane says go.
+
+1. **Flip `WM_Parser.MAGFAMILY_REQUIRED` to 1** (row 45), after a clean owner run.
+   - A clean run means doomxr-log.txt shows zero "magfamily is not stated" warnings with the current RS_VR_Weapons pack.
+   - One check and install turn, on the build lane's word.
+   - card_lint only sees RS_VR_Weapons, so the log is the proof for every other package.
+2. **Read the proofs owed from that same run.** No code unless one fails.
+   - `wm_card check` is empty and `wm_card all` is unchanged (row 43).
+   - The four twins print the same parts and verbs, plus ", starting from <base>" (row 46).
+   - The volumetric flash rides the gun hand (row 44).
+   - A pistol round is refused at the Machine Gun's launcher breech (row 45).
+   - The Chaingun spins up with an alt pre-spin, the load buzz works, and the Rocket Launcher loads one rocket at a time (row 42).
+   - The RECOIL_TILT_SIGN headset look (row 41).
+3. **The data validator, mod side.** The owner said yes (2026-09-15); it waits for the engine's `-validatedata` step (`Engine docs/COMPILE_CHECK_DATA_VALIDATORS_PLAN.md`).
+   - `WM_CardValidator : DataValidator` runs the card set build (WMCARD lumps, bases, sheets, borrowed models, Finish) at the -norun exit.
+   - Every refused card becomes `DataValidator.Refuse(where, why)`, so the compile check fails on exit code 1338 or "DATA REFUSED" instead of a gun silently not loading in play.
+   - Default off. Only the check passes the flag.
+4. **The bone drive, gun side.** The owner said yes after the current effects (2026-09-15) and chose one shared solver; see `Engine docs/MODEL_JOINT_DRIVE_PLAN.md`. It waits for the engine pieces A-D and the Body IK lane's (uzdxrema-a4) section 8 agreement.
+   - **A's proof:** the replay harness showing the shared solver matches today's surface drive (plain slide, slide with turn, hinge, two stages, a fast split crossing), then the owner's feel check on the Pistolet slide, a pump and a break-top.
+   - **Card grammar:** `joint = <name>` on a part, `hidesurface = <mesh>`, `hidejoint = <name>`.
+   - **rig.zs:** `Resolve` by FindBoneIndex; `Pose`, `StartDrive`, `DriveSecondStage` and `StopDrive` on the joint twins; hidden or absent parts on `MJP_Hide`.
+   - **The prop:** it pins one IQM frame and resets the rig's view chain with a joint pose.
+   - **Open question for the owner:** the loose magazine of an IQM gun.
+   - **The first IQM gun card** (the Breach Glock is the natural first) waits for the owner in the room: no weapon set starts without them.
+5. **Parked; each needs the owner's say.**
+   - The throwables' play half (THROWABLE_PLAN steps 3-5).
+   - bake_defaults mapping bakes for borrowed-model guns through their sheets.
+   - Weapon-set carding (VR_WeaponSetRebuild, 22 sets).
+
 ---
 
 ## 0. What exists, as read
