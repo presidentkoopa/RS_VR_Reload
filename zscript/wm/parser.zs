@@ -1444,8 +1444,8 @@ class WM_Parser
 		if (v.partIndex >= 0)
 		{
 			part = card.parts[v.partIndex];
-			if (part.surfaceNames.Size() == 0)
-				return String.Format("part %s names no surface -- there is nothing on the mesh for a hand to move", part.id);
+			if (part.surfaceNames.Size() == 0 && part.jointName == "")
+				return String.Format("part %s names no surface and no joint -- there is nothing on the mesh for a hand to move", part.id);
 		}
 
 		if (v.latchId != "")
@@ -1453,7 +1453,7 @@ class WM_Parser
 			v.latchIndex = card.FindPartIndex(v.latchId);
 			if (v.latchIndex < 0) return String.Format("latch = %s -- this card has no part by that name", v.latchId);
 			if (v.latchIndex == v.partIndex) return "a part cannot be its own latch";
-			if (card.parts[v.latchIndex].surfaceNames.Size() == 0)
+			if (card.parts[v.latchIndex].surfaceNames.Size() == 0 && card.parts[v.latchIndex].jointName == "")
 				return String.Format("latch = %s -- that part names no surface, so there is nothing for a hand to throw", v.latchId);
 		}
 		if (v.latchReturnSpring && v.latchId == "")
@@ -1634,6 +1634,8 @@ class WM_Parser
 		p.cockByTrigger = false;    // a hammer is cocked by its action unless the card says trigger
 		p.driveSlot  = -1;
 		p.poseSlot   = -1;
+		p.jointName  = "";          // a surface part unless the card names a joint
+		p.jointDriven = false;
 		p.dof        = new("WM_Dof");
 		p.dof.moveKind = WM_Dof.MOVE_SLIDE;
 		p.dof.detach   = 0.9;
@@ -1646,6 +1648,8 @@ class WM_Parser
 	private static String CardKey(WM_Card c, String key, String val, int line)
 	{
 		if      (key == "prop")       c.propClass = Unquote(val);
+		else if (key == "hidesurface") c.hideSurfaces.Push(Unquote(val));   // card.zs WM_Card.hideSurfaces
+		else if (key == "hidejoint")   c.hideJoints.Push(Unquote(val));     // card.zs WM_Card.hideJoints
 		else if (key == "hand")       c.hand = (Unquote(val).MakeLower() == "off") ? 1 : 0;
 		else if (key == "model")      ReadPair(val, c.modelPath, c.modelFile);
 		else if (key == "skin")       ReadPair(val, c.skinPath,  c.skinFile);
@@ -1771,6 +1775,7 @@ class WM_Parser
 		if      (key == "role")       p.role = Unquote(val).MakeLower();
 		else if (key == "subject")    p.subject = Unquote(val).MakeLower();
 		else if (key == "surface")    p.surfaceNames.Push(Unquote(val));
+		else if (key == "joint")      p.jointName = Unquote(val);   // a rigged part: moved by this joint (card.zs WM_Part.jointName)
 		else if (key == "model")      p.modelIndex = val.ToInt();
 		else if (key == "grab")       p.grabAt = ReadTriple(val);
 		else if (key == "grabradius") p.grabRadius = val.ToDouble();

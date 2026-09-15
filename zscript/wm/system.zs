@@ -478,7 +478,10 @@ class WM_System : EventHandler
 			rig.lastFlash = null;
 			if (rig.card)
 				for (int i = 0; i < rig.card.parts.Size(); i++)
+				{
 					rig.card.parts[i].driveSlot = -1;
+					rig.card.parts[i].jointDriven = false;
+				}
 
 			ph.hstate[h].Clear();
 			ph.lastForeign[h] = null;
@@ -1148,7 +1151,7 @@ class WM_System : EventHandler
 			if (!part.handTake) continue;
 			// LOCKED BY ITS LATCH (verb.zs latch, F3): not taken at home until the latch is thrown.
 			if (rig.LatchLocks(i)) continue;
-			if (part.role != "support" && part.surfaces.Size() == 0) continue;
+			if (part.role != "support" && part.surfaces.Size() == 0 && part.jointName == "") continue;
 			// INSIDE THE OVAL, not within a radius. The depth also ranks two
 			// parts by which one the hand is further inside, which is what
 			// "nearest" wants once they are not all the same shape.

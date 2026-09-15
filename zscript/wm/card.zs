@@ -113,6 +113,13 @@ class WM_Part
 	// instead; said in both places and disagreeing, the card is refused.
 	bool    takeStated;
 
+	// A PART THAT IS A JOINT: `joint = <name>`. On a rigged model (an IQM) a gun's parts are bones, not separate
+	// surfaces -- a slide, its frame and the magazine may all be one mesh. A part naming a joint is moved by that joint
+	// (Actor.SetModelJointOffset and the SetModelJointDrive family, the engine's bone drive) with the same dof, verbs,
+	// grabs and hand drive as any part. Surface-only extras -- roundsurface, metersurface, flip -- need surfaces.
+	// "" (unset): a surface part, as before.
+	String  jointName;
+
 	WM_Dof  dof;
 
 	// A SECOND, SEQUENTIAL STAGE: `dof2 ... end` (kind, axis, distance or degrees and
@@ -207,6 +214,7 @@ class WM_Part
 	bool    present;     // false once it has left the weapon
 	int     driveSlot;   // the hand drive's first slot, -1 when not held
 	int     poseSlot;    // its first surface-override slot, for life; -1 if none fit
+	bool    jointDriven; // a joint part (jointName) that the hand drive holds right now
 	bool    pastSplit;   // dof2 only: the value last posed was past dof2.split -- one log line per crossing
 	double  spinSpeed;   // spin only (spinBy): 0 still .. 1 full speed
 	double  spinAngle;   // spin only: degrees into one period of its hinge
@@ -310,6 +318,12 @@ class WM_Card
 	// turn a sprite actor into a model actor -- so each gun names the class
 	// whose block carries its placement.
 	String propClass;
+
+	// PARTS OF THE MODEL NEVER DRAWN, gun-wide: `hidesurface = <mesh name>` hides a surface of the model (model index
+	// 0) -- a rig's own arms mesh; `hidejoint = <joint name>` collapses a joint and everything under it (Actor.MJP_Hide)
+	// -- a duplicate magazine the artist parked for an animation. Either may repeat. Re-asserted every tic (WM_Rig.Pose).
+	Array<String> hideSurfaces;
+	Array<String> hideJoints;
 
 	String modelPath, modelFile;
 	String skinPath,  skinFile;
