@@ -953,8 +953,15 @@ class WM_Gun : Weapon
 		// the class's number. Asked before a pellet leaves, and OnShot spends exactly
 		// that many on the same tic, so the pellets and the spent cases always agree.
 		int chambers = (most > 1) ? sys.ChambersToFire(pn, h, most) : 1;
-		// A double shell on a chamber gun with only one chamber loaded is that chamber's plain shot.
-		if (dbl && chambers < 2 && sys.FiresFrom(invoker.GetClassName()) == WM_Card.FIRES_CHAMBER) dbl = false;
+		// A double shell on a chamber gun with only one chamber live takes its second shell from the store its cycle feeds
+		// from -- a pump's tube (WM_System.DoubleShellFeed) -- spent with the shot below; with none there, it is that
+		// chamber's plain shot.
+		bool dblFromFeed = false;
+		if (dbl && chambers < 2 && sys.FiresFrom(invoker.GetClassName()) == WM_Card.FIRES_CHAMBER)
+		{
+			dblFromFeed = sys.DoubleShellFeed(pn, h, false);
+			dbl = dblFromFeed;
+		}
 		// SELECT FIRE'S BURST (WM_Gun.AltMode selectfire, mode 1): the first shot of a pull starts a burst of AltBurst.
 		if (shotKind == ALT_SHOT_NORMAL && invoker.burstShotsLeft == 0 && invoker.refireCount == 0
 			&& invoker.selectFireMode == 1 && invoker.AltModeKind() == ALT_SELECTFIRE)
@@ -1062,6 +1069,7 @@ class WM_Gun : Weapon
 			if (dbl) invoker.ScaleShotDamage(shot, invoker.AltDamageScaleEach());
 		}
 		invoker.fireStarted = true;
+		if (dblFromFeed) sys.DoubleShellFeed(pn, h, true);
 		sys.OnShot(pn, h, chambers, rounds);
 		return ResolveState(null);
 	}

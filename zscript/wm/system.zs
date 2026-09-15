@@ -405,6 +405,24 @@ class WM_System : EventHandler
 		return clamp(ph.rigs[h].ammo.LiveChambers(), 1, most);
 	}
 
+	// A DOUBLE SHELL'S SECOND SHELL (WM_Gun.AltMode doubleshell) on a chamber gun whose chamber holds one: a round from the
+	// store its cycle verb feeds the chamber from -- a pump's tube. spend false only asks whether one is there; true takes
+	// it, with the chamber's shot. False when the card has no such store, or it is empty.
+	bool DoubleShellFeed(int pn, int h, bool spend)
+	{
+		let ph = HandsIfAny(pn);
+		if (!ph || h < 0 || h > 1 || !ph.rigs[h] || !ph.rigs[h].card || !ph.rigs[h].ammo) return false;
+		let rig = ph.rigs[h];
+		for (int k = 0; k < rig.card.verbs.Size(); k++)
+		{
+			let v = rig.card.verbs[k];
+			if (v.kind != WM_Verb.CYCLE || !v.onHomeFeed || v.feedStore == "") continue;
+			if (rig.ammo.FeedEmpty(v.feedStore)) return false;
+			return !spend || rig.ammo.SpendFromStore(v.feedStore, 1) == 1;
+		}
+		return false;
+	}
+
 	// rounds: what the pull spends from a gun with no chamber (see CanFire).
 	void OnShot(int pn, int h, int chambers = 1, int rounds = 1)
 	{

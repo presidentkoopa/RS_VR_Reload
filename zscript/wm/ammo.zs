@@ -467,6 +467,19 @@ class WM_Ammo
 		return fed;
 	}
 
+	// ROUNDS SPENT STRAIGHT OUT OF A NAMED STORE -- a pump tube's second shell for a double-shell shot (WM_Gun.AltMode
+	// doubleshell, WM_System.DoubleShellFeed). n rounds, or none when it holds fewer. Returns how many went.
+	int SpendFromStore(String storeId, int n)
+	{
+		Adopt();
+		let st = FindStore(storeId);
+		int need = max(n, 1);
+		int went = 0;
+		if (st && !st.Detached() && st.Live() >= need) went = st.Take(need);
+		Sync();
+		return went;
+	}
+
 	// Held open, or not. Set by the verbs by their holdopen rule.
 	void SetActionLock(bool held)
 	{
