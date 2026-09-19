@@ -12,3 +12,13 @@ logs/
 # python caches from the card tools
 __pycache__/
 *.pyc
+
+# CARDKIT HOLDS NO MODELS. It is a toolkit: scripts, docs, one config per set, and
+# the cards it generates. Every mesh under it is REGENERATED from the donor --
+# `wm/` by prep_wm (the gun at its resting pose, pieces named) and `src/` by
+# bake_rig (a Quake3 rig flattened into one animated mesh). They came to 334 MB
+# against 1.2 MB of actual kit, and one baked Browning alone was 55 MB, over
+# GitHub's file limit. The shipped copies live in the weapon package, where models
+# belong.
+CardKit/sets/*/wm/
+CardKit/sets/*/src/
