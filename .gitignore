@@ -22,3 +22,7 @@ __pycache__/
 # belong.
 CardKit/sets/*/wm/
 CardKit/sets/*/src/
+
+# The card kit is its own package now: RS_WeaponCardKit.
+# It is a workshop tool, not a mod the game loads.
+CardKit/
