@@ -8,3 +8,7 @@ doomxr-log.txt
 log-debug.txt
 wm_last.log
 logs/
+
+# python caches from the card tools
+__pycache__/
+*.pyc

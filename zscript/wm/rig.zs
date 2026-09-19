@@ -140,15 +140,21 @@ class WM_Rig play
 		// loaded, 15 + 1; every time after, exactly as it was left -- empty,
 		// locked back, magazine out. A fresh WM_Ammo per bind was a free reload
 		// for anyone who switched to the fist and back.
+		//
+		// THE ROUNDS ARE NO LONGER MADE HERE. WM_Gun.EnsureAmmo makes them, from
+		// the card, so they exist on every machine and not only on the one whose
+		// hands are worked -- see the comment on that method. A rig only ADOPTS
+		// what the gun already has. The fallback covers a caller with no WM_Gun
+		// (nothing ships one today) and keeps this function total.
 		let g = WM_Gun(w);
 		bool fresh = !g || !g.wmAmmo;
-		if (fresh)
+		ammo = g ? g.EnsureAmmo() : null;
+		if (!ammo)
 		{
 			ammo = new("WM_Ammo");
 			ammo.Init(c.capacity, c);
 			if (g) g.wmAmmo = ammo;
 		}
-		else ammo = g.wmAmmo;
 		// WHAT A WEAPON HUD READS WITHOUT THE CARD (RS_WeaponAmmoService): how this gun fires, and which of its stores are a
 		// second barrel's. Kept on its own ammo at every bind, so a gun from an old save learns them too.
 		ammo.firesFrom = c.firesFrom;
@@ -546,9 +552,17 @@ class WM_Rig play
 		return true;
 	}
 
-	// NAMES, NOT INDICES, AND IT RETRIES. A_ChangeModel binds as a side effect
-	// that is not always visible on the same tic; resolving once reads as "this
-	// mesh has no such surface" for a mesh that has them all.
+	// A NAME, OR AN INDEX WHERE THE MESH OFFERS NO USABLE NAME (WM_SurfaceRef),
+	// AND IT RETRIES. A_ChangeModel binds as a side effect that is not always
+	// visible on the same tic; resolving once reads as "this mesh has no such
+	// surface" for a mesh that has them all.
+	//
+	// WHY THE INDEX PATH IS NOT OPTIONAL: an unresolved surface is skipped here,
+	// and a card whose every part is skipped leaves found at 0 and returns
+	// before the logging below -- so a whole set of guns bound, drew, fired and
+	// moved nothing, and said nothing about it. That was the WW2 set, whose
+	// cards address parts by index because their meshes name every surface the
+	// same string.
 	void Resolve()
 	{
 		if (resolved || !prop || !card) return;
@@ -560,7 +574,9 @@ class WM_Rig play
 			part.surfaceRound.Clear();
 			for (int s = 0; s < part.surfaceNames.Size(); s++)
 			{
-				int idx = prop.FindModelSurfaceIndex(part.modelIndex, part.surfaceNames[s]);
+				int idx = WM_SurfaceRef.Resolve(
+					prop.FindModelSurfaceIndex(part.modelIndex, part.surfaceNames[s]),
+					part.surfaceNames[s], prop.GetModelSurfaceCount(part.modelIndex));
 				if (idx < 0) continue;
 				part.surfaces.Push(idx);
 				// Kept in step with surfaces: a name the mesh lacks is skipped in both.
@@ -572,7 +588,9 @@ class WM_Rig play
 		}
 		hideSurfaceIdx.Clear();
 		for (int k = 0; k < card.hideSurfaces.Size(); k++)
-			hideSurfaceIdx.Push(prop.FindModelSurfaceIndex(0, card.hideSurfaces[k]));
+			hideSurfaceIdx.Push(WM_SurfaceRef.Resolve(
+				prop.FindModelSurfaceIndex(0, card.hideSurfaces[k]),
+				card.hideSurfaces[k], prop.GetModelSurfaceCount(0)));
 		if (found == 0) return;
 		resolved = true;
 
@@ -600,7 +618,10 @@ class WM_Rig play
 				int partTotal = prop.GetModelSurfaceCount(part.modelIndex);
 				for (int k = 0; k < partTotal; k++)
 					have = have .. (k > 0 ? ", " : "") .. prop.GetModelSurfaceName(part.modelIndex, k);
-				WM_Log.Err(String.Format("part '%s' names a surface this mesh does not have -- IT HAS: %s", part.id, have));
+				WM_Log.Err(WM_SurfaceRef.IsIndex(part.surfaceNames[0])
+					? String.Format("part '%s' asks for surface %s, and model %d has %d (numbered 0 to %d) -- it will not move. IT HAS: %s",
+						part.id, part.surfaceNames[0], part.modelIndex, partTotal, partTotal - 1, have)
+					: String.Format("part '%s' names a surface this mesh does not have -- IT HAS: %s", part.id, have));
 				continue;
 			}
 			WM_Log.Info(String.Format("  %-9s %-8s %d surface(s), %s",

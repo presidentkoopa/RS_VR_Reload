@@ -207,8 +207,19 @@ The weapons lane's meshes are in `_pending/THROWABLE_MESHES.md`.
   - a general WM_Gun shot property, a fan of melee traces (`ShotSweep count, step, range`);
   - `ShotSaw`, if one trace is enough.
 - **The guard:** `guard = <class>`, held in front. It needs a place every machine agrees on (section 4).
-- **The grenade:** `grenade_wm.md3`'s `pin` slides 24.65 along +Y. Its `lever` hinges 45° about +Y through
-  (2.08, -0.02, 7.02).
+- **The grenade:** `grenade_wm.md3`'s `pin` slides **5.92** along +Y. Its `lever` hinges 45° about +Y through
+  **(-1.812, 0, 7.680)**.
+  - **Corrected 2026-09-18, re-measured off the mesh** (`_drafts/WMCARD.grenade.txt` carries the full card and the
+    workings). The earlier 24.65 and (2.08, -0.02, 7.02) are `nade.md3`'s numbers, in that file's own scale and
+    origin — right about that mesh, wrong for this one.
+  - The pin's axis comes from the **shaft alone**, split off by triangle connectivity. Ring and shaft averaged
+    together give (-0.022, -0.761, 0.649), a diagonal belonging to neither.
+  - 5.92 is what **frees** it: at the pin's height the body reaches y 3.94 and the lever's lugs y 0.91, and the pin's
+    trailing end starts at y -1.48.
+  - The pivot is the lever's one **still point** once the body's own motion is removed from `nade.md3` (Kabsch against
+    frame 0) — the retaining lugs, which sit at (-1.812, ±0.83, 7.68) in this mesh.
+  - **Blocker for both:** MODELDEF draws the held grenade as `nade.md3`, not `grenade_wm.md3`. Until the weapons lane
+    points the prop at the three-surface mesh, none of these numbers address anything.
 
 ### 2.7 Draft cards (the weapons lane fills in the numbers)
 

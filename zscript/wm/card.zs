@@ -29,6 +29,62 @@
 // they are compared against where your hand is in the room.
 // ============================================================================
 
+// ============================================================================
+// A SURFACE IS NAMED OR NUMBERED, AND A NAME ALWAYS WINS.
+//
+// A card says `surface = slide` where the mesh's author named his surfaces, and
+// `surface = 4` where he did not. Five of the WW2 meshes call every surface of
+// the gun "MP40", or "Cube", or the name of the importer that made the file --
+// so a name there picks out nothing at all, and an index is the only address
+// the file offers.
+//
+// THE RULE LIVES HERE BECAUSE IT IS ASKED IN TWO PLACES -- at bind, off the
+// bound prop, and in the compile check, off the model file's own bytes. Written
+// twice it would drift, and the drift would read as "this card is wrong" rather
+// than "the two readers disagree", which is exactly the shape of the bug this
+// was written to close: the generator addressed every WW2 part by index, both
+// readers only understood names, and all twenty moving parts of the set were
+// dropped without a word.
+//
+// Try the text as a NAME first, so a mesh that genuinely calls a surface "4"
+// keeps its name. Only then, and only when the text is nothing but digits, read
+// it as a position in the file -- and require it to be in range, because an
+// out-of-range number is not a surface and must never quietly become one.
+//
+// An index is a position in a file, not a description of anything, so a
+// re-export that reorders the surfaces leaves the card driving a different
+// piece. A part's `fingerprint` is what turns that into a loud failure.
+// ============================================================================
+class WM_SurfaceRef
+{
+	// Digits and nothing else. String.ToInt answers 0 for text that is not a
+	// number, which would make every unmatched name mean surface 0.
+	clearscope static bool IsIndex(String s)
+	{
+		// Length() is unsigned; the loop counter is not. Held in an int once so the
+		// comparison has two signed sides and the tree keeps zero warnings -- a tree
+		// with one warning in it is a tree where the next one is invisible.
+		int len = s.Length();
+		if (len == 0) return false;
+		for (int i = 0; i < len; i++)
+		{
+			int c = s.ByteAt(i);
+			if (c < 0x30 || c > 0x39) return false;
+		}
+		return true;
+	}
+
+	// byName is what a lookup by name answered, below zero for "no such name".
+	// count is how many surfaces the model has. Returns the surface, or -1.
+	clearscope static int Resolve(int byName, String s, int count)
+	{
+		if (byName >= 0) return byName;
+		if (!IsIndex(s)) return -1;
+		int n = s.ToInt();
+		return (n >= 0 && n < count) ? n : -1;
+	}
+}
+
 class WM_Dof
 {
 	// A slide translates; a hinge rotates about a pivot. Kept apart because
@@ -64,6 +120,16 @@ class WM_Dof
 class WM_Part
 {
 	String  id;
+
+	// WHAT THIS PART LOOKED LIKE WHEN IT WAS MEASURED (card `fingerprint`): how many
+	// vertices it had, and how big it was across. Only meaningful for a part addressed
+	// by surface INDEX, which is what a mesh forces when its author named every surface
+	// the same string. The index is a position in a file, not a description of
+	// anything, so a re-export that renumbers the surfaces leaves the card driving a
+	// different piece with nothing to notice it. These two numbers are what makes that
+	// a loud failure. 0 means the card did not say, and nothing is checked.
+	int     fpVerts;
+	double  fpSize;
 
 	// What it DOES:  action | feed | hammer | trigger | support | hidden
 	//   action   cycles on a shot, is racked by hand
@@ -312,6 +378,17 @@ class WM_Card
 	// WHICH HAND IT BELONGS IN: 0 main, 1 off. Said by the card, so the system
 	// that equips a gun into each hand names no gun anywhere in its own code.
 	int hand;
+
+	// WHICH SURFACE IS THE GUN ITSELF (card `body`), or -1 to work it out.
+	//
+	// Every part's travel is measured against the body, so choosing it wrongly does not
+	// produce a slightly wrong number -- it inverts the whole mesh: the gun appears to
+	// move around a stationary slide. It cannot always be inferred. Picking the biggest
+	// surface chooses a slide that outweighs its frame; picking the stillest ties,
+	// because a whole gun recoils together and everything bolted to the frame drifts
+	// exactly as much as the frame does. On a mesh where the answer is not safe to
+	// guess, the card states it.
+	int bodySurface;
 
 	// THE ACTOR THAT IS DRAWN. A MODELDEF block is per class and is the only
 	// way to put a mesh on an actor -- A_ChangeModel can swap which mesh, not

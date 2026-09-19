@@ -1604,6 +1604,7 @@ class WM_Parser
 	{
 		let c = new("WM_Card");
 		c.weaponClass = weaponClass;
+		c.bodySurface = -1;        // "work it out", unless the card names one
 		c.capacity    = 15;
 		c.barrel      = (1, 0, 0);
 		c.ejectDir    = (0, -1, 0.4);
@@ -1650,6 +1651,16 @@ class WM_Parser
 		if      (key == "prop")       c.propClass = Unquote(val);
 		else if (key == "hidesurface") { c.hideSurfaces.Push(Unquote(val)); c.hideSurfaceLines.Push(line); }   // card.zs WM_Card.hideSurfaces
 		else if (key == "hidejoint")   { c.hideJoints.Push(Unquote(val));   c.hideJointLines.Push(line); }     // card.zs WM_Card.hideJoints
+		// THE BODY SURFACE, NAMED OUTRIGHT (card.zs WM_Card.bodySurface).
+		//
+		// Which surface is the gun itself, as opposed to the parts that move on it.
+		// Everything else on a card is measured against it, so on a mesh where it
+		// cannot be inferred safely the card says so. The WW2 set is exactly that
+		// case: those meshes name every surface the same string, so "the body" cannot
+		// be read off a name, and picking it by size chooses a slide that outweighs
+		// its frame while picking it by stillness ties, because a whole gun recoils
+		// together. -1, the default, means work it out as before.
+		else if (key == "body")       c.bodySurface = val.ToInt();
 		else if (key == "hand")       c.hand = (Unquote(val).MakeLower() == "off") ? 1 : 0;
 		else if (key == "model")      ReadPair(val, c.modelPath, c.modelFile);
 		else if (key == "skin")       ReadPair(val, c.skinPath,  c.skinFile);
@@ -1777,6 +1788,18 @@ class WM_Parser
 		else if (key == "surface")    p.surfaceNames.Push(Unquote(val));
 		else if (key == "joint")      p.jointName = Unquote(val);   // a rigged part: moved by this joint (card.zs WM_Part.jointName)
 		else if (key == "model")      p.modelIndex = val.ToInt();
+		// WHAT THIS PART LOOKED LIKE WHEN IT WAS MEASURED: vertex count, then size
+		// across. A part addressed by INDEX is addressed by a number that means
+		// nothing about the geometry -- and an index survives a copy but not a
+		// re-export, where the surface order shifts and the card silently drives a
+		// different piece. That failure gets blamed on the card, the engine, the
+		// renderer and the player's eyesight long before anyone suspects the mesh.
+		// With a fingerprint the loader can say so instead.
+		else if (key == "fingerprint")
+		{
+			Array<String> f; val.Split(f, ",");
+			if (f.Size() >= 2) { p.fpVerts = f[0].ToInt(); p.fpSize = f[1].ToDouble(); }
+		}
 		else if (key == "grab")       p.grabAt = ReadTriple(val);
 		else if (key == "grabradius") p.grabRadius = val.ToDouble();
 		else if (key == "grabsize")   p.grabSize = ReadTriple(val);

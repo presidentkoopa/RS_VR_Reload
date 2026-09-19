@@ -264,40 +264,152 @@ class WM_System : EventHandler
 	// refuses -- a gun put in the hand since the system last bound one is never answered by the gun that
 	// was there before (P_PlayerThink fires before WorldTick binds; see PutGunInHand). null (unset) asks
 	// exactly as it always did.
+	// HOW A RELOAD IS ASKED FOR, and whether it is asked for at all.
+	//
+	//   0 OFF        guns never need loading, as Doom's never did
+	//   1 BY HAND    ours: pull the magazine, pouch, seat, rack        (default)
+	//   2 POUCH FIRE put the gun in the pouch and pull the trigger
+	//   3 SNAP DOWN  flick the gun down and it reloads
+	//   4 ONE KEY    the bind does the whole reload
+	//
+	// Modes 2-4 are not built yet. Anything other than 0 behaves as 1, so a
+	// config that names one of them is never stuck -- it just reloads by hand
+	// until the mode exists.
+	const RELOAD_OFF     = 0;
+	const RELOAD_BYHAND  = 1;
+	const RELOAD_POUCHFIRE = 2;
+	const RELOAD_SNAP    = 3;
+	const RELOAD_KEY     = 4;
+
+	// PER PLAYER. Gameplay is never read off the console player here.
+	static int ReloadMode(int pn)
+	{
+		if (pn < 0 || pn >= MAXPLAYERS || !playeringame[pn]) return RELOAD_BYHAND;
+		let c = CVar.GetCVar("wm_reload_mode", players[pn]);
+		return c ? clamp(c.GetInt(), 0, 4) : RELOAD_BYHAND;
+	}
+
+	// WHAT THE HAND SAYS ABOUT THE TRIGGER, SENT ONCE PER CHANGE.
+	//
+	// The three things only this machine can see: the gun stowed, a two-handed gun
+	// without its support grip, and the gun out of battery. Everything else the fire
+	// path asks is on the card or the gun, which every machine already has.
+	//
+	// ON CHANGE, NOT PER TIC. These flip a handful of times in a reload, so a tic
+	// stream of identical events would be pure waste; SendNetworkEvent is ordered and
+	// reliable, so one event per change is enough and there is no heartbeat.
+	//
+	// Only the machine that WORKS these hands ever reaches here -- WorldTick runs this
+	// for its own console player -- which is what makes it a single decider rather than
+	// two machines arguing.
+	private void PublishFireBlock(WM_PlayerHands ph, PlayerPawn pmo, int h)
+	{
+		if (!ph || h < 0 || h > 1) return;
+		let rig = ph.rigs[h];
+		if (!rig) return;
+		let gun = WM_Gun(rig.gunItem);
+		if (!gun) return;
+		let ammo = gun.EnsureAmmo();
+		if (!ammo) return;
+		int pn = pmo && pmo.player ? pmo.PlayerNumber() : consoleplayer;
+
+		bool blocked = false;
+		if (!rig.card || !rig.prop || rig.stowed) blocked = true;
+		// TWO-HANDED (card `hands = 2`): only while the other hand holds this gun's support grip.
+		else if (rig.card.NeedsTwoHands() && !SupportHeld(ph, h, rig)) blocked = true;
+		// IN BATTERY (G16, wm_verbs on): not with an action open -- a forend part-way back,
+		// a stroke ejected and not yet fed, an open verb open. A pistol's slide is spring-
+		// returned and never asked (WM_Rig.OutOfBattery), so both fire as before.
+		else if (WM_Verb.EnabledFor(pn) && !rig.InBattery()) blocked = true;
+
+		if (blocked == ammo.fireBlocked) return;
+		// APPLIED HERE TOO, not only through the event, so this machine's own next tic
+		// does not wait a round trip for a value it already knows. The event is what
+		// carries it to the others.
+		ammo.fireBlocked = blocked;
+		EventHandler.SendNetworkEvent("wm_fireblk", h, blocked ? 1 : 0);
+	}
+
+	// THE GUN IN A PLAYER'S HAND, ON ANY MACHINE. player.ReadyWeapon / OffhandWeapon
+	// is playsim state that every machine has for every player, unlike a rig, which
+	// exists only on the machine that works those hands. h matches WM_Gun.Hand().
+	WM_Gun GunInHand(int pn, int h)
+	{
+		if (pn < 0 || pn >= MAXPLAYERS || !playeringame[pn] || !players[pn].mo) return null;
+		let pl = players[pn].mo.player;
+		if (!pl || h < 0 || h > 1) return null;
+		return WM_Gun(h == 1 ? pl.OffhandWeapon : pl.ReadyWeapon);
+	}
+
+	// CAN THIS PULL FIRE. EVERY MACHINE ASKS THIS, AND THEY MUST ALL ANSWER THE SAME.
+	//
+	// This used to begin by asking for the shooter's HANDS, and a machine only ever
+	// works the console player's hands (WorldTick / ForPlayer), so on every machine
+	// but the shooter's the answer was "no": the shot went to Dry, no projectile, no
+	// DepleteAmmo, and -- worse, because it outlives the shot -- the named RNG streams
+	// (WMSpread, WMSaw, WMRail) advanced on ONE machine, so every roll after the first
+	// shot of the session was out of phase. That is NETPLAY_SPEC section 1 row 1, and
+	// it is why every carded shot desynced.
+	//
+	// NOW IT READS ONLY STATE EVERY MACHINE HAS:
+	//   the CARD        parsed from the same lumps everywhere
+	//   the GUN's ammo  made by WM_Gun.EnsureAmmo, from the card, on every machine
+	//   the OWNER       players[pn] and their reserve
+	//   their cvars     read per player (ReloadMode, WM_Verb.EnabledFor), never per console
+	//
+	// THE HAND GATES DID NOT VANISH, THEY MOVED. Whether the gun is in battery, held
+	// with its support grip, or stowed can only be seen on the machine working that
+	// player's hands, so that machine decides once and TELLS the others (WM_Rig sends
+	// `wm_fireblk`, applied to the owner's gun on every machine). Every machine then
+	// reads the same answer off the gun, which is the approach NETPLAY_SPEC section 10
+	// decided: the owner's machine decides, every machine applies.
 	bool CanFire(int pn, int h, int chambers = 1, int rounds = 1, Weapon asking = null)
 	{
-		let ph = HandsIfAny(pn);
-		if (!ph)
-		{
-			WM_Log.Once(WM_Log.LV_WARN, String.Format("fire:nohands:%d", pn), String.Format(
-				"player %d pulled a carded trigger, but this machine works no hands for that player -- the shot is refused here",
-				pn));
-			return false;
-		}
-		if (h < 0 || h > 1 || !ph.rigs[h]) return false;
-		let rig = ph.rigs[h];
-		if (asking && rig.gunItem && rig.gunItem != asking) return false;
-		if (!rig.card || !rig.prop || !rig.ammo || rig.stowed) return false;
-		// TWO-HANDED (card `hands = 2`): only while the other hand holds this gun's support grip.
-		if (rig.card.NeedsTwoHands() && !SupportHeld(ph, h, rig)) return false;
+		let gun = asking ? WM_Gun(asking) : GunInHand(pn, h);
+		if (!gun) return false;
+		// THE GUN THAT ASKED MUST BE THE GUN IN THAT HAND. Replaces the old "a rig still
+		// bound to a different gun refuses" test with the same question asked of playsim
+		// state, so it holds on every machine and not only where a rig exists.
+		if (asking && GunInHand(pn, h) != gun) return false;
+		let card = CardForWeapon(gun.GetClassName());
+		if (!card) return false;
+		let ammo = gun.EnsureAmmo();
+		if (!ammo) return false;
+		// WHAT THE SHOOTER'S MACHINE SAW OF THE HAND: out of battery, the support grip
+		// let go, the gun stowed. Replicated, so every machine refuses the same pull.
+		if (ammo.fireBlocked) return false;
 		// A GUN WITH AN ENGINE (verb.zs START) fires only while it runs: its ripcord first.
-		if (rig.card.HasVerbKind(WM_Verb.START) && !rig.ammo.engineRunning) return false;
+		if (card.HasVerbKind(WM_Verb.START) && !ammo.engineRunning) return false;
 		// A GUN WITH NO CHAMBER (WM_Card.firesFrom), on either wm_verbs path: one that fires
 		// on nothing always may; one that fires from the reserve while the owner's reserve can
 		// pay for the pull; one that fires from its magazine while the magazine can.
 		// A PULL THAT FIRES SEVERAL CHAMBERS (wm_verbs on) fires while ANY of them is live:
 		// a double with one barrel spent still fires the other. Every other pull asks the
 		// selected chamber, as it always has.
+		// RELOADING SWITCHED OFF (wm_reload_mode 0): the gun never needs loading,
+		// as Doom's own never did. Every gun then fires straight from the owner's
+		// reserve -- chamber, magazine and battery all stop being asked, because
+		// a player who has turned reloading off has no way to answer them and
+		// would simply be stuck holding a gun that will not fire.
+		//
+		// PER PLAYER, NOT PER CONSOLE. This decides whether a shot happens, so it
+		// is gameplay: read with players[pn] like every other gameplay cvar here,
+		// or two machines disagree about whether a trigger pull fired and netplay
+		// comes apart.
+		if (ReloadMode(pn) == RELOAD_OFF)
+			return card.firesFrom == WM_Card.FIRES_NOTHING
+			       || ReserveHolds(pn, card, max(rounds, 1));
+
 		bool loaded;
-		if (rig.card.firesFrom == WM_Card.FIRES_NOTHING) loaded = true;
-		else if (rig.card.firesFrom == WM_Card.FIRES_RESERVE) loaded = ReserveHolds(pn, rig.card, rounds);
-		else if (rig.card.FiresFromMagazine()) loaded = rig.ammo.MagazineHolds(rounds);
-		else if (chambers > 1 && WM_Verb.Enabled()) loaded = (rig.ammo.LiveChambers() > 0 && !rig.ammo.actionLock);
-		else loaded = rig.ammo.CanFire();
-		// IN BATTERY (G16, wm_verbs on): not with an action open -- a forend part-way
-		// back, a stroke ejected and not yet fed, an open verb open. A pistol's slide is
-		// spring-returned and never asked (WM_Rig.OutOfBattery), so both fire as before.
-		return loaded && (!WM_Verb.Enabled() || rig.InBattery());
+		if (card.firesFrom == WM_Card.FIRES_NOTHING) loaded = true;
+		else if (card.firesFrom == WM_Card.FIRES_RESERVE) loaded = ReserveHolds(pn, card, rounds);
+		else if (card.FiresFromMagazine()) loaded = ammo.MagazineHolds(rounds);
+		else if (chambers > 1 && WM_Verb.EnabledFor(pn)) loaded = (ammo.LiveChambers() > 0 && !ammo.actionLock);
+		else loaded = ammo.CanFire();
+		// IN BATTERY (G16, wm_verbs on) is now part of fireBlocked above, because only the
+		// machine working that player's hands can see where the parts are. It is asked once
+		// there and replicated, instead of being asked here on machines that cannot answer.
+		return loaded;
 	}
 
 	// CAN THE OWNER'S RESERVE PAY FOR A PULL (WM_Card.FIRES_RESERVE): the gun class's
@@ -346,17 +458,21 @@ class WM_System : EventHandler
 	// CAN THE SECOND BARREL FIRE: the gun drawn in this hand, both hands on a two-handed gun, a
 	// live round in the barrel's store, and (wm_verbs on) the open verb it waits on shut.
 	// asking: as CanFire's -- a rig still bound to a different gun refuses; null asks as always.
+	// OFF THE WEAPON, NOT THE HANDS, for exactly the reasons CanFire above gives:
+	// this runs on every machine and a rig exists on one. The barrel's own out-of-
+	// battery test is part of the replicated fireBlocked, same as the main barrel's.
 	bool CanAltFire(int pn, int h, Weapon asking = null)
 	{
-		let ph = HandsIfAny(pn);
-		if (!ph || h < 0 || h > 1 || !ph.rigs[h]) return false;
-		let rig = ph.rigs[h];
-		if (asking && rig.gunItem && rig.gunItem != asking) return false;
-		if (!rig.card || !rig.prop || !rig.ammo || rig.stowed) return false;
-		let b = rig.card.AltBarrel();
+		let gun = asking ? WM_Gun(asking) : GunInHand(pn, h);
+		if (!gun) return false;
+		if (asking && GunInHand(pn, h) != gun) return false;
+		let card = CardForWeapon(gun.GetClassName());
+		if (!card) return false;
+		let ammo = gun.EnsureAmmo();
+		if (!ammo || ammo.fireBlocked) return false;
+		let b = card.AltBarrel();
 		if (!b) return false;
-		if (rig.card.NeedsTwoHands() && !SupportHeld(ph, h, rig)) return false;
-		return rig.ammo.BarrelLoaded(b.fromStore) && (!WM_Verb.Enabled() || rig.BarrelOutOfBattery(b) == "");
+		return ammo.BarrelLoaded(b.fromStore);
 	}
 
 	void OnAltShot(int pn, int h)
@@ -399,10 +515,13 @@ class WM_System : EventHandler
 	// off -- the old path fires one round a pull whatever the class says.
 	int ChambersToFire(int pn, int h, int most)
 	{
-		if (most <= 1 || !WM_Verb.Enabled()) return 1;
-		let ph = HandsIfAny(pn);
-		if (!ph || h < 0 || h > 1 || !ph.rigs[h] || !ph.rigs[h].ammo) return 1;
-		return clamp(ph.rigs[h].ammo.LiveChambers(), 1, most);
+		if (most <= 1 || !WM_Verb.EnabledFor(pn)) return 1;
+		// OFF THE GUN, NOT THE RIG: CanFire has already said this pull fires, and every
+		// machine must spend the same number of chambers on it or their magazines drift.
+		let gun = GunInHand(pn, h);
+		let ammo = gun ? gun.EnsureAmmo() : null;
+		if (!ammo) return 1;
+		return clamp(ammo.LiveChambers(), 1, most);
 	}
 
 	// A DOUBLE SHELL'S SECOND SHELL (WM_Gun.AltMode doubleshell) on a chamber gun whose chamber holds one: a round from the
@@ -631,6 +750,10 @@ class WM_System : EventHandler
 		for (int h = 0; h < 2; h++) WorkHand(ph, pmo, h);
 		for (int r = 0; r < 2; r++) PutAway(ph, r);
 		for (int r = 0; r < 2; r++) ph.rigs[r].Pose();
+		// WHAT THIS MACHINE CAN SEE OF THE HANDS, TOLD TO THE OTHERS. After the hands
+		// have been worked and the rigs posed, so it publishes this tic's answer rather
+		// than last tic's. Sends only when the answer CHANGES.
+		for (int h = 0; h < 2; h++) PublishFireBlock(ph, pmo, h);
 		for (int r = 0; r < 2; r++) ph.rigs[r].BarrelSmoke();
 		for (int r = 0; r < 2; r++) ph.rigs[r].ChargeLook();
 		for (int r = 0; r < 2; r++) ph.rigs[r].RecoilLook();
@@ -2984,7 +3107,7 @@ class WM_System : EventHandler
 		hudCount = 0;
 		// Composed whenever EITHER the HUD or the log wants it -- switching the
 		// on-screen readout off must not also blind the log.
-		if (!Cvb("wm_overlay", true) && !Cvb("wm_log_hud", true)) return;
+		if (!Cvb("wm_overlay", true) && !Cvb("wm_log_hud", false)) return;
 		let pl = pmo.player;
 
 		for (int h = 0; h < 2; h++)
@@ -3155,7 +3278,7 @@ class WM_System : EventHandler
 				Hud(String.Format("%s: %d + %s, magazine %s, slide %s   drawn %.1f from its hand%s",
 					rig.card.weaponClass, rig.ammo.rounds, rig.card.FiresFromMagazine() ? "no chamber" : (rig.ammo.chambered ? "1" : "0"),
 					rig.ammo.magIn ? "in" : "OUT", rig.ammo.actionLock ? "LOCKED BACK" : "closed",
-					gd, gd > 30.0 ? "  <- TOO FAR, grab points are wrong" : ""),
+					gd, gd > 30.0 ? "  <- beyond arm's reach" : ""),
 					gd > 30.0 ? Font.CR_RED : Font.CR_CYAN);
 			}
 			else
@@ -3166,11 +3289,11 @@ class WM_System : EventHandler
 				if (WM_Verb.Enabled() && !rig.InBattery()) act = "OPEN";
 				Hud(String.Format("%s: %s, action %s   drawn %.1f from its hand%s",
 					rig.card.weaponClass, rig.ammo.StoreCounts(), act,
-					gd, gd > 30.0 ? "  <- TOO FAR, grab points are wrong" : ""),
+					gd, gd > 30.0 ? "  <- beyond arm's reach" : ""),
 					gd > 30.0 ? Font.CR_RED : Font.CR_CYAN);
 			}
 		}
-		Hud(String.Format("reserve %s   spheres: gold = pouch, blue = a part, green = in reach   path %s", ReserveText(ph, pmo),
+		Hud(String.Format("reserve %s   path %s", ReserveText(ph, pmo),
 			WM_Verb.Enabled() ? "VERBS" : "OLD"), Font.CR_DARKGRAY);
 		LogHud(ph, pmo);
 	}
@@ -3221,7 +3344,7 @@ class WM_System : EventHandler
 				reason = reason .. (reason == "" ? "" : ", ") .. HandName(h) .. (g ? " grip SQUEEZED" : " grip opened");
 			ph.lastGripHud[h] = g;
 		}
-		if (!Cvb("wm_log_hud", true) || hudCount <= 0) return;
+		if (!Cvb("wm_log_hud", false) || hudCount <= 0) return;
 
 		int every = int(max(1.0, Cvf("wm_log_hud_every", 70.0)));
 		if (reason == "")
@@ -3346,6 +3469,21 @@ class WM_System : EventHandler
 		// machine (WM_Rig.FanGesture, WM_Rig.StrokeHome) and sent as a network event, so every machine takes the round
 		// from the same event. It acts on the SENDER's gun in that hand, found on the player -- which every machine has,
 		// where hands exist only on the machine that works them. The gun's own Ready fires it (WM_Gun.OnFanEvent).
+		// THE HAND'S VERDICT ON THE TRIGGER, FROM THE ONE MACHINE THAT CAN SEE IT
+		// (PublishFireBlock). Applied to the SENDER's gun in that hand, found through
+		// the player -- which every machine has for every player, unlike a rig. This is
+		// what lets WM_System.CanFire stop asking for hands that only exist in one
+		// place, and it is the whole of NETPLAY_SPEC section 10's approach B for the
+		// fire path: the owner's machine decides, every machine applies.
+		if (e.Name ~== "wm_fireblk")
+		{
+			if (!pmo || !pmo.player) return;
+			let gun = WM_Gun((e.Args[0] == 1) ? pmo.player.OffhandWeapon : pmo.player.ReadyWeapon);
+			if (!gun) return;
+			let ammo = gun.EnsureAmmo();
+			if (ammo) ammo.fireBlocked = (e.Args[1] != 0);
+			return;
+		}
 		if (e.Name ~== "wm_fan" || e.Name ~== "wm_slam")
 		{
 			if (!pmo || !pmo.player) return;

@@ -2188,11 +2188,20 @@ user bool wm_overlay = true;
 // feel where a grab will land without having to find the sphere.
 user bool wm_reach_buzz = true;
 
+// A DIAGNOSTIC, OFF BY DEFAULT. Turn it on when you are chasing "why didn't it
+// grab", not to play with.
+//
 // THE READOUT, INTO THE LOG TOO -- console and log file, never on screen. A
 // snapshot every wm_log_hud_every tics, plus one on the exact tic either grip
 // closes or opens: that one answers "why didn't it grab". The log is
 // build-dxr/RelWithDebInfo/log-debug.txt, overwritten on each launch.
-user bool  wm_log_hud       = true;
+//
+// IT DEFAULTED ON UNTIL 2026-09-18, and printed about a dozen lines into the
+// owner's console every two seconds of normal play. It is a `user` cvar, so
+// anyone who ran a build before that date has `true` saved in their ini and
+// this default will not reach them: `wm_log_hud 0` in the console is what
+// quiets it for them.
+user bool  wm_log_hud       = false;
 user float wm_log_hud_every = 70.0;
 
 // ---- THE INTERPRETER: verbs or the old role code (A/B, this build) ----------
@@ -2465,3 +2474,306 @@ user float wm_gp_o7_sh_scale_x = 1.0;
 user float wm_gp_o7_sh_scale_y = 1.0;
 user float wm_gp_o7_sh_scale_z = 1.0;
 
+
+// ---- WHETHER, AND HOW, A GUN IS RELOADED ----------------------------------
+// 0 off -- guns never need loading, as Doom's never did; every gun fires from
+//   the owner's reserve and no chamber, magazine or action state is asked.
+// 1 by hand -- ours: pull the magazine, reach the pouch, seat it, rack it.
+// 2 gun in the pouch and pull the trigger   (not built yet)
+// 3 snap the gun down                       (not built yet)
+// 4 one key does the whole reload           (not built yet)
+// Anything above 1 behaves as 1 until it is built, so a config naming one is
+// never stuck with a gun it cannot load.
+user int wm_reload_mode = 1;
+
+// ---- BOLTRIFLE -- seeded from RIFLE: a bolt rifle is a rifle whose action a hand turns and pulls
+// NOT TUNED. Where a hand sits on one of these is the owner's headset pass.
+nosave float wm_hs_boltrifle_main_slide_ofs_x          = -9.6;
+nosave float wm_hs_boltrifle_main_slide_ofs_y          = 2.9;
+nosave float wm_hs_boltrifle_main_slide_ofs_z          = 1.1;
+nosave float wm_hs_boltrifle_main_slide_yaw            = -90.0;
+nosave float wm_hs_boltrifle_main_slide_pitch          = -90.0;
+nosave float wm_hs_boltrifle_main_slide_roll           = -180.0;
+nosave float wm_hs_boltrifle_main_slide_scale          = 1.0;
+nosave float wm_hs_boltrifle_main_mag_ofs_x            = 0.0;
+nosave float wm_hs_boltrifle_main_mag_ofs_y            = 0.0;
+nosave float wm_hs_boltrifle_main_mag_ofs_z            = -0.1;
+nosave float wm_hs_boltrifle_main_mag_yaw              = 0.0;
+nosave float wm_hs_boltrifle_main_mag_pitch            = 0.0;
+nosave float wm_hs_boltrifle_main_mag_roll             = 0.0;
+nosave float wm_hs_boltrifle_main_mag_scale            = 1.0;
+nosave float wm_hs_boltrifle_main_support_ofs_x        = 0.0;
+nosave float wm_hs_boltrifle_main_support_ofs_y        = 0.0;
+nosave float wm_hs_boltrifle_main_support_ofs_z        = 0.0;
+nosave float wm_hs_boltrifle_main_support_yaw          = 0.0;
+nosave float wm_hs_boltrifle_main_support_pitch        = 0.0;
+nosave float wm_hs_boltrifle_main_support_roll         = 0.0;
+nosave float wm_hs_boltrifle_main_support_scale        = 1.0;
+nosave float wm_hs_boltrifle_main_forend_ofs_x         = 0.0;
+nosave float wm_hs_boltrifle_main_forend_ofs_y         = 0.0;
+nosave float wm_hs_boltrifle_main_forend_ofs_z         = 0.0;
+nosave float wm_hs_boltrifle_main_forend_yaw           = -90.0;
+nosave float wm_hs_boltrifle_main_forend_pitch         = -90.0;
+nosave float wm_hs_boltrifle_main_forend_roll          = 0.0;
+nosave float wm_hs_boltrifle_main_forend_scale         = 1.0;
+nosave float wm_hs_boltrifle_main_foregrip_ofs_x       = 0.0;
+nosave float wm_hs_boltrifle_main_foregrip_ofs_y       = 0.0;
+nosave float wm_hs_boltrifle_main_foregrip_ofs_z       = 0.0;
+nosave float wm_hs_boltrifle_main_foregrip_yaw         = -90.0;
+nosave float wm_hs_boltrifle_main_foregrip_pitch       = -90.0;
+nosave float wm_hs_boltrifle_main_foregrip_roll        = 0.0;
+nosave float wm_hs_boltrifle_main_foregrip_scale       = 1.0;
+nosave float wm_hs_boltrifle_off_slide_ofs_x           = 8.4;
+nosave float wm_hs_boltrifle_off_slide_ofs_y           = 4.4;
+nosave float wm_hs_boltrifle_off_slide_ofs_z           = 3.1;
+nosave float wm_hs_boltrifle_off_slide_yaw             = -90.0;
+nosave float wm_hs_boltrifle_off_slide_pitch           = -90.0;
+nosave float wm_hs_boltrifle_off_slide_roll            = 180.0;
+nosave float wm_hs_boltrifle_off_slide_scale           = 1.0;
+nosave float wm_hs_boltrifle_off_mag_ofs_x             = 0.0;
+nosave float wm_hs_boltrifle_off_mag_ofs_y             = 0.0;
+nosave float wm_hs_boltrifle_off_mag_ofs_z             = -0.1;
+nosave float wm_hs_boltrifle_off_mag_yaw               = 0.0;
+nosave float wm_hs_boltrifle_off_mag_pitch             = 0.0;
+nosave float wm_hs_boltrifle_off_mag_roll              = 0.0;
+nosave float wm_hs_boltrifle_off_mag_scale             = 1.0;
+nosave float wm_hs_boltrifle_off_support_ofs_x         = 0.0;
+nosave float wm_hs_boltrifle_off_support_ofs_y         = 0.0;
+nosave float wm_hs_boltrifle_off_support_ofs_z         = 0.0;
+nosave float wm_hs_boltrifle_off_support_yaw           = 0.0;
+nosave float wm_hs_boltrifle_off_support_pitch         = 0.0;
+nosave float wm_hs_boltrifle_off_support_roll          = 0.0;
+nosave float wm_hs_boltrifle_off_support_scale         = 1.0;
+nosave float wm_hs_boltrifle_off_forend_ofs_x          = 0.0;
+nosave float wm_hs_boltrifle_off_forend_ofs_y          = 0.0;
+nosave float wm_hs_boltrifle_off_forend_ofs_z          = 0.0;
+nosave float wm_hs_boltrifle_off_forend_yaw            = -90.0;
+nosave float wm_hs_boltrifle_off_forend_pitch          = -90.0;
+nosave float wm_hs_boltrifle_off_forend_roll           = 0.0;
+nosave float wm_hs_boltrifle_off_forend_scale          = 1.0;
+nosave float wm_hs_boltrifle_off_foregrip_ofs_x        = 0.0;
+nosave float wm_hs_boltrifle_off_foregrip_ofs_y        = 0.0;
+nosave float wm_hs_boltrifle_off_foregrip_ofs_z        = 0.0;
+nosave float wm_hs_boltrifle_off_foregrip_yaw          = -90.0;
+nosave float wm_hs_boltrifle_off_foregrip_pitch        = -90.0;
+nosave float wm_hs_boltrifle_off_foregrip_roll         = 0.0;
+nosave float wm_hs_boltrifle_off_foregrip_scale        = 1.0;
+
+// ---- MG -- seeded from RIFLE: a belt-fed gun is held like a rifle; its feed is a box, not a magazine
+// NOT TUNED. Where a hand sits on one of these is the owner's headset pass.
+nosave float wm_hs_mg_main_slide_ofs_x                 = -9.6;
+nosave float wm_hs_mg_main_slide_ofs_y                 = 2.9;
+nosave float wm_hs_mg_main_slide_ofs_z                 = 1.1;
+nosave float wm_hs_mg_main_slide_yaw                   = -90.0;
+nosave float wm_hs_mg_main_slide_pitch                 = -90.0;
+nosave float wm_hs_mg_main_slide_roll                  = -180.0;
+nosave float wm_hs_mg_main_slide_scale                 = 1.0;
+nosave float wm_hs_mg_main_mag_ofs_x                   = 0.0;
+nosave float wm_hs_mg_main_mag_ofs_y                   = 0.0;
+nosave float wm_hs_mg_main_mag_ofs_z                   = -0.1;
+nosave float wm_hs_mg_main_mag_yaw                     = 0.0;
+nosave float wm_hs_mg_main_mag_pitch                   = 0.0;
+nosave float wm_hs_mg_main_mag_roll                    = 0.0;
+nosave float wm_hs_mg_main_mag_scale                   = 1.0;
+nosave float wm_hs_mg_main_support_ofs_x               = 0.0;
+nosave float wm_hs_mg_main_support_ofs_y               = 0.0;
+nosave float wm_hs_mg_main_support_ofs_z               = 0.0;
+nosave float wm_hs_mg_main_support_yaw                 = 0.0;
+nosave float wm_hs_mg_main_support_pitch               = 0.0;
+nosave float wm_hs_mg_main_support_roll                = 0.0;
+nosave float wm_hs_mg_main_support_scale               = 1.0;
+nosave float wm_hs_mg_main_forend_ofs_x                = 0.0;
+nosave float wm_hs_mg_main_forend_ofs_y                = 0.0;
+nosave float wm_hs_mg_main_forend_ofs_z                = 0.0;
+nosave float wm_hs_mg_main_forend_yaw                  = -90.0;
+nosave float wm_hs_mg_main_forend_pitch                = -90.0;
+nosave float wm_hs_mg_main_forend_roll                 = 0.0;
+nosave float wm_hs_mg_main_forend_scale                = 1.0;
+nosave float wm_hs_mg_main_foregrip_ofs_x              = 0.0;
+nosave float wm_hs_mg_main_foregrip_ofs_y              = 0.0;
+nosave float wm_hs_mg_main_foregrip_ofs_z              = 0.0;
+nosave float wm_hs_mg_main_foregrip_yaw                = -90.0;
+nosave float wm_hs_mg_main_foregrip_pitch              = -90.0;
+nosave float wm_hs_mg_main_foregrip_roll               = 0.0;
+nosave float wm_hs_mg_main_foregrip_scale              = 1.0;
+nosave float wm_hs_mg_off_slide_ofs_x                  = 8.4;
+nosave float wm_hs_mg_off_slide_ofs_y                  = 4.4;
+nosave float wm_hs_mg_off_slide_ofs_z                  = 3.1;
+nosave float wm_hs_mg_off_slide_yaw                    = -90.0;
+nosave float wm_hs_mg_off_slide_pitch                  = -90.0;
+nosave float wm_hs_mg_off_slide_roll                   = 180.0;
+nosave float wm_hs_mg_off_slide_scale                  = 1.0;
+nosave float wm_hs_mg_off_mag_ofs_x                    = 0.0;
+nosave float wm_hs_mg_off_mag_ofs_y                    = 0.0;
+nosave float wm_hs_mg_off_mag_ofs_z                    = -0.1;
+nosave float wm_hs_mg_off_mag_yaw                      = 0.0;
+nosave float wm_hs_mg_off_mag_pitch                    = 0.0;
+nosave float wm_hs_mg_off_mag_roll                     = 0.0;
+nosave float wm_hs_mg_off_mag_scale                    = 1.0;
+nosave float wm_hs_mg_off_support_ofs_x                = 0.0;
+nosave float wm_hs_mg_off_support_ofs_y                = 0.0;
+nosave float wm_hs_mg_off_support_ofs_z                = 0.0;
+nosave float wm_hs_mg_off_support_yaw                  = 0.0;
+nosave float wm_hs_mg_off_support_pitch                = 0.0;
+nosave float wm_hs_mg_off_support_roll                 = 0.0;
+nosave float wm_hs_mg_off_support_scale                = 1.0;
+nosave float wm_hs_mg_off_forend_ofs_x                 = 0.0;
+nosave float wm_hs_mg_off_forend_ofs_y                 = 0.0;
+nosave float wm_hs_mg_off_forend_ofs_z                 = 0.0;
+nosave float wm_hs_mg_off_forend_yaw                   = -90.0;
+nosave float wm_hs_mg_off_forend_pitch                 = -90.0;
+nosave float wm_hs_mg_off_forend_roll                  = 0.0;
+nosave float wm_hs_mg_off_forend_scale                 = 1.0;
+nosave float wm_hs_mg_off_foregrip_ofs_x               = 0.0;
+nosave float wm_hs_mg_off_foregrip_ofs_y               = 0.0;
+nosave float wm_hs_mg_off_foregrip_ofs_z               = 0.0;
+nosave float wm_hs_mg_off_foregrip_yaw                 = -90.0;
+nosave float wm_hs_mg_off_foregrip_pitch               = -90.0;
+nosave float wm_hs_mg_off_foregrip_roll                = 0.0;
+nosave float wm_hs_mg_off_foregrip_scale               = 1.0;
+
+// ---- PUMP -- seeded from SHOTGUN: the same gun with its forend named -- shotgun's seats already suit it
+// NOT TUNED. Where a hand sits on one of these is the owner's headset pass.
+nosave float wm_hs_pump_main_slide_ofs_x               = -9.6;
+nosave float wm_hs_pump_main_slide_ofs_y               = 2.9;
+nosave float wm_hs_pump_main_slide_ofs_z               = 1.1;
+nosave float wm_hs_pump_main_slide_yaw                 = -90.0;
+nosave float wm_hs_pump_main_slide_pitch               = -90.0;
+nosave float wm_hs_pump_main_slide_roll                = -180.0;
+nosave float wm_hs_pump_main_slide_scale               = 1.0;
+nosave float wm_hs_pump_main_mag_ofs_x                 = 0.0;
+nosave float wm_hs_pump_main_mag_ofs_y                 = 0.0;
+nosave float wm_hs_pump_main_mag_ofs_z                 = -0.1;
+nosave float wm_hs_pump_main_mag_yaw                   = 0.0;
+nosave float wm_hs_pump_main_mag_pitch                 = 0.0;
+nosave float wm_hs_pump_main_mag_roll                  = 0.0;
+nosave float wm_hs_pump_main_mag_scale                 = 1.0;
+nosave float wm_hs_pump_main_support_ofs_x             = 0.0;
+nosave float wm_hs_pump_main_support_ofs_y             = 0.0;
+nosave float wm_hs_pump_main_support_ofs_z             = 0.0;
+nosave float wm_hs_pump_main_support_yaw               = 0.0;
+nosave float wm_hs_pump_main_support_pitch             = 0.0;
+nosave float wm_hs_pump_main_support_roll              = 0.0;
+nosave float wm_hs_pump_main_support_scale             = 1.0;
+nosave float wm_hs_pump_main_forend_ofs_x              = 0.0;
+nosave float wm_hs_pump_main_forend_ofs_y              = 0.0;
+nosave float wm_hs_pump_main_forend_ofs_z              = 0.0;
+nosave float wm_hs_pump_main_forend_yaw                = -90.0;
+nosave float wm_hs_pump_main_forend_pitch              = -90.0;
+nosave float wm_hs_pump_main_forend_roll               = 0.0;
+nosave float wm_hs_pump_main_forend_scale              = 1.0;
+nosave float wm_hs_pump_main_foregrip_ofs_x            = 0.0;
+nosave float wm_hs_pump_main_foregrip_ofs_y            = 0.0;
+nosave float wm_hs_pump_main_foregrip_ofs_z            = 0.0;
+nosave float wm_hs_pump_main_foregrip_yaw              = -90.0;
+nosave float wm_hs_pump_main_foregrip_pitch            = -90.0;
+nosave float wm_hs_pump_main_foregrip_roll             = 0.0;
+nosave float wm_hs_pump_main_foregrip_scale            = 1.0;
+nosave float wm_hs_pump_off_slide_ofs_x                = 8.4;
+nosave float wm_hs_pump_off_slide_ofs_y                = 4.4;
+nosave float wm_hs_pump_off_slide_ofs_z                = 3.1;
+nosave float wm_hs_pump_off_slide_yaw                  = -90.0;
+nosave float wm_hs_pump_off_slide_pitch                = -90.0;
+nosave float wm_hs_pump_off_slide_roll                 = 180.0;
+nosave float wm_hs_pump_off_slide_scale                = 1.0;
+nosave float wm_hs_pump_off_mag_ofs_x                  = 0.0;
+nosave float wm_hs_pump_off_mag_ofs_y                  = 0.0;
+nosave float wm_hs_pump_off_mag_ofs_z                  = -0.1;
+nosave float wm_hs_pump_off_mag_yaw                    = 0.0;
+nosave float wm_hs_pump_off_mag_pitch                  = 0.0;
+nosave float wm_hs_pump_off_mag_roll                   = 0.0;
+nosave float wm_hs_pump_off_mag_scale                  = 1.0;
+nosave float wm_hs_pump_off_support_ofs_x              = 0.0;
+nosave float wm_hs_pump_off_support_ofs_y              = 0.0;
+nosave float wm_hs_pump_off_support_ofs_z              = 0.0;
+nosave float wm_hs_pump_off_support_yaw                = 0.0;
+nosave float wm_hs_pump_off_support_pitch              = 0.0;
+nosave float wm_hs_pump_off_support_roll               = 0.0;
+nosave float wm_hs_pump_off_support_scale              = 1.0;
+nosave float wm_hs_pump_off_forend_ofs_x               = 0.0;
+nosave float wm_hs_pump_off_forend_ofs_y               = 0.0;
+nosave float wm_hs_pump_off_forend_ofs_z               = 0.0;
+nosave float wm_hs_pump_off_forend_yaw                 = -90.0;
+nosave float wm_hs_pump_off_forend_pitch               = -90.0;
+nosave float wm_hs_pump_off_forend_roll                = 0.0;
+nosave float wm_hs_pump_off_forend_scale               = 1.0;
+nosave float wm_hs_pump_off_foregrip_ofs_x             = 0.0;
+nosave float wm_hs_pump_off_foregrip_ofs_y             = 0.0;
+nosave float wm_hs_pump_off_foregrip_ofs_z             = 0.0;
+nosave float wm_hs_pump_off_foregrip_yaw               = -90.0;
+nosave float wm_hs_pump_off_foregrip_pitch             = -90.0;
+nosave float wm_hs_pump_off_foregrip_roll              = 0.0;
+nosave float wm_hs_pump_off_foregrip_scale             = 1.0;
+
+// ---- FLAMER -- seeded from FLAMETHROWER: the same weapon under the card's shorter word
+// NOT TUNED. Where a hand sits on one of these is the owner's headset pass.
+nosave float wm_hs_flamer_main_slide_ofs_x             = -9.6;
+nosave float wm_hs_flamer_main_slide_ofs_y             = 2.9;
+nosave float wm_hs_flamer_main_slide_ofs_z             = 1.1;
+nosave float wm_hs_flamer_main_slide_yaw               = -90.0;
+nosave float wm_hs_flamer_main_slide_pitch             = -90.0;
+nosave float wm_hs_flamer_main_slide_roll              = -180.0;
+nosave float wm_hs_flamer_main_slide_scale             = 1.0;
+nosave float wm_hs_flamer_main_mag_ofs_x               = 0.0;
+nosave float wm_hs_flamer_main_mag_ofs_y               = 0.0;
+nosave float wm_hs_flamer_main_mag_ofs_z               = -0.1;
+nosave float wm_hs_flamer_main_mag_yaw                 = 0.0;
+nosave float wm_hs_flamer_main_mag_pitch               = 0.0;
+nosave float wm_hs_flamer_main_mag_roll                = 0.0;
+nosave float wm_hs_flamer_main_mag_scale               = 1.0;
+nosave float wm_hs_flamer_main_support_ofs_x           = 0.0;
+nosave float wm_hs_flamer_main_support_ofs_y           = 0.0;
+nosave float wm_hs_flamer_main_support_ofs_z           = 0.0;
+nosave float wm_hs_flamer_main_support_yaw             = 0.0;
+nosave float wm_hs_flamer_main_support_pitch           = 0.0;
+nosave float wm_hs_flamer_main_support_roll            = 0.0;
+nosave float wm_hs_flamer_main_support_scale           = 1.0;
+nosave float wm_hs_flamer_main_forend_ofs_x            = 0.0;
+nosave float wm_hs_flamer_main_forend_ofs_y            = 0.0;
+nosave float wm_hs_flamer_main_forend_ofs_z            = 0.0;
+nosave float wm_hs_flamer_main_forend_yaw              = -90.0;
+nosave float wm_hs_flamer_main_forend_pitch            = -90.0;
+nosave float wm_hs_flamer_main_forend_roll             = 0.0;
+nosave float wm_hs_flamer_main_forend_scale            = 1.0;
+nosave float wm_hs_flamer_main_foregrip_ofs_x          = 0.0;
+nosave float wm_hs_flamer_main_foregrip_ofs_y          = 0.0;
+nosave float wm_hs_flamer_main_foregrip_ofs_z          = 0.0;
+nosave float wm_hs_flamer_main_foregrip_yaw            = -90.0;
+nosave float wm_hs_flamer_main_foregrip_pitch          = -90.0;
+nosave float wm_hs_flamer_main_foregrip_roll           = 0.0;
+nosave float wm_hs_flamer_main_foregrip_scale          = 1.0;
+nosave float wm_hs_flamer_off_slide_ofs_x              = 8.4;
+nosave float wm_hs_flamer_off_slide_ofs_y              = 4.4;
+nosave float wm_hs_flamer_off_slide_ofs_z              = 3.1;
+nosave float wm_hs_flamer_off_slide_yaw                = -90.0;
+nosave float wm_hs_flamer_off_slide_pitch              = -90.0;
+nosave float wm_hs_flamer_off_slide_roll               = 180.0;
+nosave float wm_hs_flamer_off_slide_scale              = 1.0;
+nosave float wm_hs_flamer_off_mag_ofs_x                = 0.0;
+nosave float wm_hs_flamer_off_mag_ofs_y                = 0.0;
+nosave float wm_hs_flamer_off_mag_ofs_z                = -0.1;
+nosave float wm_hs_flamer_off_mag_yaw                  = 0.0;
+nosave float wm_hs_flamer_off_mag_pitch                = 0.0;
+nosave float wm_hs_flamer_off_mag_roll                 = 0.0;
+nosave float wm_hs_flamer_off_mag_scale                = 1.0;
+nosave float wm_hs_flamer_off_support_ofs_x            = 0.0;
+nosave float wm_hs_flamer_off_support_ofs_y            = 0.0;
+nosave float wm_hs_flamer_off_support_ofs_z            = 0.0;
+nosave float wm_hs_flamer_off_support_yaw              = 0.0;
+nosave float wm_hs_flamer_off_support_pitch            = 0.0;
+nosave float wm_hs_flamer_off_support_roll             = 0.0;
+nosave float wm_hs_flamer_off_support_scale            = 1.0;
+nosave float wm_hs_flamer_off_forend_ofs_x             = 0.0;
+nosave float wm_hs_flamer_off_forend_ofs_y             = 0.0;
+nosave float wm_hs_flamer_off_forend_ofs_z             = 0.0;
+nosave float wm_hs_flamer_off_forend_yaw               = -90.0;
+nosave float wm_hs_flamer_off_forend_pitch             = -90.0;
+nosave float wm_hs_flamer_off_forend_roll              = 0.0;
+nosave float wm_hs_flamer_off_forend_scale             = 1.0;
+nosave float wm_hs_flamer_off_foregrip_ofs_x           = 0.0;
+nosave float wm_hs_flamer_off_foregrip_ofs_y           = 0.0;
+nosave float wm_hs_flamer_off_foregrip_ofs_z           = 0.0;
+nosave float wm_hs_flamer_off_foregrip_yaw             = -90.0;
+nosave float wm_hs_flamer_off_foregrip_pitch           = -90.0;
+nosave float wm_hs_flamer_off_foregrip_roll            = 0.0;
+nosave float wm_hs_flamer_off_foregrip_scale           = 1.0;

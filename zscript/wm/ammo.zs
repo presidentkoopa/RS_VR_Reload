@@ -63,6 +63,24 @@ class WM_Ammo
 	// the weapon for the reason actionLock is, so a rebind is not a free start. Set by the start
 	// verb's pull (WM_Rig.StartEngine), cleared as the gun leaves the hand (WM_Rig.Unbind).
 	bool engineRunning;
+
+	// THE HAND'S VERDICT, REPLICATED. True while the machine working this gun's
+	// owner saw something about the HAND that stops the trigger: out of battery
+	// (an action part-way back, a stroke ejected and not fed), the support grip
+	// let go on a two-handed gun, or the gun stowed.
+	//
+	// WHY IT LIVES HERE AND NOT ON THE RIG, which is where it is actually seen:
+	// a rig exists only on the machine that works those hands, and WM_System.CanFire
+	// runs on EVERY machine. Asked there, every other machine answered "no hands, no
+	// shot" and the shot desynced -- NETPLAY_SPEC section 1 row 1. So the machine that
+	// can see the hand decides once, sends `wm_fireblk` when the answer CHANGES, and
+	// every machine reads the same value off the gun. NETPLAY_SPEC section 10's
+	// approach B: the owner's machine decides, every machine applies.
+	//
+	// DEFAULT FALSE, which is "nothing about the hand is stopping it". A gun whose
+	// owner's machine has never spoken is therefore governed by its rounds alone,
+	// which is the old wm_verbs-off behaviour and never a stuck trigger.
+	bool fireBlocked;
 	// HOW THIS GUN FIRES (WM_Card.FIRES_*), copied from its card at every bind (WM_Rig.Bind), so a reader with no card to
 	// hand -- a weapon HUD drawing in ui scope, through RS_WeaponAmmoService -- can tell a chamber gun from a reserve one.
 	int  firesFrom;

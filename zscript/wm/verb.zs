@@ -367,9 +367,32 @@ class WM_Verb
 	//
 	// wm_verbs, read as the tic reads it. Unset -- a load with no CVARINFO from this
 	// package -- means the interpreter, which is the build's default.
+	// PRESENTATION AND THE LOCAL TIC ONLY. This reads the CONSOLE player, so it
+	// answers "what is this machine's own player set to" -- right for a log line,
+	// for what this machine draws, and for the hand loop, which works only the
+	// console player's hands anyway.
+	//
+	// NEVER ON A PATH THAT DECIDES WHETHER A SHOT HAPPENS. wm_verbs is a `user`
+	// cvar, so two players can hold different values; a fire path that asked this
+	// one had every machine answer for its own player, and two machines then
+	// disagreed about whether a trigger pull fired at all. Use EnabledFor(pn).
 	static bool Enabled()
 	{
 		let c = CVar.GetCVar("wm_verbs", players[consoleplayer]);
+		return c ? c.GetBool() : true;
+	}
+
+	// PER PLAYER, FOR GAMEPLAY. The same question asked about the player whose
+	// trigger was pulled, so every machine reaches the same answer about the same
+	// shot -- exactly the shape WM_System.ReloadMode(pn) already uses, and for the
+	// same reason. A `user` cvar's value travels with its player, so players[pn]
+	// is correct on every machine, not just that player's own.
+	//
+	// In single player the owner IS the console player and nothing changes.
+	static bool EnabledFor(int pn)
+	{
+		if (pn < 0 || pn >= MAXPLAYERS || !playeringame[pn]) return true;
+		let c = CVar.GetCVar("wm_verbs", players[pn]);
 		return c ? c.GetBool() : true;
 	}
 

@@ -89,10 +89,18 @@ class WM_CardValidator : DataValidator
 			for (int s = 0; s < p.surfaceNames.Size(); s++)
 			{
 				names++;
-				if (!m.HasSurface(p.surfaceNames[s]))
-					missing += Miss(card, p.line, what, m.fullName, p.surfaceNames[s], String.Format(
-						"surface = %s -- %s has no surface by that name, so this part never moves. IT HAS: %s",
-						p.surfaceNames[s], m.fullName, m.SurfaceList()));
+				int si = WM_SurfaceRef.Resolve(m.IndexOf(p.surfaceNames[s]), p.surfaceNames[s], m.surfaces.Size());
+				if (si < 0)
+				{
+					missing += Miss(card, p.line, what, m.fullName, p.surfaceNames[s],
+						WM_SurfaceRef.IsIndex(p.surfaceNames[s])
+						? String.Format("surface = %s -- %s has %d surface(s), numbered 0 to %d, so this part never moves. IT HAS: %s",
+							p.surfaceNames[s], m.fullName, m.surfaces.Size(), m.surfaces.Size() - 1, m.SurfaceList())
+						: String.Format("surface = %s -- %s has no surface by that name, so this part never moves. IT HAS: %s",
+							p.surfaceNames[s], m.fullName, m.SurfaceList()));
+					continue;
+				}
+				missing += CheckFingerprint(card, p, m, si);
 			}
 			if (p.jointName != "")
 			{
@@ -155,10 +163,15 @@ class WM_CardValidator : DataValidator
 			for (int s = 0; s < p.surfaceNames.Size(); s++)
 			{
 				names++;
-				if (!ClassModelHasSurface(prop, mi, p.surfaceNames[s]))
-					missing += Miss(card, p.line, what, file, p.surfaceNames[s], String.Format(
-						"surface = %s on model %d -- %s has no surface by that name, so this part never moves. IT HAS: %s",
-						p.surfaceNames[s], mi, file, ClassModelSurfaceList(prop, mi)));
+				int total = Actor.GetClassModelSurfaceCount(prop, mi);
+				int si = WM_SurfaceRef.Resolve(ClassModelIndexOf(prop, mi, p.surfaceNames[s]), p.surfaceNames[s], total);
+				if (si < 0)
+					missing += Miss(card, p.line, what, file, p.surfaceNames[s],
+						WM_SurfaceRef.IsIndex(p.surfaceNames[s])
+						? String.Format("surface = %s on model %d -- %s has %d surface(s), numbered 0 to %d, so this part never moves. IT HAS: %s",
+							p.surfaceNames[s], mi, file, total, total - 1, ClassModelSurfaceList(prop, mi))
+						: String.Format("surface = %s on model %d -- %s has no surface by that name, so this part never moves. IT HAS: %s",
+							p.surfaceNames[s], mi, file, ClassModelSurfaceList(prop, mi)));
 			}
 			if (p.jointName != "")
 			{
@@ -172,15 +185,18 @@ class WM_CardValidator : DataValidator
 		return names, missing;
 	}
 
-	private static bool ClassModelHasSurface(class<Actor> prop, int mi, String name)
+	// WHICH surface carries that name, or -1. The yes/no twin this replaced could not
+	// feed WM_SurfaceRef, which needs the answer itself to decide whether to fall back
+	// to reading the card's text as an index.
+	private static int ClassModelIndexOf(class<Actor> prop, int mi, String name)
 	{
 		int count = Actor.GetClassModelSurfaceCount(prop, mi);
 		for (int k = 0; k < count; k++)
 		{
 			String have = "" .. Actor.GetClassModelSurfaceName(prop, mi, k);
-			if (have ~== name) return true;
+			if (have ~== name) return k;
 		}
-		return false;
+		return -1;
 	}
 
 	private static bool ClassModelHasJoint(class<Actor> prop, int mi, String name)
@@ -208,6 +224,34 @@ class WM_CardValidator : DataValidator
 		int count = Actor.GetClassModelJointCount(prop, mi);
 		for (int k = 0; k < count; k++) s = s .. (k > 0 ? ", " : "") .. Actor.GetClassModelJointName(prop, mi, k);
 		return (s == "") ? "no joints -- only a rigged IQM has any" : s;
+	}
+
+	// THE FINGERPRINT (a part's `fingerprint = <verts>, <size>`), CHECKED.
+	//
+	// An index is a position in a file and not a description of anything. Re-export the
+	// mesh with its surfaces in another order and every card addressing it by index is
+	// suddenly driving a different piece -- which looks exactly like a bad measurement,
+	// and gets blamed on the card, the engine and the player's eyes long before anyone
+	// suspects the file. The fingerprint is what the part was measured against, so this
+	// can say which it is.
+	//
+	// THE VERTEX COUNT ONLY, HERE. It is exact, it is one number per surface already in
+	// the header, and two surfaces of one gun almost never carry the same count -- so it
+	// catches a renumbering for the price of a table lookup. The SIZE half is card_lint's
+	// (rest pose, bounding-box diagonal, the same convention the generator measures): it
+	// needs every vertex of the surface read, and this runs at every boot of a check.
+	//
+	// MD3 ONLY. This checker does not read an IQM's vertices, so an IQM part's
+	// fingerprint is not checked rather than wrongly refused.
+	private int CheckFingerprint(WM_Card card, WM_Part p, WM_ModelNames m, int si)
+	{
+		if (p.fpVerts <= 0) return 0;            // the card did not say
+		int have = m.VertsOf(si);
+		if (have < 0) return 0;                  // not an MD3, or the count was not read
+		if (have == p.fpVerts) return 0;
+		return Miss(card, p.line, String.Format("part %s (%s)", p.id, card.weaponClass), m.fullName, "fingerprint",
+			String.Format("fingerprint says surface %d had %d vertices; %s's surface %d has %d. The mesh has been re-exported or its surfaces renumbered, so this part is driving the wrong piece -- re-measure the card against the model it now names.",
+				si, p.fpVerts, m.fullName, si, have));
 	}
 
 	private int Miss(WM_Card card, int line, String what, String file, String name, String why)
@@ -246,6 +290,9 @@ class WM_ModelNames
 	String why;               // why the names could not be read; "" when they were
 	Array<String> surfaces;
 	Array<String> joints;
+	// Vertices per surface, in surface order, for the fingerprint check. MD3 only, and
+	// empty where the surface list did not parse -- kept in step with `surfaces`.
+	Array<int>    verts;
 
 	// As A_ChangeModel joins them (p_actionfunctions.cpp ChangeModelNative): a path not ending in '/' gets one.
 	static String JoinPath(String path, String file)   // not FullName: ZScript names ignore case, and fullName is the field
@@ -272,6 +319,21 @@ class WM_ModelNames
 	{
 		for (int i = 0; i < surfaces.Size(); i++) if (surfaces[i] ~== name) return true;
 		return false;
+	}
+
+	// WHICH surface carries that name, or -1. WM_SurfaceRef needs the answer itself,
+	// not a yes or no: -1 is what tells it to try the card's text as an index.
+	int IndexOf(String name)
+	{
+		for (int i = 0; i < surfaces.Size(); i++) if (surfaces[i] ~== name) return i;
+		return -1;
+	}
+
+	// How many vertices surface si carries, or -1 where that was not read (an IQM, or a
+	// file whose surface list did not parse). Straight out of the MD3 surface header.
+	int VertsOf(int si)
+	{
+		return (si >= 0 && si < verts.Size()) ? verts[si] : -1;
 	}
 
 	bool HasJoint(String name)
@@ -329,7 +391,7 @@ class WM_ModelNames
 	}
 
 	// md3_header_t: Num_Surfaces at 84, Ofs_Surfaces at 100. Each md3_surface_t has its name in the 64 bytes from +4
-	// (not always null-terminated) and the offset to the next surface at +104.
+	// (not always null-terminated), its vertex count at +80, and the offset to the next surface at +104.
 	private void ReadMd3(String d, int size)
 	{
 		kind = "MD3";
@@ -341,16 +403,19 @@ class WM_ModelNames
 			{
 				why = "an MD3 whose surface list runs past the end of the file";
 				surfaces.Clear();
+				verts.Clear();
 				return;
 			}
 			int e = at + 4;
 			while (e < at + 68 && d.ByteAt(e) != 0) e++;
 			surfaces.Push(d.Mid(at + 4, e - (at + 4)));
+			verts.Push(U32(d, at + 80));
 			int step = U32(d, at + 104);
 			if (step <= 0)
 			{
 				why = "an MD3 whose surface list runs past the end of the file";
 				surfaces.Clear();
+				verts.Clear();
 				return;
 			}
 			at += step;

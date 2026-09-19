@@ -574,6 +574,42 @@ class WM_Gun : Weapon
 	// for a free reload.
 	WM_Ammo wmAmmo;
 
+	// THE GUN'S ROUNDS MUST EXIST ON EVERY MACHINE, AND THIS IS WHERE THEY ARE MADE.
+	//
+	// They used to be made in WM_Rig.Bind, and a rig is only ever built for the
+	// console player (WM_System.WorldTick works ForPlayer(consoleplayer)), so on
+	// every machine that was not the shooter's this field stayed NULL: the gun
+	// had no rounds at all, the fire path answered a different question there
+	// than on the shooter's machine, and the shot desynced. That is NETPLAY_SPEC
+	// section 1 row 2, and it is the reason the fire path is being moved off the
+	// hands entirely.
+	//
+	// Built HERE instead, from the CARD, which every machine parses from the same
+	// lumps: same capacity, same stores, same starting fill. Same inputs, same
+	// result, on every machine, with no hand involved -- which is the whole
+	// netplay requirement. Lazily, because a card set may not be parsed yet when
+	// a weapon is first given.
+	//
+	// Bind adopts what this returns; it no longer makes its own.
+	WM_Ammo EnsureAmmo()
+	{
+		if (wmAmmo) return wmAmmo;
+		let sys = WM_System(EventHandler.Find("WM_System"));
+		if (!sys) return null;
+		let c = sys.CardForWeapon(GetClassName());
+		if (!c) return null;
+		let a = new("WM_Ammo");
+		a.Init(c.capacity, c);
+		// WHAT A WEAPON HUD READS WITHOUT THE CARD (RS_WeaponAmmoService): how this
+		// gun fires, and which of its stores are a second barrel's. Set here as well
+		// as at every bind, so a gun that has never been in a hand still answers.
+		a.firesFrom = c.firesFrom;
+		for (int i = 0; i < a.stores.Size(); i++)
+			if (a.stores[i]) a.stores[i].barrelStore = c.IsBarrelStore(a.stores[i].id);
+		wmAmmo = a;
+		return wmAmmo;
+	}
+
 	int Hand() { return bOffhandWeapon ? 1 : 0; }
 
 	// ---- FIRE HOLD AND RELEASE --------------------------------------------------------
@@ -1003,7 +1039,9 @@ class WM_Gun : Weapon
 		double sprV     = invoker.ShotPitchSpread();
 		// THE FIRST SHOTS OF A HOLD FLY DEAD ON (WM_Gun.FirstShotsAccurate N): one pellet, and one of the first N shots of a
 		// held run -- vanilla A_FireBullets' own test. Every later shot keeps the class's spread, on the same named RNG.
-		if (invoker.firstShotsDeadOn > 0 && nPellets == 1 && invoker.refireCount < invoker.firstShotsDeadOn)
+		bool deadOn = (invoker.firstShotsDeadOn > 0 && nPellets == 1
+		               && invoker.refireCount < invoker.firstShotsDeadOn);
+		if (deadOn)
 		{
 			sprH = 0;
 			sprV = 0;
@@ -1023,6 +1061,24 @@ class WM_Gun : Weapon
 		if (!invoker.railShotOn)
 		{
 			[kickYaw, kickPitch, kickBloom] = invoker.RecoilStep(invoker.recoilProfileName);
+			// DEAD ON MEANS DEAD ON, AND IT HAS TO MEAN IT IN BOTH PLACES.
+			//
+			// Zeroing the spread above and then adding the profile's bloom back here is a
+			// promise kept and broken in the same function: once the kick has built, a
+			// weapon that declares its first N shots exact does not get them. The round is
+			// not TURNED by the accumulated climb and drift either -- see the shot below --
+			// because a bullet aimed perfectly and then rotated two lines later is no more
+			// accurate than one that was never aimed.
+			//
+			// RecoilStep is still CALLED while the promise holds, so the kick keeps
+			// accumulating and the shot after the promise ends is as wrong as it should be.
+			// What is suppressed is the effect on THIS round, not the recoil itself.
+			if (deadOn)
+			{
+				kickYaw   = 0;
+				kickPitch = 0;
+				kickBloom = 0;
+			}
 			sprH += kickBloom;
 			sprV += kickBloom;
 		}
