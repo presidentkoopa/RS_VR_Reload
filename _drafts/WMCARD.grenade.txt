@@ -1,0 +1,112 @@
+# ============================================================================
+# THE GRENADE'S CARD -- DRAFT, 2026-09-18. NOT A LUMP YET.
+#
+# It sits in _drafts/ deliberately: build.ps1 packs a fixed root lump list, so nothing
+# here reaches a pk3. Two things have to happen before it is real:
+#   1. It needs a HOME. The grenade's class and prop live in RS_VR_Weapons, so the card
+#      belongs beside them, in that lane's package -- not in the reload system.
+#   2. Its verbs need PLAY CODE. `pulloff`, `release`, `fuse` and `throw` are parsed
+#      today and do nothing (THROWABLE_PLAN section 8, steps 2-5, unbuilt). The PARTS
+#      below work now: a part with a dof is grabbable and driveable by hand the moment a
+#      card declares it.
+#
+# THE MESH IT IS WRITTEN AGAINST: models/grenades/grenade_wm.md3 -- three surfaces named
+# body, pin and lever, made 09-14 from nade.md3 frame 2, re-origined
+# (RS_VR_Weapons/_pending/THROWABLE_MESHES.md). THE LIVE PROP DOES NOT DRAW IT: MODELDEF
+# points RS_VRGrenadeHeldMain/Off at nade.md3 at Scale 0.5643. Pointing the prop at
+# grenade_wm.md3 is the weapons lane's call and is required for these numbers to mean
+# anything -- nade.md3's surfaces are named low_lowbodymesh / low_ring02mesh /
+# low_button01mesh, two of them duplicated, and its 27 frames animate the WHOLE grenade
+# through a throw rather than moving parts against the body.
+#
+# EVERY NUMBER BELOW IS MEASURED off grenade_wm.md3 frame 0, in the file's own axes,
+# with ModelSwapper's reader (tools_md3_reorigin.read_all) -- the same reader every
+# Vanilla, Vanilla+ and Modern model went through.
+# ============================================================================
+
+
+# ====================================================== THE GRENADE
+weapon "RS_VRGrenade"
+  type      = grenade
+  prop      = "RS_VRGrenadeHeldMain"
+  model     = "models/grenades" "grenade_wm.md3"
+  skin      = "models/grenades" "nade.png"
+  firesfrom = none
+
+  # It is carried whole and spent whole: no magazine, no rounds, one object.
+  capacity  = 1
+
+  # THE BODY is the thing itself, 7.9 across and 17.0 tall, centred on the origin
+  # (-0.055, -0.017, 0.642). No part block: a hand holds the grenade, not a piece of it.
+
+  # ---------------------------------------------------------------- THE PIN
+  # ITS OWN SURFACE ALREADY (535 verts), so it can be pulled, hidden or handed to the
+  # world with no cutting and no re-export.
+  #
+  # THE SHAFT, NOT THE RING, GIVES THE AXIS. The surface is a ring welded to a shaft, and
+  # their combined principal axis is a diagonal belonging to neither -- that diagonal
+  # (-0.022, -0.761, 0.649) was the first answer this measuring pass produced and it is
+  # wrong. Split by triangle connectivity, the straightest lump (26 verts, straightness
+  # 0.75) runs dead along y, which is the direction a pin actually leaves.
+  #
+  # THE DISTANCE IS WHAT FREES IT, not an arbitrary throw: at the pin's height (z 3.38 to
+  # 8.09) the body reaches y 3.94 and the lever's lugs y 0.91; the pin's trailing end
+  # starts at y -1.48. 5.92 along +y puts the trailing end past both with half a unit to
+  # spare.
+  part pin
+    subject = pin
+    surface = pin
+    # The ring, where a finger hooks -- the end of the surface furthest along the pull.
+    grab       = -1.555, 4.695, 4.097
+    grabradius = 2.0
+    dof
+      kind     = slide
+      axis     = 0, 1, 0
+      distance = 5.92
+      # Gone at nine tenths: past that the pin is clear of the lugs and belongs to the
+      # hand, not the grenade.
+      detach   = 0.9
+    end
+  end
+
+  # ---------------------------------------------------------------- THE LEVER
+  # The spoon. Its own surface (542 verts), 12.9 long, running down the body from the
+  # fuse to z -3.05.
+  #
+  # THE PIVOT IS MEASURED, NOT GUESSED. In nade.md3 the whole grenade is animated through
+  # space, so raw travel says nothing; with the body's own rigid motion removed (Kabsch
+  # against frame 0) the lever has one point that never moves while the rest swings --
+  # the retaining lugs. In grenade_wm's axes those are the two lumps at
+  # (-1.812, +/-0.83, 7.68), so the hinge runs along y through (-1.812, 0, 7.68).
+  #
+  # 45 degrees then gone: the same animation shows the lever swinging and then leaving
+  # the model entirely, which is what a spoon does.
+  part lever
+    subject = lever
+    surface = lever
+    dof
+      kind    = hinge
+      axis    = 0, 1, 0
+      degrees = 45
+      pivot   = -1.812, 0.000, 7.680
+    end
+  end
+end
+
+
+# ============================================================================
+# THE VERBS, WRITTEN OUT SO THE SHAPE IS ON RECORD. None of these run yet
+# (THROWABLE_PLAN section 8). Numbers that are measured are marked; the rest are the
+# plan's and are the owner's to set in a headset.
+#
+#   pulloff pin     part pin, offat 0.9, by hand, needs trigger, arms yes
+#   release lever   part lever, heldby grip
+#   fuse            tics 105, starts pulloff, blast RSVG_Blast, cookoff player, dud RSVG_Pickup
+#   throw           on trigger, minspeed 1.2, flight WM_ThrownWeapon, spin wrist, spends 1, after empty
+#
+# ONE NUMBER IN THE PLAN NEEDED CORRECTING, and it was not wrong so much as measured
+# somewhere else: THROWABLE_PLAN said the pin slides 24.65 along +Y. That is nade.md3's
+# number at frame 7 -- the frame where the pin comes clear in that mesh's own scale, and
+# it reads as 24.65 there. On grenade_wm.md3, the mesh this card names, the same event is
+# 5.92. Both are right about their own file; only one belongs in a card.
+# ============================================================================

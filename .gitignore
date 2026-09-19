@@ -1,0 +1,28 @@
+# Built by build.ps1 from the sources beside it; never committed.
+*.pk3
+__pycache__/
+*.bak
+_old/
+# Engine logs written into this folder, and run.ps1's test logs.
+doomxr-log.txt
+log-debug.txt
+wm_last.log
+logs/
+
+# python caches from the card tools
+__pycache__/
+*.pyc
+
+# CARDKIT HOLDS NO MODELS. It is a toolkit: scripts, docs, one config per set, and
+# the cards it generates. Every mesh under it is REGENERATED from the donor --
+# `wm/` by prep_wm (the gun at its resting pose, pieces named) and `src/` by
+# bake_rig (a Quake3 rig flattened into one animated mesh). They came to 334 MB
+# against 1.2 MB of actual kit, and one baked Browning alone was 55 MB, over
+# GitHub's file limit. The shipped copies live in the weapon package, where models
+# belong.
+CardKit/sets/*/wm/
+CardKit/sets/*/src/
+
+# The card kit is its own package now: RS_WeaponCardKit.
+# It is a workshop tool, not a mod the game loads.
+CardKit/

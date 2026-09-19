@@ -1,0 +1,3 @@
+// wm_card <weapon class> | all | check -- the model card and weapon sheet printout (zscript/wm/sheet.zs).
+// A network event so it reaches WM_System.NetworkProcess; it prints on the sender's machine only and changes nothing.
+alias wm_card "netevent wm_card:%1"

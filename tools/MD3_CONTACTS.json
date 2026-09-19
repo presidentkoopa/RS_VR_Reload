@@ -1,0 +1,471 @@
+[
+ {
+  "gun": "WM_M4A3",
+  "type": "pistol",
+  "part": "slide",
+  "field": "grab",
+  "point": [
+   -6.09,
+   0.09,
+   6.2
+  ],
+  "scale": 0.82,
+  "surface_named": "m4a3_slide",
+  "landed_on": "m4a3_slide",
+  "off_surface": 0.358,
+  "off_own_surface": 0.358,
+  "off_map": 0.29,
+  "normal": [
+   -0.91,
+   0.038,
+   0.412
+  ],
+  "coherence": 0.54,
+  "enclosed": false,
+  "nearest_wall": null
+ },
+ {
+  "gun": "WM_M4A3",
+  "type": "pistol",
+  "part": "magazine",
+  "field": "grab",
+  "point": [
+   -10.5,
+   0.0,
+   -12.0
+  ],
+  "scale": 0.82,
+  "surface_named": "m4a3_magazine",
+  "landed_on": "m4a3_magazine",
+  "off_surface": 0.627,
+  "off_own_surface": 0.627,
+  "off_map": 0.51,
+  "normal": [
+   -0.291,
+   -0.006,
+   -0.957
+  ],
+  "coherence": 0.531,
+  "enclosed": false,
+  "nearest_wall": null
+ },
+ {
+  "gun": "WM_M4A3",
+  "type": "pistol",
+  "part": "support",
+  "field": "grab",
+  "point": [
+   -1.0,
+   0.0,
+   -5.5
+  ],
+  "scale": 0.82,
+  "surface_named": null,
+  "landed_on": "m4a3",
+  "off_surface": 1.157,
+  "off_own_surface": null,
+  "off_map": 0.95,
+  "normal": null,
+  "coherence": 0.332,
+  "enclosed": true,
+  "nearest_wall": {
+   "deg": 270.0,
+   "dist": 1.562,
+   "surface": "m4a3",
+   "at": [
+    -1.0,
+    0.0,
+    -3.938
+   ],
+   "normal": [
+    0.75,
+    -0.338,
+    -0.569
+   ]
+  }
+ },
+ {
+  "gun": "WM_Pistolet",
+  "type": "pistol",
+  "part": "slide",
+  "field": "grab",
+  "point": [
+   -4.87,
+   -0.11,
+   2.6
+  ],
+  "scale": 1.35,
+  "surface_named": "slide",
+  "landed_on": "slide",
+  "off_surface": 0.155,
+  "off_own_surface": 0.155,
+  "off_map": 0.21,
+  "normal": null,
+  "coherence": 0.19,
+  "enclosed": true,
+  "nearest_wall": {
+   "deg": 90.0,
+   "dist": 0.053,
+   "surface": "slide",
+   "at": [
+    -4.87,
+    -0.11,
+    2.547
+   ],
+   "normal": [
+    0.0,
+    -0.287,
+    0.958
+   ]
+  }
+ },
+ {
+  "gun": "WM_Pistolet",
+  "type": "pistol",
+  "part": "magazine",
+  "field": "grab",
+  "point": [
+   -4.6,
+   0.0,
+   -9.0
+  ],
+  "scale": 1.35,
+  "surface_named": "mag",
+  "landed_on": "mag",
+  "off_surface": 0.675,
+  "off_own_surface": 0.675,
+  "off_map": 0.91,
+  "normal": [
+   -0.21,
+   0.043,
+   -0.977
+  ],
+  "coherence": 0.493,
+  "enclosed": false,
+  "nearest_wall": null
+ },
+ {
+  "gun": "WM_Pistolet",
+  "type": "pistol",
+  "part": "support",
+  "field": "grab",
+  "point": [
+   -0.3,
+   0.0,
+   -5.0
+  ],
+  "scale": 1.35,
+  "surface_named": null,
+  "landed_on": "rec",
+  "off_surface": 0.873,
+  "off_own_surface": null,
+  "off_map": 1.18,
+  "normal": [
+   0.854,
+   0.012,
+   -0.519
+  ],
+  "coherence": 0.415,
+  "enclosed": false,
+  "nearest_wall": {
+   "deg": 270.0,
+   "dist": 0.905,
+   "surface": "rec",
+   "at": [
+    -0.3,
+    0.0,
+    -4.095
+   ],
+   "normal": [
+    -0.361,
+    0.0,
+    -0.933
+   ]
+  }
+ },
+ {
+  "gun": "WM_PumpM37",
+  "type": "shotgun",
+  "part": "forend",
+  "field": "grab",
+  "point": [
+   19.2,
+   -0.2,
+   0.17
+  ],
+  "scale": 1.1,
+  "surface_named": "m37a2_pump",
+  "landed_on": "m37a2_pump",
+  "off_surface": 1.243,
+  "off_own_surface": 1.243,
+  "off_map": 1.37,
+  "normal": null,
+  "coherence": 0.059,
+  "enclosed": true,
+  "nearest_wall": {
+   "deg": 168.8,
+   "dist": 1.184,
+   "surface": "m37a2_pump",
+   "at": [
+    19.2,
+    0.962,
+    -0.061
+   ],
+   "normal": [
+    -0.013,
+    -0.977,
+    0.212
+   ]
+  }
+ },
+ {
+  "gun": "WM_PumpM37",
+  "type": "shotgun",
+  "part": "forend",
+  "field": "handseat",
+  "point": [
+   19.2,
+   -0.2,
+   -2.42
+  ],
+  "scale": 1.1,
+  "surface_named": "m37a2_pump",
+  "landed_on": "m37a2_pump",
+  "off_surface": 1.238,
+  "off_own_surface": 1.238,
+  "off_map": 1.36,
+  "normal": [
+   0.015,
+   -0.048,
+   -0.999
+  ],
+  "coherence": 0.592,
+  "enclosed": false,
+  "nearest_wall": null
+ },
+ {
+  "gun": "WM_PumpDoom",
+  "type": "shotgun",
+  "part": "forend",
+  "field": "grab",
+  "point": [
+   15.89,
+   -0.03,
+   0.27
+  ],
+  "scale": 1.35,
+  "surface_named": "doomshot.001",
+  "landed_on": "doomshot",
+  "off_surface": 0.88,
+  "off_own_surface": 2.492,
+  "off_map": 1.19,
+  "normal": null,
+  "coherence": 0.012,
+  "enclosed": true,
+  "nearest_wall": {
+   "deg": 191.2,
+   "dist": 0.606,
+   "surface": "doomshot",
+   "at": [
+    15.89,
+    0.564,
+    0.388
+   ],
+   "normal": [
+    0.0,
+    -0.994,
+    -0.11
+   ]
+  }
+ },
+ {
+  "gun": "WM_PumpDoom",
+  "type": "shotgun",
+  "part": "forend",
+  "field": "handseat",
+  "point": [
+   15.89,
+   -0.03,
+   -2.55
+  ],
+  "scale": 1.35,
+  "surface_named": "doomshot.001",
+  "landed_on": "doomshot",
+  "off_surface": 1.407,
+  "off_own_surface": 2.197,
+  "off_map": 1.9,
+  "normal": null,
+  "coherence": 0.296,
+  "enclosed": true,
+  "nearest_wall": {
+   "deg": 281.2,
+   "dist": 0.003,
+   "surface": "doomshot.001",
+   "at": [
+    15.89,
+    -0.031,
+    -2.547
+   ],
+   "normal": [
+    -0.0,
+    0.375,
+    -0.927
+   ]
+  }
+ },
+ {
+  "gun": "WM_BullpupPump",
+  "type": "shotgun",
+  "part": "forend",
+  "field": "grab",
+  "point": [
+   15.97,
+   0.01,
+   -11.9
+  ],
+  "scale": 1.1,
+  "surface_named": "forend",
+  "landed_on": "forend",
+  "off_surface": 1.254,
+  "off_own_surface": 1.254,
+  "off_map": 1.38,
+  "normal": null,
+  "coherence": 0.012,
+  "enclosed": true,
+  "nearest_wall": {
+   "deg": 180.0,
+   "dist": 1.131,
+   "surface": "forend",
+   "at": [
+    15.97,
+    1.141,
+    -11.9
+   ],
+   "normal": [
+    0.0,
+    -1.0,
+    0.0
+   ]
+  }
+ },
+ {
+  "gun": "WM_BullpupPump",
+  "type": "shotgun",
+  "part": "forend",
+  "field": "handseat",
+  "point": [
+   15.97,
+   0.01,
+   -11.9
+  ],
+  "scale": 1.1,
+  "surface_named": "forend",
+  "landed_on": "forend",
+  "off_surface": 1.254,
+  "off_own_surface": 1.254,
+  "off_map": 1.38,
+  "normal": null,
+  "coherence": 0.012,
+  "enclosed": true,
+  "nearest_wall": {
+   "deg": 180.0,
+   "dist": 1.131,
+   "surface": "forend",
+   "at": [
+    15.97,
+    1.141,
+    -11.9
+   ],
+   "normal": [
+    0.0,
+    -1.0,
+    0.0
+   ]
+  }
+ },
+ {
+  "gun": "WM_AssaultShotgun",
+  "type": "shotgun",
+  "part": "charginghandle",
+  "field": "grab",
+  "point": [
+   -3.5,
+   3.02,
+   0.5
+  ],
+  "scale": 1.0,
+  "surface_named": "chargehandle",
+  "landed_on": "chargehandle",
+  "off_surface": 0.202,
+  "off_own_surface": 0.202,
+  "off_map": 0.2,
+  "normal": [
+   -0.022,
+   0.942,
+   0.336
+  ],
+  "coherence": 0.454,
+  "enclosed": false,
+  "nearest_wall": null
+ },
+ {
+  "gun": "WM_AssaultShotgun",
+  "type": "shotgun",
+  "part": "magazine",
+  "field": "grab",
+  "point": [
+   -10.06,
+   0.07,
+   -15.08
+  ],
+  "scale": 1.0,
+  "surface_named": "mag",
+  "landed_on": "mag",
+  "off_surface": 1.393,
+  "off_own_surface": 1.393,
+  "off_map": 1.39,
+  "normal": [
+   -0.026,
+   0.006,
+   -1.0
+  ],
+  "coherence": 0.769,
+  "enclosed": false,
+  "nearest_wall": null
+ },
+ {
+  "gun": "WM_AssaultShotgun",
+  "type": "shotgun",
+  "part": "support",
+  "field": "grab",
+  "point": [
+   13.34,
+   0.05,
+   -4.03
+  ],
+  "scale": 1.0,
+  "surface_named": null,
+  "landed_on": "body",
+  "off_surface": 0.374,
+  "off_own_surface": null,
+  "off_map": 0.37,
+  "normal": null,
+  "coherence": 0.084,
+  "enclosed": true,
+  "nearest_wall": {
+   "deg": 67.5,
+   "dist": 0.001,
+   "surface": "body",
+   "at": [
+    13.34,
+    0.049,
+    -4.031
+   ],
+   "normal": [
+    0.0,
+    0.0,
+    1.0
+   ]
+  }
+ }
+]
