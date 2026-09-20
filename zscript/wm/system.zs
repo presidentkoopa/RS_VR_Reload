@@ -3399,9 +3399,48 @@ class WM_System : EventHandler
 				st.ForeignMag() ? "RS_WorldHands has a magazine in it" : ""));
 			DumpHandState(ph, h);
 		}
+		DumpWeight(ph);
 		for (int r = 0; r < 2; r++)
 			ph.rigs[r].Dump(pmo, 1 - r, HandPos(pmo, 1 - r));
 		WM_Log.Rule("end");
+	}
+
+	// WHAT EACH HELD GUN WEIGHS AND HOW FAR IT ACTUALLY SAGS.
+	//
+	// THIS EXISTS BECAUSE "SILENTLY DID NOTHING" AND "SILENTLY WORKED" LOOKED THE SAME, and
+	// that is not a hypothetical: the sag shipped tuned to a fleet we do not ship, and
+	// THIRTY-TWO of the 75 guns carrying a real measured weight came out under 2 degrees --
+	// present, correct, and invisible. Nothing errored. It was found by reconstructing the
+	// curve against every weight in the pack, which is a poor substitute for the gun saying
+	// what it did. The ballistics lane lost a run to the identical shape on its side.
+	//
+	// So this prints the INPUT and the RESULT together. A gun reading 0.0 lb is NO DATA --
+	// 80 of the 155 shipped guns state no baseweight -- and that is said in those words,
+	// because a caller reading 0 as "weightless" is the one mistake this whole service was
+	// built to prevent. On demand through wm_dump, never once a tic: the owner does not
+	// need a console line every time he picks up a pistol.
+	private void DumpWeight(WM_PlayerHands ph)
+	{
+		for (int h = 0; h < 2; h++)
+		{
+			let g = ph.rigs[h] ? WM_Gun(ph.rigs[h].gunItem) : null;
+			if (!g) { WM_Log.Info(String.Format("%s hand WEIGHT: nothing held", HandName(h))); continue; }
+			double lbs = g.BaseWeightLbs();
+			if (lbs <= 0)
+			{
+				WM_Log.Info(String.Format("%s hand WEIGHT: %s states NO BASEWEIGHT -- no sag, and that is not the same as light",
+					HandName(h), g.GetClassName()));
+				continue;
+			}
+			// the same expression rig.zs applies, so this cannot drift from what is drawn
+			double free = CVar.GetCVar("wm_weight_free", players[consoleplayer]).GetFloat();
+			double span = CVar.GetCVar("wm_weight_span", players[consoleplayer]).GetFloat();
+			double degs = CVar.GetCVar("wm_weight_sag_deg", players[consoleplayer]).GetFloat();
+			double t = (span > 0) ? clamp((lbs - free) / span, 0.0, 1.0) : 0.0;
+			WM_Log.Info(String.Format("%s hand WEIGHT: %s %.2f lb -> sag %.2f deg%s",
+				HandName(h), g.GetClassName(), lbs, t * degs,
+				(t * degs < 2.0) ? "   (UNDER 2 DEG -- you will not feel this)" : ""));
+		}
 	}
 
 	// THE STATE MACHINE, BY NAME. One line per hand: its mode, the part it is

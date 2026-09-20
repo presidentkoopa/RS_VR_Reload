@@ -2777,3 +2777,21 @@ nosave float wm_hs_flamer_off_foregrip_yaw             = -90.0;
 nosave float wm_hs_flamer_off_foregrip_pitch           = -90.0;
 nosave float wm_hs_flamer_off_foregrip_roll            = 0.0;
 nosave float wm_hs_flamer_off_foregrip_scale           = 1.0;
+
+// ---- GUN WEIGHT: a heavy gun held one-handed sags --------------------------
+// BaseWeightLbs() off the sheet: 75 of the 155 guns SHIPPED (counted in the pk3s, not the
+// source), 1.58 lb (BW_P38) to 35 (WM_Chaingun). The other 80 state nothing.
+// The gun turns about the GRIP; the hand never moves, because the player's real hand is
+// ground truth. 0 lb means NO DATA (80 guns have none) and gives NO sag, never "light".
+server bool  sv_wm_weight_sag  = true;
+// FITTED TO THE FLEET WE ACTUALLY SHIP, not to a guess. At the first values (free 6,
+// span 20) THIRTY-TWO of the 75 weighted guns landed between "nothing" and 2 degrees --
+// they carried a real measured weight and still did nothing a headset could feel, which
+// reads as the feature being broken rather than as a light gun. Only the chainguns moved.
+// At 3/14: 20 pistols still hang DEAD level, 54 guns sag enough to feel, 11 max out and
+// they are the chainguns and the MGs. 3 lb is also the honest one-handed figure -- six
+// pounds held out at arm's length is already a strain, not a gun that hangs level.
+user   float wm_weight_free    = 3.0;   // lb that still hangs level in one hand
+user   float wm_weight_span    = 14.0;  // lb above that to reach full sag
+user   float wm_weight_sag_deg = 12.0;  // degrees the muzzle drops at full sag
+user   float wm_weight_twohand = 0.15;  // what is left of the sag with both hands on it

@@ -15,7 +15,10 @@
 //     trailprofile = "<profile>"   chargetics = N                chargesound = "<sound>"
 //     shotsaw = yes | no           sawsounds = "<full>", "<hit>" sawpuff = "<actor>"
 //     spinuptics = N               spindowntics = N
-//     altmode = burst | selectfire | shred | slamfire | onebarrel | doubleshell | fan    (WM_Gun.AltMode)
+//     altmode = burst | selectfire | shred | slamfire | onebarrel | doubleshell | fan | thrown    (WM_Gun.AltMode)
+//     throwclass = "<actor>"   what LEAVES the hand -- the thing in flight, not the thing held (altmode thrown)
+//     throwtics  = N            the wind-up before it goes (altmode thrown)
+//     baseweight = <pounds>     what the EMPTY gun weighs (WM_Gun.BaseWeight)
 //     altburst = N                 altbursttics = N              altratescale = x
 //     altdamagescale = x           altfanmax = N                 spreadshape = box | cone
 //     roundprofile, flashprofile, altflashprofile, ejectaprofile = "<RS_Ballistics profile>"
@@ -105,6 +108,9 @@ class WM_Sheet
 	int    spinDownTicCount;                    bool spinDownTicsStated;
 	String altModeName;                         bool altModeStated;
 	int    altBurstCount;                       bool altBurstStated;
+	double baseWeightLb;                        bool baseWeightStated;
+	String throwClassName;                      bool throwClassStated;
+	int    throwTicCount;                       bool throwTicsStated;
 	int    altBurstTicCount;                    bool altBurstTicsStated;
 	double altRateScaleValue;                   bool altRateScaleStated;
 	double altDamageScaleValue;                 bool altDamageScaleStated;
@@ -384,8 +390,34 @@ class WM_SheetReader
 		}
 		else if (key == "altmode")
 		{
-			if (WM_Gun.AltModeWord(lw) < 0) return "altmode is burst, selectfire, shred, slamfire, onebarrel, doubleshell or fan";
+			if (WM_Gun.AltModeWord(lw) < 0) return "altmode is burst, selectfire, shred, slamfire, onebarrel, doubleshell, fan or thrown";
 			s.altModeName = lw;  s.altModeStated = true;
+		}
+		else if (key == "baseweight")
+		{
+			// NO UPPER BOUND. The M56 Smartgun is 39 lb and ED-209's chaingun is heavier;
+			// a ceiling chosen today would be wrong the first time somebody cards a cannon.
+			// Zero or negative is not a weight, and that is the whole test.
+			double w = lw.ToDouble();
+			if (w <= 0) return "baseweight is the empty gun in pounds, greater than zero";
+			s.baseWeightLb = w;  s.baseWeightStated = true;
+		}
+		else if (key == "throwclass")
+		{
+			// NOT CHECKED AGAINST A LOADED CLASS HERE. The sheet is read at parse time and the
+			// actor may live in a pk3 that loads later -- refusing it here would make load
+			// ORDER decide whether a card is valid. The thrower resolves it when it throws.
+			// `word`, not `lw`: this is a CLASS NAME and it keeps the case its author wrote,
+			// the same way chargesound does. ZScript resolves names case-insensitively so
+			// either would find the actor, but a lowercased name in a report reads like a
+			// typo and sends the next person looking for a class that is spelled right.
+			if (word == "") return "throwclass is the name of the actor that flies, e.g. \"BW_ThrownAxe\"";
+			s.throwClassName = word;  s.throwClassStated = true;
+		}
+		else if (key == "throwtics")
+		{
+			if (!IsWhole(lw) || lw.ToInt(10) > 350) return "throwtics is a whole number of tics of wind-up, 0 to 350";
+			s.throwTicCount = lw.ToInt(10);  s.throwTicsStated = true;
 		}
 		else if (key == "altburst")
 		{
@@ -700,6 +732,9 @@ class WM_SheetReader
 		Row("spindowntics",       String.Format("%d", has && s.spinDownTicsStated ? s.spinDownTicCount : def.spinDownTicCount), has && s.spinDownTicsStated, "class");
 		Row("altmode",            Quoted(has && s.altModeStated ? s.altModeName : def.altModeName),                          has && s.altModeStated, "class");
 		Row("altburst",           String.Format("%d", has && s.altBurstStated ? s.altBurstCount : def.altBurstCount),        has && s.altBurstStated, "class");
+		Row("throwclass",         Quoted(has && s.throwClassStated ? s.throwClassName : def.throwClassName),           has && s.throwClassStated, "class");
+		Row("throwtics",          String.Format("%d", has && s.throwTicsStated ? s.throwTicCount : def.throwTicCount), has && s.throwTicsStated, "class");
+		Row("baseweight",         String.Format("%.2f", has && s.baseWeightStated ? s.baseWeightLb : def.baseWeightLb),   has && s.baseWeightStated, "class");
 		Row("altbursttics",       String.Format("%d", has && s.altBurstTicsStated ? s.altBurstTicCount : def.altBurstTicCount), has && s.altBurstTicsStated, "class");
 		Row("altratescale",       String.Format("%g", has && s.altRateScaleStated ? s.altRateScaleValue : def.altRateScaleValue), has && s.altRateScaleStated, "class");
 		Row("altdamagescale",     String.Format("%g", has && s.altDamageScaleStated ? s.altDamageScaleValue : def.altDamageScaleValue), has && s.altDamageScaleStated, "class");
@@ -761,6 +796,9 @@ class WM_SheetReader
 				if (s.spinDownTicsStated && s.spinDownTicCount != def.spinDownTicCount)         diffs += Diff(who, "spindowntics", String.Format("%d", def.spinDownTicCount), String.Format("%d", s.spinDownTicCount));
 				if (s.altModeStated && !(s.altModeName ~== def.altModeName))                    diffs += Diff(who, "altmode", Quoted(def.altModeName), Quoted(s.altModeName));
 				if (s.altBurstStated && s.altBurstCount != def.altBurstCount)                   diffs += Diff(who, "altburst", String.Format("%d", def.altBurstCount), String.Format("%d", s.altBurstCount));
+				if (s.throwClassStated && !(s.throwClassName ~== def.throwClassName))          diffs += Diff(who, "throwclass", Quoted(def.throwClassName), Quoted(s.throwClassName));
+				if (s.throwTicsStated && s.throwTicCount != def.throwTicCount)                 diffs += Diff(who, "throwtics", String.Format("%d", def.throwTicCount), String.Format("%d", s.throwTicCount));
+				if (s.baseWeightStated && s.baseWeightLb != def.baseWeightLb)                   diffs += Diff(who, "baseweight", String.Format("%.2f", def.baseWeightLb), String.Format("%.2f", s.baseWeightLb));
 				if (s.altBurstTicsStated && s.altBurstTicCount != def.altBurstTicCount)         diffs += Diff(who, "altbursttics", String.Format("%d", def.altBurstTicCount), String.Format("%d", s.altBurstTicCount));
 				if (s.altRateScaleStated && abs(s.altRateScaleValue - def.altRateScaleValue) > 1e-6)     diffs += Diff(who, "altratescale", String.Format("%g", def.altRateScaleValue), String.Format("%g", s.altRateScaleValue));
 				if (s.altDamageScaleStated && abs(s.altDamageScaleValue - def.altDamageScaleValue) > 1e-6) diffs += Diff(who, "altdamagescale", String.Format("%g", def.altDamageScaleValue), String.Format("%g", s.altDamageScaleValue));

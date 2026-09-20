@@ -2061,7 +2061,42 @@ class WM_Rig play
 		double kickYaw = 0;
 		if (on)
 			[kickPitch, kickYaw] = RSB_Recoil.View(g.bAltFire ? g.altRecoilProfileName : g.recoilProfileName, g.recoilPitch, g.recoilYaw, g.recoilShotTic);
-		prop.FollowHandRot = (kickYaw, -(kickPitch + recoilJoltRise * joltShare), recoilJoltRoll * joltShare) * RECOIL_TILT_SIGN;
+		// A HEAVY GUN HELD IN ONE HAND SAGS, and it is summed in HERE rather than written
+		// from anywhere else. Sag is steady and recoil is transient, but both are a turn
+		// about the same grip in the same frame, so two writers on FollowHandRot would
+		// fight every tic. One writer, one expression.
+		//
+		// THE HAND DOES NOT MOVE. The arm chains run absolute stretch -- the wrist lands
+		// on the controller unconditionally, because the player's real hand is ground
+		// truth -- so weight can only turn the gun about the grip, never displace it.
+		// Exactly the recoil ruling, for exactly the same reason.
+		//
+		// ZERO POUNDS MEANS NO DATA, NOT A WEIGHTLESS GUN. 70 of 145 guns have no
+		// published weight -- plasma, BFG, the Unmaker, most of HacX -- and the weapons
+		// lane rightly refused to invent numbers to fill a column. Reading 0 as "light"
+		// would make every energy weapon snap level while the ballistic ones droop, so
+		// absent means NO SAG and the gun hangs exactly as it always did.
+		//
+		// TwoHandedHold means the off hand IS on the gun (engine, from a real grab at the
+		// grip, forend or support point) -- never that it OUGHT to be. Nothing here may
+		// move the off hand onto a weapon: that hand is where the player is holding it.
+		double sag = 0;
+		let pmo = PlayerPawn(g.Owner);
+		if (on && Cvb("sv_wm_weight_sag", true))
+		{
+			double lbs = g.BaseWeightLbs();
+			if (lbs > 0)
+			{
+				double free = Cvf("wm_weight_free", 6.0);            // hangs level one-handed
+				double span = max(1.0, Cvf("wm_weight_span", 20.0)); // ...to full sag
+				sag = clamp((lbs - free) / span, 0.0, 1.0) * Cvf("wm_weight_sag_deg", 12.0);
+				if (pmo && pmo.TwoHandedHold) sag *= Cvf("wm_weight_twohand", 0.15);
+			}
+		}
+		// + pitch DROPS the muzzle (see above), so sag is added positive. INSIDE the tilt
+		// sign on purpose: if that flips because the hand-transform reading was backwards,
+		// sag is in the same frame and has to flip with it.
+		prop.FollowHandRot = (kickYaw, -(kickPitch + recoilJoltRise * joltShare) + sag, recoilJoltRoll * joltShare) * RECOIL_TILT_SIGN;
 	}
 
 	// THE MUZZLE, AN RS_BALLISTICS FLASH (RSB_CALL_SITES_HANDOFF.md): light, lit-air cone, bore sparks,

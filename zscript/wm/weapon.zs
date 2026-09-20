@@ -106,6 +106,9 @@ class WM_Gun : Weapon
 		altRateScaleValue    = (has && s.altRateScaleStated)     ? s.altRateScaleValue    : def.altRateScaleValue;
 		altDamageScaleValue  = (has && s.altDamageScaleStated)   ? s.altDamageScaleValue  : def.altDamageScaleValue;
 		altFanMaxCount       = (has && s.altFanMaxStated)        ? s.altFanMaxCount       : def.altFanMaxCount;
+		throwClassName       = (has && s.throwClassStated)       ? s.throwClassName       : def.throwClassName;
+		baseWeightLb         = (has && s.baseWeightStated)        ? s.baseWeightLb         : def.baseWeightLb;
+		throwTicCount        = (has && s.throwTicsStated)        ? s.throwTicCount        : def.throwTicCount;
 		spreadShapeName      = (has && s.spreadShapeStated)      ? s.spreadShapeName      : def.spreadShapeName;
 		roundProfileName     = (has && s.roundProfileStated)     ? s.roundProfileName     : def.roundProfileName;
 		flashProfileName     = (has && s.flashProfileStated)     ? s.flashProfileName     : def.flashProfileName;
@@ -127,7 +130,18 @@ class WM_Gun : Weapon
 		int    lt = recoilShotTic;
 		int    rs = recoilRunShot;
 		double shotYaw, shotPitch, bloom;
-		[shotYaw, shotPitch, bloom] = RSB_Recoil.Step(profile, Owner, kp, ky, lt, rs);
+		// THE HAND IS PASSED SO THE KICK CAN FOLLOW THE GUN'S LIVE WEIGHT. RS_Ballistics asks
+		// RS_WeaponWeightService for this hand's empty weight and its round count, multiplies
+		// the second by its own roundmass -- a number that is ITS to own, never published from
+		// here -- and scales the stated climb by authored_lb / live_lb.
+		//
+		// A FULL MAGAZINE IS THE AUTHORED WEIGHT, so nothing moves until you start shooting;
+		// the gun gets kickier as it empties and no other moment changes. Omitting this arg
+		// passes -1 and the kick is exactly what it was, which is how it shipped before today.
+		//
+		// STILL NETPLAY-SAFE: Hand() is bOffhandWeapon, playsim state like every other value on
+		// this line, so the call stays identical on every machine. No RNG, never consoleplayer.
+		[shotYaw, shotPitch, bloom] = RSB_Recoil.Step(profile, Owner, kp, ky, lt, rs, Hand());
 		recoilPitch   = kp;
 		recoilYaw     = ky;
 		recoilShotTic = lt;
@@ -287,6 +301,12 @@ class WM_Gun : Weapon
 	const ALT_ONEBARREL   = 5;
 	const ALT_DOUBLESHELL = 6;
 	const ALT_FAN         = 7;
+	// THE SECOND BUTTON LETS GO OF THE WEAPON. The other seven modes are firearm
+	// disciplines -- ways of spending a round. This one is the only mode where the thing
+	// in the hand LEAVES it, and it exists because an axe is a melee weapon that also
+	// throws and there was no word for that: carding it `thrown` loses the melee, and
+	// leaving it melee loses the throw. Both are the wrong half of a weapon.
+	const ALT_THROWN      = 8;
 	const ALT_SHOT_NORMAL      = 0;
 	const ALT_SHOT_SHRED       = 1;
 	const ALT_SHOT_ONEBARREL   = 2;
@@ -328,6 +348,18 @@ class WM_Gun : Weapon
 	double altRateScaleValue;
 	double altDamageScaleValue;
 	int    altFanMaxCount;
+	// WHAT LEAVES THE HAND, and how long the wind-up runs. The class is the actor in
+	// FLIGHT -- the axe tumbling through the air, not the axe being held -- because they
+	// are two different things and only one of them has a grip. The tics are a melee
+	// weapon's whole tell: the wind-up is what the other player sees coming.
+	// WHAT THE EMPTY GUN WEIGHS, IN POUNDS. Inert here: nothing in this package reads it.
+	// It exists so RS_Ballistics can compute a gun's climb from its mass instead of every
+	// weapon stating a kick by hand, and a gun with no weight keeps whatever it states.
+	// EMPTY, not loaded -- a PPSh's 71-round drum is a seventh of the gun, so the two
+	// numbers are not interchangeable and the sheets do the subtraction deliberately.
+	double baseWeightLb;
+	String throwClassName;
+	int    throwTicCount;
 	String spreadShapeName;
 	// THEIR PLAYSIM STATE, saved with the gun and stepped alike on every machine: the rounds still to come in a burst; the
 	// select-fire mode (0 single, 1 burst, 2 full auto); the second button last tic, for DoEffect's press edge; the kind
@@ -381,6 +413,9 @@ class WM_Gun : Weapon
 	property AltRateScale: altRateScaleValue;
 	property AltDamageScale: altDamageScaleValue;
 	property AltFanMax: altFanMaxCount;
+	property BaseWeight: baseWeightLb;
+	property ThrowClass: throwClassName;
+	property ThrowTics: throwTicCount;
 	property SpreadShape: spreadShapeName;
 	property RoundProfile: roundProfileName;
 	property FlashProfile: flashProfileName;
@@ -431,6 +466,7 @@ class WM_Gun : Weapon
 		if (word ~== "onebarrel")   return ALT_ONEBARREL;
 		if (word ~== "doubleshell") return ALT_DOUBLESHELL;
 		if (word ~== "fan")         return ALT_FAN;
+		if (word ~== "thrown")      return ALT_THROWN;
 		return -1;
 	}
 	int    AltModeKind() const        { return max(AltModeWord(altModeName), ALT_NONE); }
@@ -439,6 +475,19 @@ class WM_Gun : Weapon
 	double AltRateScaleEach() const   { return (altRateScaleValue > 0) ? clamp(altRateScaleValue, 0.1, 10.0) : 2.0; }
 	double AltDamageScaleEach() const { return (altDamageScaleValue > 0) ? clamp(altDamageScaleValue, 0.1, 10.0) : 2.0; }
 	int    AltFanMaxEach() const      { return (altFanMaxCount > 0) ? clamp(altFanMaxCount, 1, 35) : 8; }
+	// A THROW WITH NO CLASS TO THROW IS NOT A THROW. Stated, or the mode does nothing --
+	// deliberate, because silently falling back to the weapon's own class would hurl the
+	// gun itself, and a bug that throws your rifle away is not one you want to discover
+	// in a headset with no way to pick it back up.
+	bool   ThrowsOnAlt() const        { return AltModeKind() == ALT_THROWN && throwClassName != ""; }
+	int    ThrowTicsEach() const      { return clamp(throwTicCount, 0, 350); }
+	double BaseWeightLbs() const      { return baseWeightLb; }
+
+	// THE SECOND BUTTON'S EDGES. Default to nothing; override to act on them. Fired for
+	// every alt mode, so an override decides for itself whether this weapon's mode is one
+	// it cares about -- WM_ThrownGun asks ThrowsOnAlt() and ignores the rest.
+	virtual void AltPressed() {}
+	virtual void AltReleased() {}
 	bool   SpreadCone() const         { return spreadShapeName ~== "cone"; }
 	// HELD FIRE: the class's FullAuto, or select fire's own mode when the gun has one.
 	bool   FiresFullAuto() const      { return (AltModeKind() == ALT_SELECTFIRE) ? (selectFireMode == 2) : fullAutoFire; }
@@ -688,6 +737,21 @@ class WM_Gun : Weapon
 		// owner's usercmd on every machine. Read here rather than in Ready, so it steps mid-run too.
 		bool altNow = AltIsDown();
 		if (altNow && !altWasDown && AltModeKind() == ALT_SELECTFIRE && !AltBarrel()) StepSelectFire();
+		// THE SECOND BUTTON'S PRESS AND RELEASE EDGES, FOR ANYONE WHO NEEDS THEM.
+		//
+		// Both edges are already detected here, once, for select fire. A subclass that
+		// needs them -- a thrown weapon releasing on let-go is the first, and it will not
+		// be the last -- would otherwise poll AltIsDown() in its own Tick and end up with
+		// a SECOND edge detector that can disagree with this one about which tic the
+		// button changed on. Two detectors disagreeing by a tic is the kind of bug that
+		// only shows up as "sometimes it does not throw".
+		//
+		// Both default to nothing, so every existing weapon is untouched, and neither is
+		// gated on a mode: the mode is the OVERRIDER's business. A thrower checks
+		// ThrowsOnAlt() itself, which keeps this pair general instead of making it the
+		// throw's private hook.
+		if (altNow && !altWasDown) AltPressed();
+		if (!altNow && altWasDown) AltReleased();
 		altWasDown = altNow;
 		if (altMustRelease && !AltIsDown()) altMustRelease = false;
 		if (fireStarted && TriggerIsDown())
@@ -1058,8 +1122,23 @@ class WM_Gun : Weapon
 		double kickYaw   = 0;
 		double kickPitch = 0;
 		double kickBloom = 0;
-		if (!invoker.railShotOn)
 		{
+			// A RAIL IS CALLED HERE TOO, AND USED TO BE SKIPPED ENTIRELY. That skip is why
+			// CL_ParticleGun measured climb 0.0000 across twelve shots against a stated 0.55,
+			// with NO recoil line in the log at all -- the path never ran. It took every rail
+			// weapon with it: the railgun, the Tesla, the Unmaker and the particle gun, four
+			// guns whose whole character is a hard electrical snap, delivering no snap.
+			//
+			// THE ORIGINAL REASON WAS HALF RIGHT AND THAT IS WHY IT SURVIVED. A rail does aim
+			// and scatter itself, so bending THIS shot by the kick is wrong and bloom means
+			// nothing to it. But RecoilStep does TWO jobs: it returns the turn for this round,
+			// AND it advances the gun's stored kick -- and that second one is what rig.zs
+			// reads to make the gun climb. Skipping the call to avoid the first threw away
+			// the second, and a gun that never accumulates kick never moves.
+			//
+			// The fix is the pattern the dead-on case below already uses, and for the same
+			// reason: CALL IT, then suppress its effect on this round. Not a new idea, just
+			// the one three lines down applied to the case that needed it as much.
 			[kickYaw, kickPitch, kickBloom] = invoker.RecoilStep(invoker.recoilProfileName);
 			// DEAD ON MEANS DEAD ON, AND IT HAS TO MEAN IT IN BOTH PLACES.
 			//
@@ -1073,7 +1152,10 @@ class WM_Gun : Weapon
 			// RecoilStep is still CALLED while the promise holds, so the kick keeps
 			// accumulating and the shot after the promise ends is as wrong as it should be.
 			// What is suppressed is the effect on THIS round, not the recoil itself.
-			if (deadOn)
+			// A RAIL JOINS deadOn HERE: it aims and scatters on its own, so the turn and the
+			// bloom are not its to take -- but by now the gun's kick has already been advanced,
+			// which is the whole point and the half that was missing.
+			if (deadOn || invoker.railShotOn)
 			{
 				kickYaw   = 0;
 				kickPitch = 0;
