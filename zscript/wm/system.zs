@@ -595,19 +595,44 @@ class WM_System : EventHandler
 	// THE OTHER HAND IS ON THIS GUN'S SUPPORT GRIP (card `hands = 2`). Hand 1-h works gun h,
 	// so the part it holds indexes this gun's card. This is local hand input -- see
 	// FEEL_PLAN.md section 10 and Engine docs/NETWORK_HAND_INPUT_PLAN.md.
+	// IS THE OTHER HAND SUPPORTING THIS GUN? ASKED OF THE ONE SYSTEM THAT DECIDES IT.
+	//
+	// [SUPPORT OUT 2026-09-25] This used to answer from this mod's OWN brace, off this
+	// mod's own card support points -- a second support system competing with the real one
+	// for the same hand. It now reads the engine field the real one publishes.
+	//
+	// AActor::TwoHandedHold is written by RS_WorldHands (rs_stabilize) when the off hand's
+	// reach meets the gun's archetype support oval and the grip is squeezed. It is the same
+	// field the engine's own Two Handed Weapons aiming reads, so what gates the shot here is
+	// exactly what the player can see steering the gun.
+	//
+	// IF RS_WorldHands IS NOT LOADED nothing ever writes it, and a `hands = 2` gun would
+	// never fire. So an absent support system means the gate is off rather than shut: a
+	// missing optional pk3 must not make guns unusable.
 	private bool SupportHeld(WM_PlayerHands ph, int h, WM_Rig rig)
 	{
-		if (!ph || !rig || !rig.card || h < 0 || h > 1 || !ph.hstate[1 - h]) return false;
-		let other = ph.hstate[1 - h];
-		// A BRACE COUNTS, AND IT IS THE ONLY WAY MOST GUNS CAN GET HERE. A squeeze-take of
-		// a support grip is refused outright on any card without `hands = 2` (NearestPart's
-		// withSupport is false on the take path), so on every other gun the open-hand brace
-		// is the whole mechanic -- and this asked HeldPart(), which answers -1 for a brace.
-		// So two-handing reported false on precisely the guns that can only be two-handed
-		// by bracing.
-		int heldIdx = other.HeldPart();
-		if (heldIdx < 0) heldIdx = other.BracedPart();
-		return heldIdx >= 0 && heldIdx < rig.card.parts.Size() && rig.card.parts[heldIdx].role == "support";
+		if (!ph || !rig || !rig.card || h < 0 || h > 1) return false;
+		let pmo = PlayerPawn(rig.prop ? rig.prop.target : null);
+		if (!pmo) pmo = players[consoleplayer].mo;
+		if (!pmo) return true;
+		if (!SupportSystemPresent()) return true;
+		return pmo.TwoHandedHold;
+	}
+
+	// Is anything in the load order deciding support?
+	//
+	// ASKED OF A CVAR, NOT OF THE CLASS. EventHandler.Find("RS_Stabilize") is the obvious
+	// way to write this and it is a trap with a fuse: it resolves its argument at COMPILE
+	// time, and a miss is fatal AND GLOBAL -- it refuses to compile every pk3 later in the
+	// load order. So one missing optional pk3 would take the whole game down. The grip
+	// arbiter's header documents this at length and is the reason it is a Service.
+	//
+	// CVar.FindCVar is a plain runtime string lookup that answers null when absent.
+	// rs_stab_depth is declared in RS_WorldHands' CVARINFO, so its presence IS that pk3's
+	// presence, and no class is named anywhere.
+	private bool SupportSystemPresent()
+	{
+		return CVar.FindCVar("rs_stab_depth") != null;
 	}
 
 	// WHAT A PULL OF THIS WEAPON CLASS SPENDS (WM_Card.firesFrom), by class. The card set is
@@ -1353,8 +1378,11 @@ class WM_System : EventHandler
 			int pick = NearestPart(ph, pmo, h, rig, true, false);
 			if (pick >= 0 && TakeAllowed(ph, pmo, h, rig, pick)) { Take(ph, pmo, h, rig, pick); return; }
 		}
-		int near = NearestPart(ph, pmo, h, rig, true);
-		if (near >= 0 && rig.card.parts[near].role == "support") st.Bracing(near);
+		// [SUPPORT OUT 2026-09-25] An open hand near a card support point used to enter
+		// BRACE here. Support is RS_WorldHands' (rs_stabilize) and is decided from the
+		// archetype oval, not from these points. Nothing enters BRACE any more; the mode
+		// and its HUD strings stay, unreachable, because removing a hand-state value
+		// touches every switch that reads one.
 	}
 
 	// A FREE HAND CATCHES A FALLING MAGAZINE. Drop one with its button and close
@@ -2707,9 +2735,9 @@ class WM_System : EventHandler
 			case WM_HandState.ONPART:
 				if (rig.card) subj = SubjectFor(rig.card.parts[st.part]);
 				break;
-			case WM_HandState.BRACE:
-				subj = GRIPSUBJ_Support;
-				break;
+			// [SUPPORT OUT 2026-09-25] A brace claimed the hand as GRIPSUBJ_Support here,
+			// competing with rs_stabilize for the same hand on first-come-wins. One system
+			// claims support now, and it is not this one.
 		}
 
 		int mine = GetClaim(pmo, h);
@@ -3188,9 +3216,23 @@ class WM_System : EventHandler
 				{
 					let part = rig.card.parts[i];
 					if (!rig.card.PartIsWorkable(i)) continue;
-					// EVERY SUPPORT OVAL IS DRAWN. It used to be hidden unless the gun
-					// declared `hands = 2`, which is how 66 support points on the other
-					// guns came to be invisible and untakeable at once.
+					// NO SUPPORT OVALS. SUPPORT IS NOT THIS MOD'S JOB.
+					//
+					// Owner, 2026-09-25: this mod is concerned with where the ammo drops,
+					// ejects and inserts, and where the slide, rack or pump is. Two points
+					// per gun. Nothing else.
+					//
+					// There were 141 `part support` entries across the card set, so a gun
+					// drew an oval for its magazine, its action AND every support point --
+					// three or more where two belong. Support has its own single oval in
+					// RS_WorldHands (rs_stabilize), placed from the gun's ARCHETYPE, and
+					// that is the one that steers the gun (it publishes TwoHandedHold).
+					//
+					// The card entries are left in place, unread: they were measured and
+					// found wrong ("0 of 34 of those land on the actual gun"), so nothing
+					// should read them, and deleting 141 lines across 17 cards is a
+					// separate job with its own risk.
+					if (part.role == "support") continue;
 					Vector3 at, raw;
 					Vector3 axes;
 					bool hot;

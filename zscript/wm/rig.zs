@@ -1167,7 +1167,7 @@ class WM_Rig play
 
 	double DrawnValue(WM_Part part)
 	{
-		if (part.jointDriven && prop) return prop.GetModelJointDrawnValue(Name(part.jointName), part.modelIndex);
+		// [BONE DRIVE OUT 2026-09-25] the joint branch stood here. jointDriven is never set now.
 		if (part.driveSlot >= 0 && prop) return prop.GetModelSurfaceDrawnValue(part.driveSlot);
 		return part.value;
 	}
@@ -1179,8 +1179,9 @@ class WM_Rig play
 		// changes nothing in the engine, so it costs no generation.
 		for (int k = 0; k < hideSurfaceIdx.Size() && hideSlotBase >= 0; k++)
 			if (hideSurfaceIdx[k] >= 0) prop.SetModelSurfaceHidden(hideSlotBase + k, 0, hideSurfaceIdx[k], true);
-		for (int k = 0; k < card.hideJoints.Size(); k++)
-			prop.SetModelJointDrawPose(Name(card.hideJoints[k]), Quat(0, 0, 0, 1), Actor.MJP_Hide, 0);
+		// [BONE DRIVE OUT 2026-09-25] card `hidejoint` collapsed a joint here. Surfaces are
+		// hidden by the loop above and still work; a joint cannot be hidden any more, so a
+		// card naming hidejoint leaves that piece drawn.
 		for (int i = 0; i < card.parts.Size(); i++)
 		{
 			let part = card.parts[i];
@@ -1235,15 +1236,21 @@ class WM_Rig play
 	// of the gun, and cleared when it is back; otherwise its drawn value taken from a held drive, and a model-space joint
 	// offset from the very PartOffset / PartRotation a surface part gets -- the engine draws the drive instead while one
 	// holds it. Set once and updated after: no tic adds or removes the joint's entries (the Body IK lane's note).
+	// [BONE DRIVE OUT 2026-09-25] THIS DOES NOTHING NOW, AND THAT IS DELIBERATE.
+	//
+	// It posed a `joint` part by collapsing and offsetting a BONE of the gun's model. The
+	// engine's bone drive went to _old with the arm IK -- they shared one file -- and the
+	// owner's decision is that the slate stays clean rather than half of it coming back.
+	//
+	// THE SURFACE DRIVE IS UNTOUCHED AND IS THE MAIN PATH: 14 surface calls in this file
+	// against 10 joint ones, and the card pipeline finds parts as mesh SURFACES. So every
+	// gun whose parts are separate surfaces -- nearly all of them -- works exactly as
+	// before. What is lost is the handful of guns that are one welded rigged mesh, whose
+	// parts can only be moved by bone. Those guns' parts now sit still.
+	//
+	// The right fix is to give those guns surfaces, not to bring the bone drive back.
 	private void PoseJointPart(WM_Part part)
 	{
-		Name jn = Name(part.jointName);
-		bool hidden = (part.role == "hidden" || !part.present);
-		prop.SetModelJointDrawPose(jn, Quat(0, 0, 0, 1), hidden ? Actor.MJP_Hide : Actor.MJP_Clear, part.modelIndex);
-		if (hidden) return;
-		if (part.jointDriven) part.value = prop.GetModelJointDrawnValue(jn, part.modelIndex);
-		if (part.dof2) NoteSplitCrossing(part);
-		prop.SetModelJointOffset(jn, PartOffset(part), PartRotation(part), part.modelIndex);
 	}
 
 	// A JOINT PART IN THE HAND (card `joint`): the engine's bone drive, on exactly StartDrive's axes, signs and pivots
@@ -1252,25 +1259,9 @@ class WM_Rig play
 	// off (StopDrive).
 	private void StartJointDrive(WM_Part part, int workHand, double startValue)
 	{
-		Name jn = Name(part.jointName);
-		let d = part.dof;
-		if (d.moveKind == WM_Dof.MOVE_HINGE)
-			prop.SetModelJointDriveHinge(jn, part.modelIndex, workHand, WM_Space.Eng(d.axis), -d.degrees, WM_Space.Eng(d.pivot), startValue);
-		else
-		{
-			prop.SetModelJointDrive(jn, part.modelIndex, workHand, WM_Space.Eng(d.axis), d.distance, startValue);
-			if (d.twist != 0)
-				prop.SetModelJointDriveRotation(jn, part.modelIndex, WM_Space.Eng(d.twistAxis), -d.twist, WM_Space.Eng(d.pivot));
-		}
-		let d2 = part.dof2;
-		if (d2)
-		{
-			bool isHinge = (d2.moveKind == WM_Dof.MOVE_HINGE);
-			if (!prop.SetModelJointDriveStage(jn, part.modelIndex, isHinge ? Actor.DRIVESTAGE_Hinge : Actor.DRIVESTAGE_Slide,
-				WM_Space.Eng(d2.axis), isHinge ? -d2.degrees : d2.distance, WM_Space.Eng(d2.pivot), d2.split))
-				WM_Log.Err(String.Format("%s gun: the engine refused %s's dof2 on joint %s -- in the hand it is a single-stage drive", HandName(), part.id, part.jointName));
-		}
-		part.jointDriven = true;
+		// [BONE DRIVE OUT 2026-09-25] the engine's bone drive is gone -- see PoseJointPart.
+		// jointDriven stays false, so DrawnValue and StopDrive take the plain value path and
+		// a joint part behaves as one nothing can move.
 		part.value = startValue;
 	}
 
@@ -1361,16 +1352,8 @@ class WM_Rig play
 	// visibly still out.
 	double StopDrive(WM_Part part)
 	{
-		if (part.jointName != "")
-		{
-			if (!part.jointDriven || !prop) return part.value;
-			Name jn = Name(part.jointName);
-			double jv = prop.GetModelJointDrawnValue(jn, part.modelIndex);
-			prop.ClearModelJointDrive(jn, part.modelIndex);
-			part.jointDriven = false;
-			part.value = jv;
-			return jv;
-		}
+		// [BONE DRIVE OUT 2026-09-25] a joint part was released here. Nothing drives one now.
+		if (part.jointName != "") return part.value;
 		if (part.driveSlot < 0 || !prop) return part.value;
 		double v = prop.GetModelSurfaceDrawnValue(part.driveSlot);
 		for (int s = 0; s < part.surfaces.Size(); s++) prop.ClearModelSurfaceDrive(part.driveSlot + s);
