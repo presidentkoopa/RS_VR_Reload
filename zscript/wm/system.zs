@@ -142,7 +142,18 @@ class WM_System : EventHandler
 	// the hand busy so its own gun was put away -- all of it invisible. Two-handed
 	// bracing has never been seen to work in this system, so nothing of it runs
 	// unless this is turned on.
-	private bool BraceOn() { return Cvb("wm_brace", false); }
+	// [SUPPORT] wm_brace AND BraceOn() ARE GONE, and the gate with them.
+	//
+	// It hid every support point on every gun that does not declare `hands = 2`
+	// -- 66 of them -- behind a console-only cvar that defaulted off and was on
+	// no menu. The reason given was that two-handed bracing "has never been seen
+	// to work here", which is circular: the points were invisible and untakeable,
+	// so nobody could see it work, so it stayed hidden.
+	//
+	// Not replaced by a better switch. A feature that is part of the system is
+	// part of the system; one that needs hiding should be deleted instead. The
+	// menu already has "Show grab points" for the only honest question here --
+	// whether the markers are drawn at all.
 
 	// The last palm-to-gun reading per hand, for the HUD: 1 is the palm square to
 	// the gun's up or down, 0 is sideways. A take needs at least wm_palm_cos.
@@ -315,6 +326,11 @@ class WM_System : EventHandler
 
 		bool blocked = false;
 		if (!rig.card || !rig.prop || rig.stowed) blocked = true;
+		// [POUCHFIRE] BRING THE GUN TO THE POUCH AND PULL: the trigger reloads instead
+		// of firing (wm_reload_mode 2). The shot is refused HERE, in the replicated
+		// verdict, rather than in CanFire -- pouch reach is local hand input, and every
+		// other machine would answer "no hands, no pouch" and let the shot through.
+		else if (ReloadMode(pn) == RELOAD_POUCHFIRE && NearestPouch(pmo, h) >= 0) blocked = true;
 		// TWO-HANDED (card `hands = 2`): only while the other hand holds this gun's support grip.
 		else if (rig.card.NeedsTwoHands() && !SupportHeld(ph, h, rig)) blocked = true;
 		// IN BATTERY (G16, wm_verbs on): not with an action open -- a forend part-way back,
@@ -415,6 +431,100 @@ class WM_System : EventHandler
 	// CAN THE OWNER'S RESERVE PAY FOR A PULL (WM_Card.FIRES_RESERVE): the gun class's
 	// Weapon.AmmoType1 in that player's own inventory -- keyed by pn, never the console
 	// player -- at least n of it, or infinite ammo (Weapon.DepleteAmmo's own test).
+	// ============================================================================
+	// [SNAPLOAD] TOP THE GUN UP, AND CHARGE ONLY FOR WHAT WENT IN.
+	//
+	// Owner, 2026-09-20: "i want flick down for instant full reload, no ammo loss".
+	//
+	// NO AMMO LOSS IS THE WHOLE POINT, and it is what makes this different from
+	// every other reload in this system. Swapping a magazine throws the partial
+	// one away with its rounds still inside; a player who reloads at three-quarters
+	// is punished for it. This fills the gap instead: the reserve pays for
+	// capacity-minus-what-is-already-there, and nothing is ever discarded.
+	//
+	// RUNS ON EVERY MACHINE, from one event sent by the machine that saw the
+	// gesture. Everything it reads -- the card's capacity, the gun's rounds, the
+	// owner's reserve -- every machine already has, so every machine arrives at
+	// the same numbers. That is why the gesture is sent and the ARITHMETIC is not.
+	// ============================================================================
+	// ============================================================================
+	// [POUCHFIRE] GUN TO THE POUCH, PULL THE TRIGGER, IT IS FULL (wm_reload_mode 2).
+	//
+	// Owner, 2026-09-20: "bring gun to ammopouch - fire to reload". The third of
+	// the five reload modes that had a name and no code.
+	//
+	// It is the flick reload's twin and shares all of its arithmetic: the same
+	// SnapLoad tops up every store and charges only for what goes in. The only
+	// difference is what starts it -- a trigger pull with the gun at your belt
+	// rather than a flick of the wrist.
+	//
+	// THE SHOT IS ALREADY REFUSED by PublishFireBlock above, so the pull cannot
+	// both reload and fire. That refusal is replicated; this decision is not, and
+	// that is deliberate: only the machine working these hands can see where they
+	// are, so it sends the event and every machine applies the same fill.
+	//
+	// ON THE EDGE, NOT WHILE HELD. A held trigger would empty the pouch into the
+	// gun one tic at a time.
+	// ============================================================================
+	private void PouchFire(WM_PlayerHands ph, PlayerPawn pmo, int h)
+	{
+		if (!ph || !pmo || !pmo.player || h < 0 || h > 1) return;
+		let rig = ph.rigs[h];
+		if (!rig || !rig.card || !rig.prop || rig.stowed) { ph.pouchFireHeld[h] = false; return; }
+		int pn = pmo.PlayerNumber();
+		if (ReloadMode(pn) != RELOAD_POUCHFIRE) { ph.pouchFireHeld[h] = false; return; }
+
+		uint b = pmo.player.cmd.buttons;
+		bool down = (b & ((h == 0) ? BT_ATTACK : BT_OFFHANDATTACK)) != 0;
+		bool was = ph.pouchFireHeld[h];
+		ph.pouchFireHeld[h] = down;
+		if (!down || was) return;
+		if (NearestPouch(pmo, h) < 0) return;
+
+		EventHandler.SendNetworkEvent("wm_snapload", h);
+		level.VRHaptic(h, 0.6, 14.0);
+	}
+
+	private void SnapLoad(PlayerPawn pmo, int h)
+	{
+		if (!pmo || !pmo.player) return;
+		let gun = WM_Gun((h == 1) ? pmo.player.OffhandWeapon : pmo.player.ReadyWeapon);
+		if (!gun) return;
+		let ammo = gun.EnsureAmmo();
+		if (!ammo) return;
+		let card = CardForWeapon(gun.GetClassName());
+
+		int want = ammo.RoomTotal();
+		if (want <= 0) return;
+
+		int pn = pmo.PlayerNumber();
+		bool free = sv_infiniteammo || pmo.FindInventory("PowerInfiniteAmmo", true) != null;
+		Inventory inv = null;
+		int budget = want;
+		if (!free && card)
+		{
+			inv = pmo.FindInventory(WM_LooseMag.ReserveFor(card.weaponClass));
+			int have = inv ? inv.Amount : 0;
+			if (have <= 0)
+			{
+				// NOTHING IN THE POUCH. A gesture that appears to be ignored is worse
+				// than one that refuses out loud, so this clicks.
+				if (pn == consoleplayer && card.drySound != "")
+					pmo.A_StartSound(card.drySound, CHAN_AUTO, CHANF_OVERLAP, 0.4);
+				return;
+			}
+			budget = min(want, have);
+		}
+
+		int spent = ammo.SnapFill(budget);
+		if (spent <= 0) return;
+		if (inv) inv.Amount -= spent;
+
+		if (pn == consoleplayer)
+			WM_Log.Info(String.Format("snap reload: %s gun filled with %d round(s)%s",
+				(h == 1) ? "off" : "main", spent, free ? " (free)" : ""));
+	}
+
 	private bool ReserveHolds(int pn, WM_Card card, int n)
 	{
 		if (pn < 0 || pn >= MAXPLAYERS || !playeringame[pn] || !players[pn].mo) return false;
@@ -430,7 +540,15 @@ class WM_System : EventHandler
 	private bool SupportHeld(WM_PlayerHands ph, int h, WM_Rig rig)
 	{
 		if (!ph || !rig || !rig.card || h < 0 || h > 1 || !ph.hstate[1 - h]) return false;
-		int heldIdx = ph.hstate[1 - h].HeldPart();
+		let other = ph.hstate[1 - h];
+		// A BRACE COUNTS, AND IT IS THE ONLY WAY MOST GUNS CAN GET HERE. A squeeze-take of
+		// a support grip is refused outright on any card without `hands = 2` (NearestPart's
+		// withSupport is false on the take path), so on every other gun the open-hand brace
+		// is the whole mechanic -- and this asked HeldPart(), which answers -1 for a brace.
+		// So two-handing reported false on precisely the guns that can only be two-handed
+		// by bracing.
+		int heldIdx = other.HeldPart();
+		if (heldIdx < 0) heldIdx = other.BracedPart();
 		return heldIdx >= 0 && heldIdx < rig.card.parts.Size() && rig.card.parts[heldIdx].role == "support";
 	}
 
@@ -754,6 +872,7 @@ class WM_System : EventHandler
 		// have been worked and the rigs posed, so it publishes this tic's answer rather
 		// than last tic's. Sends only when the answer CHANGES.
 		for (int h = 0; h < 2; h++) PublishFireBlock(ph, pmo, h);
+		for (int h = 0; h < 2; h++) PouchFire(ph, pmo, h);
 		for (int r = 0; r < 2; r++) ph.rigs[r].BarrelSmoke();
 		for (int r = 0; r < 2; r++) ph.rigs[r].ChargeLook();
 		for (int r = 0; r < 2; r++) ph.rigs[r].RecoilLook();
@@ -1177,7 +1296,7 @@ class WM_System : EventHandler
 			if (pick >= 0 && TakeAllowed(ph, pmo, h, rig, pick)) { Take(ph, pmo, h, rig, pick); return; }
 		}
 		int near = NearestPart(ph, pmo, h, rig, true);
-		if (near >= 0 && rig.card.parts[near].role == "support" && BraceOn()) st.Bracing();
+		if (near >= 0 && rig.card.parts[near].role == "support") st.Bracing(near);
 	}
 
 	// A FREE HAND CATCHES A FALLING MAGAZINE. Drop one with its button and close
@@ -1267,9 +1386,10 @@ class WM_System : EventHandler
 			// The old three roles, or a part a verb works (a pump's forend). The same set
 			// for both pistols, whose verbs were synthesised from those roles.
 			if (!rig.card.PartIsWorkable(i)) continue;
-			// THE SUPPORT GRIP: bracing's (off by default), or a two-handed gun's (card `hands = 2`),
-			// which is always offered -- the other hand must hold it for the trigger to fire.
-			if (part.role == "support" && !rig.card.NeedsTwoHands() && (!withSupport || !BraceOn())) continue;
+			// THE SUPPORT GRIP is always offered now (see the note at BraceOn's grave). A two-handed
+			// gun's is offered even when the caller did not ask for support parts, because the other
+			// hand must hold it for the trigger to fire at all.
+			if (part.role == "support" && !rig.card.NeedsTwoHands() && !withSupport) continue;
 			if (part.role == "feed" && !part.present) continue;
 			if (!part.handTake) continue;
 			// LOCKED BY ITS LATCH (verb.zs latch, F3): not taken at home until the latch is thrown.
@@ -2271,10 +2391,36 @@ class WM_System : EventHandler
 				// BY THE GRIP, not "magazine or else slide": a pump's forend has no role,
 				// and reading it as a slide put the hand on the pistol's slide seat.
 				seatPart = rig.card.parts[held];
-				kind = WM_Rig.HandSeatKind(seatPart);
+				// A SUPPORT GRIP IS ITS OWN SEAT SET. HandSeatKind has no case for
+				// subject "support" and falls through to "slide", so a legitimately
+				// taken support grip read the SLIDE sliders while the braced hand on
+				// the same grip read the support ones -- two seats for one point.
+				// rig.zs:244 already guards this; this call did not.
+				// [SUPPORT] A SUPPORT GRIP IS NOT PINNED HERE ANY MORE. See the brace
+				// branch below: the engine owns the support hold now.
+				if (seatPart.role == "support") { seatPart = null; kind = ""; }
+				else kind = WM_Rig.HandSeatKind(seatPart);
 			}
 			else if (st.mode == WM_HandState.GUIDE) kind = "mag";
-			else if (st.mode == WM_HandState.BRACE) kind = "support";
+			else if (st.mode == WM_HandState.BRACE)
+			{
+				// [SUPPORT] NOT PINNED. THE ENGINE HOLDS THE HAND NOW.
+				//
+				// This used to pin the drawn off hand to the card's authored support
+				// point -- and 0 of 34 of those land on the actual gun, so supporting
+				// dragged the hand to the wrong place while the engine aimed the gun
+				// at the real controller: a hand in one place steering a gun toward
+				// another. The owner: "my offhand moves to the gun but exercises no
+				// control over the foregrip. even the stock option was better."
+				//
+				// The support hold is one decision in one place now: the engine's grip
+				// held with the hand along the barrel (vk_openxrdevice.cpp, [SUPPORT]).
+				// The gun follows the hand, and the engine publishes the hand at the
+				// distance along the barrel where it was taken. Leaving kind empty lets
+				// the drawn hand follow that published position.
+				seatPart = null;
+				kind = "";
+			}
 			else
 			{
 				// SHOWN ON THE PART FOR TUNING, WITHOUT HOLDING IT. A menu freezes
@@ -2361,9 +2507,33 @@ class WM_System : EventHandler
 		// (Actor.FollowActorOfsInModel) -- so with the drive slot above it rides the
 		// pump, menu open or not. The seat sets below then trim it. A part with none --
 		// every pistol part -- is seated exactly as before, at the frame origin.
-		if (seatPart && seatPart.handSeatStated)
+		//
+		// A BRACE FALLS BACK TO THE SUPPORT POINT'S OWN `grab`. Not one `part support` in
+		// any card in this package states a handseat -- all nine handseat lines in the whole
+		// set are on forends and barrels -- so requiring one meant the support points were
+		// read for proximity and then thrown away. The `grab` point IS a model-space point
+		// on the gun and is what the hand was reaching for in the first place.
+		//
+		// Written with if/else rather than a ternary: a Vector3 out of a ternary aborts this
+		// VM on first run (REGT_ADDROF), which has cost the body rig a live abort once.
+		Vector3 seatOfs = (0, 0, 0);
+		bool    seatStated = false;
+		if (seatPart)
 		{
-			hand.FollowActorOfs        = WM_Space.Eng(seatPart.handSeat);
+			if (seatPart.handSeatStated)
+			{
+				seatOfs = seatPart.handSeat;
+				seatStated = true;
+			}
+			else if (st.mode == WM_HandState.BRACE)
+			{
+				seatOfs = seatPart.grabAt;
+				seatStated = true;
+			}
+		}
+		if (seatStated)
+		{
+			hand.FollowActorOfs        = WM_Space.Eng(seatOfs);
 			hand.FollowActorOfsInModel = true;
 		}
 		else
@@ -2960,12 +3130,9 @@ class WM_System : EventHandler
 				{
 					let part = rig.card.parts[i];
 					if (!rig.card.PartIsWorkable(i)) continue;
-					// THE BRACE'S OVAL IS HIDDEN until bracing is taken on. Two-handed
-					// bracing has never been seen to work here -- only the engine's
-					// stock two-hand mechanic has -- so this hides a grab point, not
-					// a working feature. A TWO-HANDED gun's support oval (card `hands = 2`) is
-					// always drawn: the other hand must find it for the trigger to fire.
-					if (part.role == "support" && !BraceOn() && !rig.card.NeedsTwoHands()) continue;
+					// EVERY SUPPORT OVAL IS DRAWN. It used to be hidden unless the gun
+					// declared `hands = 2`, which is how 66 support points on the other
+					// guns came to be invisible and untakeable at once.
 					Vector3 at, raw;
 					Vector3 axes;
 					bool hot;
@@ -3194,7 +3361,7 @@ class WM_System : EventHandler
 						if (part.role == "support")
 						{
 							if (rig.card.NeedsTwoHands()) what = "  IN REACH -- squeeze to hold it: it fires only while you do";
-							else what = BraceOn() ? "  IN REACH -- you are bracing" : "  (bracing is off)";
+							else what = "  IN REACH -- you are bracing";
 						}
 						else if (label == "the well")
 						{
@@ -3521,6 +3688,16 @@ class WM_System : EventHandler
 			if (!gun) return;
 			let ammo = gun.EnsureAmmo();
 			if (ammo) ammo.fireBlocked = (e.Args[1] != 0);
+			return;
+		}
+		// [SNAPLOAD] A DOWN-FLICK LANDED (wm_reload_mode 3, WM_Rig.FlickSnapLoad).
+		// The machine that works those hands saw the gesture and sent it; every
+		// machine tops the same gun up by the same amount from the same reserve,
+		// so the ammo count stays identical everywhere. Acts on the SENDER's gun.
+		if (e.Name ~== "wm_snapload")
+		{
+			if (!pmo || !pmo.player) return;
+			SnapLoad(pmo, e.Args[0] == 1 ? 1 : 0);
 			return;
 		}
 		if (e.Name ~== "wm_fan" || e.Name ~== "wm_slam")

@@ -1,0 +1,22 @@
+Two ZScript edits the migration script does not make. Both read vr_hand_units, so
+they are correct before AND after the flip and can go in first.
+
+--- a/RS_VRBody/zscript/body_holsters.zs
++++ b/RS_VRBody/zscript/body_holsters.zs
+@@ SolveScale()
+ 		double asHeld = 0.34;
+ 		let vu = CVar.GetCVar("vr_vunits_per_meter", players[consoleplayer]);
+ 		if (vu && vu.GetFloat() > 0.001) asHeld = vu.GetFloat() * 0.01;
++		// [HANDUNITS] With vr_hand_units 1 a held model is in map units like this
++		// one, so "as held" is simply 1:1.
++		let hu = CVar.GetCVar("vr_hand_units", players[consoleplayer]);
++		if (hu && hu.GetInt() == 1) asHeld = 1.0;
+
+--- a/RS_VR_Reload/zscript/wm/rig.zs
++++ b/RS_VR_Reload/zscript/wm/rig.zs
+@@ recoil slide, just before prop.FollowHandOfs = (0, slide, 0);
++		// [HANDUNITS] FollowHandOfs is in hand-frame units, and the recoil profiles'
++		// "back" was authored in the legacy centimetre frame. Keep the same travel
++		// in map units when the frame is map units (vr_hand_units 1).
++		if (int(Cvf("vr_hand_units", 0)) == 1) slide *= max(Cvf("vr_vunits_per_meter", 34.0), 1.0) * 0.01;
+ 		prop.FollowHandOfs = (0, slide, 0);

@@ -220,6 +220,22 @@ class WM_Store
 		return n - got;
 	}
 
+	// HOW MANY ROUNDS WOULD GO IN TO MAKE IT FULL. A placeholder takes none; a
+	// detached container takes its whole capacity, since Insert brings it back
+	// loaded. Spent cases COUNT AS ROOM here even though IsFull calls them full:
+	// this answers "what does filling it cost", and a snap reload that clears
+	// the spent brass is still paying for the round that replaces it.
+	int Room() const
+	{
+		if (placeholder) return 0;
+		if (kind == COUNTED) return max(0, capacity - (Detached() ? 0 : rounds));
+		int size = slots.Size();
+		if (Detached()) return size;
+		int live = 0;
+		for (int s = 0; s < size; s++) if (slots[s] == SLOT_LIVE) live++;
+		return max(0, size - live);
+	}
+
 	// Full: a counted store to capacity, every slot of a slotted one live.
 	void Fill()
 	{

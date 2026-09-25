@@ -24,6 +24,15 @@ OptionValue "WMGuns"
 	1, "Off-hand gun"
 }
 
+OptionValue "WMReloadModes"
+{
+	0, "Arcade -- never reload"
+	1, "By hand -- work the gun"
+	2, "Gun to the pouch, pull to reload"
+	3, "Flick the gun down"
+	4, "A key reloads"
+}
+
 OptionValue "WMPinPreview"
 {
 	0, "Off"
@@ -88,9 +97,9 @@ OptionMenu "WM_MainGun"
 	Title "MAIN-HAND GUN -- M4A3"
 	StaticText "WHERE IT SITS ON YOUR CONTROLLER -- MOVES LIVE", "Gold"
 	StaticText "Starts from the seat you already tuned for this gun.", "DarkGray"
-	Slider "Left / right",   "wm_main_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "Forward / back", "wm_main_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "Down / up",      "wm_main_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "Left / right",   "wm_main_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "Forward / back", "wm_main_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "Down / up",      "wm_main_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "Yaw",            "wm_main_yaw",   -180, 180, 1, 0
 	Slider "Pitch",          "wm_main_pitch", -180, 180, 1, 0
 	Slider "Roll",           "wm_main_roll",  -180, 180, 1, 0
@@ -112,9 +121,9 @@ OptionMenu "WM_OffGun"
 {
 	Title "OFF-HAND GUN -- PISTOLET"
 	StaticText "WHERE IT SITS ON YOUR CONTROLLER -- MOVES LIVE", "Gold"
-	Slider "Left / right",   "wm_off_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "Forward / back", "wm_off_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "Down / up",      "wm_off_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "Left / right",   "wm_off_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "Forward / back", "wm_off_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "Down / up",      "wm_off_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "Yaw",            "wm_off_yaw",   -180, 180, 1, 0
 	Slider "Pitch",          "wm_off_pitch", -180, 180, 1, 0
 	Slider "Roll",           "wm_off_roll",  -180, 180, 1, 0
@@ -1794,6 +1803,15 @@ OptionMenu "WM_HS_Chainsaw"
 OptionMenu "WM_MagMenu"
 {
 	Title "MAGAZINES AND ROUNDS"
+	StaticText "HOW YOU RELOAD", "Gold"
+	Option "Reloading", "wm_reload_mode", "WMReloadModes"
+	StaticText "Arcade: guns never need loading, as Doom's own never did.", "DarkGray"
+	StaticText "Flick down and pouch-fire both FILL the gun and keep what was", "DarkGray"
+	StaticText "already in it -- your reserve pays only for what goes in.", "DarkGray"
+	Slider "  Flick effort", "wm_snapload_scale", 0.25, 3.0, 0.05, 2
+	StaticText "1.00 is the speed that snaps a break action shut. Raise it if the", "DarkGray"
+	StaticText "gun reloads while you are just moving; lower it if the flick is work.", "DarkGray"
+	StaticText ""
 	StaticText "ON THE FLOOR", "Gold"
 	Slider "Walking over one picks it up after (tics)", "wm_walk_grace", 0, 700, 5, 0
 	StaticText "Grabbing by hand or laser works from the first tic.", "DarkGray"
@@ -1849,36 +1867,36 @@ OptionMenu "WM_HA_Default"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_default_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_default_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_default_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_default_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_default_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_default_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_default_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_default_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_default_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_default_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_default_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_default_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_default_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_default_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_default_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_default_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_default_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_default_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_default_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_default_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_default_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_default_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_default_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_default_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_default_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_default_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_default_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_default_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_default_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_default_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_default_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_default_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_default_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_default_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_default_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_default_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_default_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_default_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_default_off_round_roll",  -180, 180, 1, 0
@@ -1914,36 +1932,36 @@ OptionMenu "WM_HA_Pistol"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_pistol_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_pistol_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_pistol_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_pistol_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_pistol_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_pistol_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_pistol_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_pistol_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_pistol_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_pistol_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_pistol_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_pistol_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_pistol_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_pistol_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_pistol_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_pistol_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_pistol_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_pistol_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_pistol_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_pistol_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_pistol_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_pistol_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_pistol_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_pistol_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_pistol_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_pistol_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_pistol_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_pistol_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_pistol_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_pistol_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_pistol_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_pistol_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_pistol_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_pistol_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_pistol_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_pistol_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_pistol_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_pistol_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_pistol_off_round_roll",  -180, 180, 1, 0
@@ -1979,36 +1997,36 @@ OptionMenu "WM_HA_Shotgun"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_shotgun_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_shotgun_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_shotgun_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_shotgun_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_shotgun_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_shotgun_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_shotgun_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_shotgun_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_shotgun_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_shotgun_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_shotgun_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_shotgun_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_shotgun_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_shotgun_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_shotgun_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_shotgun_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_shotgun_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_shotgun_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_shotgun_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_shotgun_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_shotgun_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_shotgun_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_shotgun_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_shotgun_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_shotgun_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_shotgun_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_shotgun_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_shotgun_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_shotgun_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_shotgun_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_shotgun_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_shotgun_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_shotgun_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_shotgun_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_shotgun_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_shotgun_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_shotgun_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_shotgun_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_shotgun_off_round_roll",  -180, 180, 1, 0
@@ -2044,36 +2062,36 @@ OptionMenu "WM_HA_BreakAction"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_breakaction_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_breakaction_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_breakaction_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_breakaction_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_breakaction_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_breakaction_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_breakaction_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_breakaction_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_breakaction_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_breakaction_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_breakaction_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_breakaction_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_breakaction_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_breakaction_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_breakaction_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_breakaction_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_breakaction_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_breakaction_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_breakaction_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_breakaction_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_breakaction_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_breakaction_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_breakaction_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_breakaction_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_breakaction_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_breakaction_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_breakaction_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_breakaction_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_breakaction_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_breakaction_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_breakaction_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_breakaction_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_breakaction_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_breakaction_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_breakaction_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_breakaction_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_breakaction_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_breakaction_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_breakaction_off_round_roll",  -180, 180, 1, 0
@@ -2109,36 +2127,36 @@ OptionMenu "WM_HA_Revolver"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_revolver_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_revolver_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_revolver_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_revolver_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_revolver_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_revolver_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_revolver_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_revolver_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_revolver_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_revolver_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_revolver_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_revolver_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_revolver_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_revolver_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_revolver_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_revolver_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_revolver_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_revolver_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_revolver_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_revolver_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_revolver_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_revolver_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_revolver_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_revolver_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_revolver_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_revolver_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_revolver_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_revolver_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_revolver_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_revolver_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_revolver_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_revolver_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_revolver_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_revolver_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_revolver_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_revolver_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_revolver_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_revolver_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_revolver_off_round_roll",  -180, 180, 1, 0
@@ -2174,36 +2192,36 @@ OptionMenu "WM_HA_Rifle"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_rifle_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_rifle_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_rifle_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_rifle_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_rifle_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_rifle_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_rifle_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_rifle_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_rifle_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_rifle_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_rifle_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_rifle_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_rifle_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_rifle_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_rifle_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_rifle_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_rifle_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_rifle_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_rifle_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_rifle_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_rifle_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_rifle_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_rifle_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_rifle_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_rifle_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_rifle_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_rifle_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_rifle_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_rifle_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_rifle_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_rifle_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_rifle_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_rifle_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_rifle_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_rifle_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_rifle_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_rifle_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_rifle_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_rifle_off_round_roll",  -180, 180, 1, 0
@@ -2239,36 +2257,36 @@ OptionMenu "WM_HA_SMG"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_smg_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_smg_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_smg_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_smg_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_smg_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_smg_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_smg_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_smg_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_smg_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_smg_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_smg_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_smg_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_smg_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_smg_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_smg_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_smg_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_smg_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_smg_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_smg_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_smg_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_smg_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_smg_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_smg_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_smg_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_smg_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_smg_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_smg_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_smg_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_smg_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_smg_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_smg_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_smg_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_smg_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_smg_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_smg_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_smg_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_smg_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_smg_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_smg_off_round_roll",  -180, 180, 1, 0
@@ -2304,36 +2322,36 @@ OptionMenu "WM_HA_Chaingun"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_chaingun_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_chaingun_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_chaingun_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_chaingun_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_chaingun_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_chaingun_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_chaingun_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_chaingun_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_chaingun_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_chaingun_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_chaingun_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_chaingun_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_chaingun_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_chaingun_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_chaingun_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_chaingun_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_chaingun_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_chaingun_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_chaingun_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_chaingun_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_chaingun_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_chaingun_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_chaingun_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_chaingun_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_chaingun_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_chaingun_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_chaingun_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_chaingun_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_chaingun_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_chaingun_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_chaingun_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_chaingun_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_chaingun_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_chaingun_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_chaingun_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_chaingun_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_chaingun_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_chaingun_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_chaingun_off_round_roll",  -180, 180, 1, 0
@@ -2369,36 +2387,36 @@ OptionMenu "WM_HA_Plasma"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_plasma_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_plasma_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_plasma_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_plasma_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_plasma_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_plasma_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_plasma_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_plasma_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_plasma_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_plasma_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_plasma_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_plasma_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_plasma_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_plasma_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_plasma_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_plasma_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_plasma_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_plasma_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_plasma_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_plasma_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_plasma_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_plasma_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_plasma_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_plasma_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_plasma_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_plasma_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_plasma_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_plasma_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_plasma_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_plasma_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_plasma_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_plasma_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_plasma_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_plasma_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_plasma_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_plasma_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_plasma_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_plasma_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_plasma_off_round_roll",  -180, 180, 1, 0
@@ -2434,36 +2452,36 @@ OptionMenu "WM_HA_Launcher"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_launcher_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_launcher_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_launcher_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_launcher_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_launcher_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_launcher_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_launcher_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_launcher_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_launcher_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_launcher_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_launcher_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_launcher_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_launcher_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_launcher_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_launcher_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_launcher_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_launcher_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_launcher_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_launcher_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_launcher_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_launcher_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_launcher_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_launcher_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_launcher_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_launcher_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_launcher_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_launcher_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_launcher_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_launcher_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_launcher_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_launcher_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_launcher_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_launcher_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_launcher_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_launcher_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_launcher_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_launcher_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_launcher_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_launcher_off_round_roll",  -180, 180, 1, 0
@@ -2499,36 +2517,36 @@ OptionMenu "WM_HA_BFG"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_bfg_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_bfg_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_bfg_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_bfg_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_bfg_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_bfg_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_bfg_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_bfg_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_bfg_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_bfg_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_bfg_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_bfg_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_bfg_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_bfg_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_bfg_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_bfg_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_bfg_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_bfg_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_bfg_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_bfg_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_bfg_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_bfg_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_bfg_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_bfg_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_bfg_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_bfg_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_bfg_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_bfg_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_bfg_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_bfg_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_bfg_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_bfg_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_bfg_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_bfg_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_bfg_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_bfg_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_bfg_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_bfg_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_bfg_off_round_roll",  -180, 180, 1, 0
@@ -2564,36 +2582,36 @@ OptionMenu "WM_HA_Railgun"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_railgun_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_railgun_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_railgun_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_railgun_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_railgun_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_railgun_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_railgun_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_railgun_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_railgun_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_railgun_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_railgun_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_railgun_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_railgun_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_railgun_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_railgun_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_railgun_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_railgun_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_railgun_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_railgun_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_railgun_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_railgun_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_railgun_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_railgun_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_railgun_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_railgun_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_railgun_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_railgun_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_railgun_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_railgun_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_railgun_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_railgun_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_railgun_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_railgun_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_railgun_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_railgun_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_railgun_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_railgun_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_railgun_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_railgun_off_round_roll",  -180, 180, 1, 0
@@ -2629,36 +2647,36 @@ OptionMenu "WM_HA_Flamethrower"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_flamethrower_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_flamethrower_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_flamethrower_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_flamethrower_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_flamethrower_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_flamethrower_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_flamethrower_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_flamethrower_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_flamethrower_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_flamethrower_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_flamethrower_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_flamethrower_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_flamethrower_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_flamethrower_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_flamethrower_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_flamethrower_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_flamethrower_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_flamethrower_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_flamethrower_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_flamethrower_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_flamethrower_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_flamethrower_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_flamethrower_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_flamethrower_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_flamethrower_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_flamethrower_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_flamethrower_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_flamethrower_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_flamethrower_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_flamethrower_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_flamethrower_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_flamethrower_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_flamethrower_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_flamethrower_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_flamethrower_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_flamethrower_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_flamethrower_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_flamethrower_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_flamethrower_off_round_roll",  -180, 180, 1, 0
@@ -2694,36 +2712,36 @@ OptionMenu "WM_HA_Chainsaw"
 	Option "Hold an empty magazine in each hand (tuning)", "wm_heldmag_preview", "OnOff"
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_chainsaw_main_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_chainsaw_main_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_chainsaw_main_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_chainsaw_main_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_chainsaw_main_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_chainsaw_main_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_chainsaw_main_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_chainsaw_main_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_chainsaw_main_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_chainsaw_main_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A MAGAZINE IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_chainsaw_off_mag_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_chainsaw_off_mag_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_chainsaw_off_mag_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_chainsaw_off_mag_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_chainsaw_off_mag_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_chainsaw_off_mag_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_chainsaw_off_mag_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_chainsaw_off_mag_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_chainsaw_off_mag_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_chainsaw_off_mag_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR MAIN HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_chainsaw_main_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_chainsaw_main_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_chainsaw_main_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_chainsaw_main_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_chainsaw_main_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_chainsaw_main_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_chainsaw_main_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_chainsaw_main_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_chainsaw_main_round_roll",  -180, 180, 1, 0
 	Slider "  Size",           "wm_ha_chainsaw_main_round_scale", 0.05, 4.0, 0.01, 2
 	StaticText ""
 	StaticText "A ROUND IN YOUR OFF HAND -- MOVES LIVE", "Gold"
-	Slider "  Left / right",   "wm_ha_chainsaw_off_round_ofs_x", -100.0, 100.0, 0.25, 2
-	Slider "  Forward / back", "wm_ha_chainsaw_off_round_ofs_y", -100.0, 100.0, 0.25, 2
-	Slider "  Down / up",      "wm_ha_chainsaw_off_round_ofs_z", -100.0, 100.0, 0.25, 2
+	Slider "  Left / right",   "wm_ha_chainsaw_off_round_ofs_x", -34.0, 34.0, 0.085, 2
+	Slider "  Forward / back", "wm_ha_chainsaw_off_round_ofs_y", -34.0, 34.0, 0.085, 2
+	Slider "  Down / up",      "wm_ha_chainsaw_off_round_ofs_z", -34.0, 34.0, 0.085, 2
 	Slider "  Yaw",            "wm_ha_chainsaw_off_round_yaw",   -180, 180, 1, 0
 	Slider "  Pitch",          "wm_ha_chainsaw_off_round_pitch", -180, 180, 1, 0
 	Slider "  Roll",           "wm_ha_chainsaw_off_round_roll",  -180, 180, 1, 0
@@ -2881,9 +2899,9 @@ OptionMenu "WM_GrabMenu"
 	StaticText ""
 	StaticText "THE WHOLE GUN AT ONCE -- moves live", "Gold"
 	StaticText "For when every point sits off the gun the same way.", "DarkGray"
-	Slider "  Along the barrel (all)", "wm_grab_all_ofs_x", -20.0, 20.0, 0.25, 2
-	Slider "  Across (all)",           "wm_grab_all_ofs_y", -20.0, 20.0, 0.25, 2
-	Slider "  Up / down (all)",        "wm_grab_all_ofs_z", -20.0, 20.0, 0.25, 2
+	Slider "  Along the barrel (all)", "wm_grab_all_ofs_x", -6.8, 6.8, 0.085, 2
+	Slider "  Across (all)",           "wm_grab_all_ofs_y", -6.8, 6.8, 0.085, 2
+	Slider "  Up / down (all)",        "wm_grab_all_ofs_z", -6.8, 6.8, 0.085, 2
 	StaticText ""
 	Slider "See-through", "wm_marker_alpha", 0.05, 1.0, 0.05, 2
 }

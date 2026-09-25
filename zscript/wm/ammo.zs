@@ -498,6 +498,53 @@ class WM_Ammo
 		return went;
 	}
 
+	// ============================================================================
+	// [SNAPLOAD] FILL EVERY STORE, UP TO A BUDGET. Returns what it spent.
+	//
+	// The flick-down instant reload (wm_reload_mode 3). It lives here because the
+	// stores are this object's and Adopt/Sync are private: a caller reaching into
+	// them from outside would work on the shared card copies, not this gun's.
+	//
+	// EVERY STORE, not just the magazine -- a revolver's cylinder, a pump's tube,
+	// a double's barrels and a plain chamber are all stores, and the owner asked
+	// for this to work on every set.
+	//
+	// WHOLE STORES ONLY. Fill() is all-or-nothing, so a store is filled only while
+	// the budget covers the whole of it; half-filling would charge for rounds that
+	// never arrived.
+	// ============================================================================
+	int SnapFill(int budget)
+	{
+		Adopt();
+		int spent = 0;
+		for (int i = 0; i < stores.Size(); i++)
+		{
+			let st = stores[i];
+			int room = st.Room();
+			if (room <= 0) continue;
+			if (spent + room > budget) continue;
+			// A MAGAZINE THAT WAS OUT COMES BACK. Insert re-attaches it; Fill loads it.
+			if (st.Detached()) st.Insert(0);
+			st.Fill();
+			spent += room;
+		}
+		// THE ACTION COMES HOME WITH IT: an instant reload that leaves the gun
+		// locked open is not an instant reload.
+		if (spent > 0) actionLock = false;
+		Sync();
+		return spent;
+	}
+
+	// HOW MANY ROUNDS IT WOULD TAKE TO FILL EVERYTHING. Asked before the reserve
+	// is charged, so the charge is exactly what goes in.
+	int RoomTotal()
+	{
+		Adopt();
+		int n = 0;
+		for (int i = 0; i < stores.Size(); i++) n += stores[i].Room();
+		return n;
+	}
+
 	// Held open, or not. Set by the verbs by their holdopen rule.
 	void SetActionLock(bool held)
 	{

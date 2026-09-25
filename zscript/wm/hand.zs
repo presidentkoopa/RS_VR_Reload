@@ -58,7 +58,12 @@ class WM_HandState play
 	void Holding(int i)           { Clear(); mode = ONPART;  part = i; }
 	void Carrying(WM_LooseMag m)  { Clear(); mode = CARRY;   mag = m; }
 	void Foreigner(WM_LooseMag m) { Clear(); mode = FOREIGN; mag = m; }
-	void Bracing()                { Clear(); mode = BRACE; }
+	// A BRACE REMEMBERS WHICH PART IT BRACED. It used to throw the index away, so
+	// nothing downstream could tell which gun's support grip this open hand was on --
+	// PinHand seated it at the gun's frame origin and SupportHeld could not see it at
+	// all. HeldPart() deliberately still answers -1 for a brace: a brace is not a take,
+	// and every take path depends on that. BracedPart() is the separate question.
+	void Bracing(int i = -1)      { Clear(); mode = BRACE; part = i; }
 
 	// A CARRY GOING INTO THE WELL KEEPS WHETHER IT HAS LEFT THE POUCH. A guide
 	// let go of short of the catch goes back to being that same carry, and
@@ -120,6 +125,14 @@ class WM_HandState play
 		return -1;
 	}
 
+	// The part this open hand is BRACED on, or -1. Not folded into HeldPart(): a brace
+	// is not a hold, and the take/fire paths read HeldPart() expecting exactly that.
+	int BracedPart()
+	{
+		if (mode == BRACE) return part;
+		return -1;
+	}
+
 	WM_LooseMag Carried()
 	{
 		if (mode == CARRY) return mag;
@@ -175,6 +188,9 @@ class WM_PlayerHands play
 	int          placingSite[2]; // pouch this hand is dragging in placement mode, -1 none
 	double       palmFacing[2];  // last palm-to-gun reading, 1 square, 0 sideways
 	bool         lastGripHud[2]; // grip state at the last HUD log snapshot
+	// [POUCHFIRE] trigger held last tic, so the pull that reloads is an EDGE:
+	// a held trigger at the belt would empty the pouch into the gun a tic at a time.
+	bool         pouchFireHeld[2];
 	Vector3      trail[8];       // four samples per hand, the fallback for throws
 
 	// Per player.

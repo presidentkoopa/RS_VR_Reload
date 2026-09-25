@@ -80,6 +80,15 @@ class WM_Rig play
 	// never shuts it again. A constant rather than a slider -- it is a guard, not a feel.
 	const FLICK_GRACE_TICS = 6;
 
+	// [SNAPLOAD] FLICK THE GUN DOWN AND IT IS FULL AGAIN (wm_reload_mode 3).
+	// One set of state for the whole gun rather than one per verb: this is a
+	// gesture made with the WEAPON, not with a part of it, so there is nothing
+	// to index by. Same detector as FlickByVerbs -- hand speed plus what the
+	// wrist adds at the gun, measured along one axis against wm_flick_speed.
+	int    snapQuiet;
+	double snapLast;
+	bool   snapCalm;
+
 	const STROKE_HOME = 0;    // the next pull past outat does the far end
 	const STROKE_OUT  = 1;    // the far end is done; back to homeat does the near end
 
@@ -806,7 +815,10 @@ class WM_Rig play
 		Vector3 o, ax, ay, az;
 		[o, ax, ay, az] = FrameBasis();
 		double u = ax.Length();
-		return u > 1e-6 ? u : max(0.01, Cvf("wm_world_factor", 0.34));
+		// [HANDUNITS] The fallback is 1.0, like the cvar's own default: the hand
+		// frame is map units now, so one frame unit IS one map unit when there is
+		// no drawn frame to measure. It was 0.34 while the hand path drew smaller.
+		return u > 1e-6 ? u : max(0.01, Cvf("wm_world_factor", 1.0));
 	}
 
 	// A displacement written in frame units, as a world vector.
@@ -1425,6 +1437,9 @@ class WM_Rig play
 			for (int k = 0; k < verbTics.Size(); k++) verbTics[k] = 0;
 			Cycle();
 		}
+		// [SNAPLOAD] OUTSIDE the wm_verbs gate, deliberately: a snap reload is not a
+		// verb, and a gun with no verbs at all still has to reload.
+		FlickSnapLoad(pmo);
 	}
 
 	// ---- A SURFACE THAT SHOWS THE MAGAZINE'S FILL (card.zs WM_Part.meterSurface) ----------------------
@@ -2046,6 +2061,21 @@ class WM_Rig play
 			recoilJoltLeft--;
 		}
 		else recoilJoltLeft = 0;
+		// [HANDUNITS] THE HAND FRAME IS MAP UNITS NOW, AND THESE PROFILES ARE NOT.
+		//
+		// FollowHandOfs lands in the hand's frame. That frame used to size one unit at
+		// 0.34 map units, and every recoil profile's "back" was authored against it.
+		// The engine now draws the hand path in map units like everything else
+		// (models.cpp, ObjectToWorldMatrix), so the same number would kick 2.94x
+		// further than it was tuned to. 0.34 puts the travel back where it was.
+		//
+		// A LITERAL, NOT A vr_vunits_per_meter LOOKUP. The profiles were authored
+		// against 0.34 specifically; reading the cvar would make recoil travel change
+		// whenever the player changes their VR scale, which is exactly the coupling
+		// the engine change removed. Fold this into the RSBDEFS "back" values and
+		// delete the line if it ever wants to be a one-time migration -- one or the
+		// other, never both.
+		slide *= 0.34;
 		// Y IS BACK. FollowHandOfs lands in the HAND's frame, not the mesh's: X the hand's right (which mirrors in the off
 		// hand), Y back along the aim, Z up -- models.cpp step 4 hands it over as (x, z, y), and the build lane's reading of
 		// the OpenXR hand transform agrees. So a slide toward you is +Y, the same in either hand.
@@ -2859,6 +2889,74 @@ class WM_Rig play
 	// opened it never shuts it again. No velocity is no flick: an honest zero, never a guess.
 	// LOCAL INPUT: the controller's velocity is the owner's and reads zero in a netgame, so there a
 	// flick never shuts anything and a hand still does (FEEL_PLAN section 10).
+	// ============================================================================
+	// [SNAPLOAD] FLICK THE GUN DOWN: INSTANT FULL RELOAD, NOTHING THROWN AWAY.
+	//
+	// Owner, 2026-09-20: "i want flick down for instant full reload, no ammo loss".
+	// wm_reload_mode 3 (RELOAD_SNAP), which until now was a name with no code
+	// behind it -- picking it silently gave you manual.
+	//
+	// NO AMMO LOSS is the part that makes this different from every other reload
+	// here. A magazine swap throws the partial magazine away with its rounds still
+	// in it; this TOPS UP, and the reserve is charged only for what actually goes
+	// in. Half a magazine costs you half a magazine.
+	//
+	// THE GESTURE IS MADE WITH THE WEAPON, not with a part of it, so unlike
+	// FlickByVerbs there is nothing to index by -- one set of state for the rig.
+	// The measurement is the same one, and deliberately so: hand speed along the
+	// axis PLUS what the wrist adds at the gun, so a flick of the wrist counts
+	// the way a flick of the arm does.
+	//
+	// DOWN IS WORLD DOWN, not the gun's own axis. "Flick it down" means down in
+	// the room whichever way the gun is pointing; a gun-relative axis would make
+	// the gesture change meaning every time you turned your wrist.
+	//
+	// IT ONLY DECIDES. Ammo is playsim state, and this runs on the one machine
+	// that can see the hand, so it sends an event and WM_System applies it on
+	// every machine -- the same shape as PublishFireBlock and for the same reason
+	// (NETPLAY_SPEC section 10, approach B).
+	// ============================================================================
+	private void FlickSnapLoad(PlayerPawn pmo)
+	{
+		if (!pmo || !pmo.player || !card || !prop || stowed) { snapCalm = false; snapLast = 0.0; return; }
+		int pn = pmo.PlayerNumber();
+		if (WM_System.ReloadMode(pn) != WM_System.RELOAD_SNAP) { snapCalm = false; snapLast = 0.0; return; }
+
+		// WORLD DOWN. The hand's own velocity along it, plus the part the wrist
+		// swings: the gun sits away from the hand, so a rotation moves it even when
+		// the hand itself barely travels.
+		Vector3 down = (0, 0, -1);
+		Vector3 lin, ang, handAt;
+		if (hand == 0) { lin = pmo.AttackVel;  ang = pmo.AttackAngularVel;  handAt = pmo.AttackPos; }
+		else           { lin = pmo.OffhandVel; ang = pmo.OffhandAngularVel; handAt = pmo.OffhandPos; }
+
+		Vector3 gunAt = prop.Pos;
+		double along = (lin dot down) + ((ang cross (gunAt - handAt)) dot down);
+		double need  = Cvf("wm_flick_speed", 1.5) * Cvf("vr_vunits_per_meter", 34.0)
+		             * max(0.1, Cvf("wm_snapload_scale", 1.0));
+
+		// TWO TICS AVERAGED, as FlickByVerbs does: one tic of noise from a tracker
+		// glitch is not a gesture, and the mean costs nothing.
+		double mean = (along + snapLast) * 0.5;
+		snapLast = along;
+
+		if (snapQuiet > 0) { snapQuiet--; return; }
+		// SETTLE FIRST. Without this the follow-through of the flick that just
+		// reloaded fires it again, and again, every tic it stays fast.
+		if (!snapCalm)
+		{
+			if (along < need * 0.5) snapCalm = true;
+			return;
+		}
+		if (mean < need) return;
+
+		snapCalm  = false;
+		snapQuiet = FLICK_GRACE_TICS;
+		// THE MACHINE THAT SAW IT TELLS EVERY MACHINE. Never applied here.
+		EventHandler.SendNetworkEvent("wm_snapload", hand);
+		level.VRHaptic(hand, 0.6, 14.0);
+	}
+
 	private void FlickByVerbs(PlayerPawn pmo)
 	{
 		if (!prop || !resolved || stowed || !ammo || !pmo || !Cvb("wm_flick_close", true)) return;

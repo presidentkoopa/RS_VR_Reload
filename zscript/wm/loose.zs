@@ -265,12 +265,23 @@ class WM_LooseMag : Clip
 		Name want = (hand >= 0) ? HeldPrefix(hand) : FloorPrefix();
 		if (PlacementPrefix != want) PlacementPrefix = want;
 
-		// In a hand it is drawn in the controller's frame, which is not in map
-		// units: the renderer scales that frame by 0.01 and vr_vunits_per_meter
-		// (34) on top, so one model unit there is 0.34 map units. One card
-		// number serves both places because of this one ratio.
+		// ONE CARD NUMBER SERVES BOTH PLACES, and wm_world_factor is the ratio
+		// between them. magscale is the size on the FLOOR; in a hand it is divided
+		// by however much smaller the hand frame draws a model unit.
+		//
+		// [HANDUNITS] That ratio is now 1. The hand frame used to size one model
+		// unit at vr_vunits_per_meter * 0.01 = 0.34 map units while the floor used
+		// 1, so a held magazine was scaled up by 1/0.34 to come out the same size.
+		// The engine now divides vr_vunits_per_meter back out on the hand path too
+		// (models.cpp, ObjectToWorldMatrix), both frames are map units, and the
+		// migration set wm_world_factor to 1.0 to match.
+		//
+		// SO magscale ITSELF DID NOT MOVE, and must not: it is common to both
+		// branches, and the whole correction lives in wm_world_factor. Setting the
+		// cards' magscale to 1.0 would make every magazine 2.94x too big, on the
+		// floor as well as in the hand.
 		double sc = worldScale;
-		if (hand >= 0) sc = worldScale / max(0.01, Cvf("wm_world_factor", 0.34));
+		if (hand >= 0) sc = worldScale / max(0.01, Cvf("wm_world_factor", 1.0));
 		if (abs(Scale.X - sc) > 1e-4) A_SetScale(sc);
 
 		// IT GLOWS IN ITS OWN COLOUR once it is out of the hand -- falling or

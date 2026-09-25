@@ -1,0 +1,26 @@
+--- a/src/r_data/models.cpp
++++ b/src/r_data/models.cpp
+@@ -378,2 +378,17 @@
+ CVAR(Bool, vr_place_debug, false, 0)
++// [HANDUNITS] How one model unit on the follow-hand path is sized.
++//   0 = LEGACY: the frame GetWeaponTransform hands back is in METRES, times 0.01,
++//       so one model unit draws as vr_vunits_per_meter * 0.01 map units (0.34 at
++//       the default 34): a centimetre. Every other world path is 1 unit = 1 map
++//       unit, so a mesh moved between paths changed size by 2.94x.
++//   1 = MAP UNITS: the same inverse VR_FinishHmdTransform gives the body path,
++//       so one model unit is one map unit on every world path, and moving
++//       vr_vunits_per_meter no longer resizes what the hands hold.
++// Content is migrated for 1 by tools/hand_units/hand_units.py (Scale, Offset,
++// ZOffset, PivotOffset and the placement offsets x vr_vunits_per_meter * 0.01).
++// Only the follow-hand branch of ObjectToWorldMatrix reads this; the HUD
++// psprite path (RenderHUDModel's own 0.01) is untouched.
++CVAR(Int, vr_hand_units, 0, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
++EXTERN_CVAR(Float, vr_vunits_per_meter)
+ EXTERN_CVAR(Float, vr_hand_ofs_x);
+@@ -1636,2 +1651,5 @@
+-			const float followHandUnitScale = 0.01f;
++			const float vuHand = (float)vr_vunits_per_meter;
++			const float followHandUnitScale = (vr_hand_units == 1 && vuHand > 1e-3f)
++				? 1.f / vuHand      // [HANDUNITS] map units, as the body path
++				: 0.01f;            // legacy: centimetres in a metre frame
+ 			objectToWorldMatrix.scale(followHandUnitScale, followHandUnitScale, followHandUnitScale);
