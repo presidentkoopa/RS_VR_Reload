@@ -215,6 +215,64 @@ class WM_System : EventHandler
 	// THE CARD OF A WEAPON CLASS, or null -- by class, not through a rig, so it does
 	// not depend on which player's hands are worked here. (The shot is no longer
 	// on the card: WM_Gun reads its own ShotPellets / ShotSpread / ShotDamage.)
+	// ---- GIVE ME A WHOLE SET -------------------------------------------------------
+	//
+	// "All weapons" is useless once more than one set is loaded: it hands you sixty guns
+	// from four mods at once and you cannot find the one you wanted. What a person means
+	// is "every gun in THIS set".
+	//
+	// THE SETS COME FROM THE CARDS THEMSELVES, not a list typed here. Every card records
+	// the lump it was read from (sourceLump), and that lump is WMCARD.<set> -- so the set
+	// names are whatever is actually loaded, and a set added tomorrow appears without this
+	// file being touched. A hardcoded table would be a second place to forget.
+
+	String SetLumpAt(int n)
+	{
+		if (!set) return "";
+		Array<String> seen;
+		for (int i = 0; i < set.cards.Size(); i++)
+		{
+			String nm = LumpSetName(set.cards[i].sourceLump);
+			if (nm == "" || seen.Find(nm) != seen.Size()) continue;
+			if (seen.Size() == n) return nm;
+			seen.Push(nm);
+		}
+		return "";
+	}
+
+	// WMCARD.hacx -> "hacx". A lump with no dot is not a card lump we can name.
+	private static String LumpSetName(int lump)
+	{
+		if (lump < 0) return "";
+		String full = Wads.GetLumpFullName(lump);
+		// `dot` IS A RESERVED WORD -- it is the dot-product operator, so naming a local
+		// that compiles nowhere and fails with "Unexpected 'dot'", which reads like a
+		// syntax error in the string rather than in the name.
+		int at = full.LastIndexOf(".");
+		if (at < 0) return "";
+		return full.Mid(at + 1);
+	}
+
+	// Returns how many it gave. Ammo is left alone on purpose: the sets disagree about
+	// what feeds what, and a give that also guesses at ammunition is a give that arms the
+	// wrong gun. Use the set's own ammo command, or pick things up.
+	int GiveSet(PlayerPawn pmo, String setName)
+	{
+		if (!set || !pmo) return 0;
+		int n = 0;
+		for (int i = 0; i < set.cards.Size(); i++)
+		{
+			if (!(LumpSetName(set.cards[i].sourceLump) ~== setName)) continue;
+			String wc = set.cards[i].weaponClass;
+			let cls = (Class<Weapon>)(Object.FindClass(wc, "Weapon"));
+			if (!cls) continue;                       // a card whose gun this pack does not build
+			if (pmo.FindInventory(cls)) continue;     // already carried; do not stack a second
+			pmo.GiveInventory(cls, 1);
+			n++;
+		}
+		return n;
+	}
+
 	WM_Card CardForWeapon(String weaponClass)
 	{
 		if (!set) return null;
@@ -3657,6 +3715,31 @@ class WM_System : EventHandler
 	override void NetworkProcess(ConsoleEvent e)
 	{
 		let pmo = PlayerPawn(players[e.Player].mo);
+
+		// GIVE THE SENDER EVERY GUN IN ONE SET. Acts on the player who SENT it, never on
+		// this machine's console player, so in co-op arming yourself does not arm everyone.
+		if (e.Name.Left(11) ~== "wm_giveset:")
+		{
+			if (!pmo) return;
+			String sn = e.Name.Mid(11);
+			int n = GiveSet(pmo, sn);
+			if (e.Player == consoleplayer)
+				Console.Printf("\cjWM: gave %d gun(s) from %s.%s", n, sn,
+				               n == 0 ? " No set of that name is loaded -- try wm_sets." : "");
+			return;
+		}
+		if (e.Name ~== "wm_sets")
+		{
+			if (e.Player != consoleplayer) return;
+			Console.Printf("\cjWM: sets loaded --");
+			for (int i = 0; i < 64; i++)
+			{
+				String sn = SetLumpAt(i);
+				if (sn == "") break;
+				Console.Printf("  %s", sn);
+			}
+			return;
+		}
 		// THIS MACHINE'S OWN UI (NETPLAY_SPEC section 8, P0): moving a pouch, baking a grab oval, the dump and
 		// the self test read and write this machine's cvars and print to its console, so they act only on the
 		// machine of the player who sent them. Another player's copy of the event, arriving here, does nothing.

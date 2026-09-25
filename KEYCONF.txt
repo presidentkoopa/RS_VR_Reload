@@ -1,3 +1,9 @@
 // wm_card <weapon class> | all | check -- the model card and weapon sheet printout (zscript/wm/sheet.zs).
 // A network event so it reaches WM_System.NetworkProcess; it prints on the sender's machine only and changes nothing.
 alias wm_card "netevent wm_card:%1"
+
+// wm_giveset <set> -- every gun in ONE set, to the player who typed it. "All weapons"
+// is useless with four sets loaded: it hands you sixty guns and you cannot find the one
+// you wanted. wm_sets lists what is loaded.
+alias wm_giveset "netevent wm_giveset:%1"
+alias wm_sets    "netevent wm_sets"
