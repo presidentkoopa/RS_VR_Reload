@@ -346,7 +346,7 @@ class WM_Rig play
 		else if (card.firesFrom == WM_Card.FIRES_NOTHING) firesText = "nothing -- no ammunition";
 		WM_Log.Info(String.Format("%s hand: %s shot -- %s; fires from %s%s%s", HandName(), card.weaponClass, GunShotText(),
 			firesText, card.noCasing ? "; no casing" : "",
-			card.NeedsTwoHands() ? "; hands 2 -- fires only while the other hand holds its support grip" : ""));
+			card.NeedsTwoHands() ? "; hands 2 -- wants a second hand to steady it, but fires without one" : ""));
 		// A WEAPON THAT LEAVES THE HAND (throw.zs), once per bind: its throw, route, fuse and mount.
 		if (card.throwSpec)
 		{

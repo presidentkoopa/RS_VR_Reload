@@ -390,7 +390,11 @@ class WM_System : EventHandler
 		// other machine would answer "no hands, no pouch" and let the shot through.
 		else if (ReloadMode(pn) == RELOAD_POUCHFIRE && NearestPouch(pmo, h) >= 0) blocked = true;
 		// TWO-HANDED (card `hands = 2`): only while the other hand holds this gun's support grip.
-		else if (rig.card.NeedsTwoHands() && !SupportHeld(ph, h, rig)) blocked = true;
+		// [NO TWO-HAND FIRE GATE 2026-09-25] Owner: no gun requires two hands to FIRE.
+		// Support is for steadying the gun and taking recoil off it, never for permission
+		// to shoot. A card's `hands = 2` used to refuse the shot outright, which is how the
+		// miniguns, both launchers, the plasma and both BFGs became unfireable one-handed.
+		// The card keyword still marks a gun as wanting two hands; nothing blocks on it.
 		// IN BATTERY (G16, wm_verbs on): not with an action open -- a forend part-way back,
 		// a stroke ejected and not yet fed, an open verb open. A pistol's slide is spring-
 		// returned and never asked (WM_Rig.OutOfBattery), so both fire as before.
@@ -695,7 +699,7 @@ class WM_System : EventHandler
 		let rig = ph.rigs[h];
 		let b = rig.card.AltBarrel();
 		if (!b) return;
-		rig.OnBarrelDry(b, rig.card.NeedsTwoHands() && !SupportHeld(ph, h, rig));
+		rig.OnBarrelDry(b, false);   // [NO TWO-HAND FIRE GATE] never dry for want of a second hand
 	}
 
 	// THE RIG DRAWING THIS GUN, or null: the weapon's owner's hands, the hand the gun is in, and
@@ -760,7 +764,7 @@ class WM_System : EventHandler
 		if (h < 0 || h > 1 || !ph || !ph.rigs[h] || !ph.rigs[h].card) return;
 		// TWO-HANDED AND UNHELD (card `hands = 2`): the rig says that click's reason.
 		let dryRig = ph.rigs[h];
-		dryRig.OnDry(rounds, dryRig.card.NeedsTwoHands() && !SupportHeld(ph, h, dryRig));
+		dryRig.OnDry(rounds, false);   // [NO TWO-HAND FIRE GATE] never dry for want of a second hand
 	}
 
 	// A CHARGE STARTING (WM_Gun.ChargeTics): the charge sound at the gun and one log line.
@@ -3460,7 +3464,7 @@ class WM_System : EventHandler
 					{
 						if (part.role == "support")
 						{
-							if (rig.card.NeedsTwoHands()) what = "  IN REACH -- squeeze to hold it: it fires only while you do";
+							if (rig.card.NeedsTwoHands()) what = "  IN REACH -- squeeze to steady it";
 							else what = "  IN REACH -- you are bracing";
 						}
 						else if (label == "the well")
