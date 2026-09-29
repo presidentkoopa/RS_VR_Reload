@@ -64,6 +64,7 @@ OptionMenu "WM_Options"
 	Submenu "The ammo pouch and the well",  "WM_PouchMenu"
 	Submenu "Firing, flash and brass",      "WM_FireMenu"
 	Submenu "Grab points",                  "WM_GrabMenu"
+	Submenu "What a gun's weight does",     "WM_WeightMenu"
 	StaticText ""
 	StaticText "WHAT RUNS THE GUNS -- for comparing in the headset", "Gold"
 	Option "Run each gun from its card's verbs", "wm_verbs", "OnOff"
@@ -2875,6 +2876,42 @@ OptionMenu "WM_FeelMenu"
 	StaticText "UNCALIBRATED (NO TYPE)", "Gold"
 	Slider "  A hand-worked action counts as home within", "wm_feel_default_home", 0.0, 0.6, 0.01, 2
 	Slider "  An opened gun counts as shut within",        "wm_feel_default_shut", 0.0, 0.6, 0.01, 2
+}
+
+// WM_WeightMenu -- the two things a gun's measured pounds may do to how it handles.
+//
+// NOT LINT-LIVE, and it must not be: both effects are read by the rig every tic while the
+// game RUNS, and a menu freezes the game. You set these, close the page, and swing.
+OptionMenu "WM_WeightMenu"
+{
+	Title "WHAT A GUN'S WEIGHT DOES"
+	StaticText "26 guns carry a real measured weight in pounds, empty.", 1
+	StaticText "A gun that states none gets neither of these -- no weight is", "DarkGray"
+	StaticText "NO DATA, and it never means the gun is light.", "DarkGray"
+	StaticText "Close the menu to feel a change. 'Print the full state now'", "DarkGray"
+	StaticText "on the previous page reports what each held gun actually got.", "DarkGray"
+	StaticText ""
+	StaticText "HOW HEAVY COUNTS AS HEAVY -- shared by both", "Gold"
+	Slider "  Pounds that still handle like nothing", "wm_weight_free", 0.0, 12.0, 0.5, 1
+	Slider "  Pounds above that to reach the full effect", "wm_weight_span", 1.0, 40.0, 1.0, 0
+	Slider "  What is left when both hands are on it", "wm_weight_twohand", 0.0, 1.0, 0.05, 2
+	StaticText ""
+	StaticText "SLUGGISH TO SWING -- the gun's turn trails your hand", "Gold"
+	Option "Heavy guns swing late", "wm_weight_lag", "OnOff"
+	Slider "  How far behind it falls", "wm_weight_lag_trail", 0.0, 1.0, 0.05, 2
+	Slider "  How much it wallows before catching up", "wm_weight_lag_settle", 0.0, 0.95, 0.01, 2
+	Slider "  Degrees it may never exceed", "wm_weight_lag_max", 0.0, 30.0, 0.5, 1
+	StaticText "It settles back to zero, so a gun always points where your", "DarkGray"
+	StaticText "controller points once you stop moving. Only the turn lags --", "DarkGray"
+	StaticText "the gun never leaves your hand.", "DarkGray"
+	StaticText ""
+	StaticText "THE MUZZLE DROOPS -- off, and deliberately", "Gold"
+	Option "Heavy guns hang muzzle-down", "sv_wm_weight_sag", "OnOff"
+	Slider "  Degrees it drops at full weight", "wm_weight_sag_deg", 0.0, 30.0, 0.5, 1
+	StaticText "This one is a STEADY turn: the gun stops pointing where your", "DarkGray"
+	StaticText "controller points, and stays that way, so every gun has to be", "DarkGray"
+	StaticText "re-learned before you can place a shot. Kept because the feel", "DarkGray"
+	StaticText "was right; off because that bill is paid on the firing line.", "DarkGray"
 }
 
 // LINT-LIVE: WM_GrabMenu

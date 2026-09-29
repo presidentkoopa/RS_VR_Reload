@@ -3708,9 +3708,32 @@ class WM_System : EventHandler
 			double span = CVar.GetCVar("wm_weight_span", players[consoleplayer]).GetFloat();
 			double degs = CVar.GetCVar("wm_weight_sag_deg", players[consoleplayer]).GetFloat();
 			double t = (span > 0) ? clamp((lbs - free) / span, 0.0, 1.0) : 0.0;
-			WM_Log.Info(String.Format("%s hand WEIGHT: %s %.2f lb -> sag %.2f deg%s",
+			// SAG IS OFF BY DEFAULT NOW (sv_wm_weight_sag, CVARINFO) -- say which of the two
+			// weight effects is actually running, because "the gun feels no heavier" has two
+			// completely different causes and they look identical from inside a headset.
+			bool sagOn = CVar.GetCVar("sv_wm_weight_sag", players[consoleplayer]).GetBool();
+			bool lagOn = CVar.GetCVar("wm_weight_lag",    players[consoleplayer]).GetBool();
+			WM_Log.Info(String.Format("%s hand WEIGHT: %s %.2f lb -> sag %.2f deg%s%s",
 				HandName(h), g.GetClassName(), lbs, t * degs,
-				(t * degs < 2.0) ? "   (UNDER 2 DEG -- you will not feel this)" : ""));
+				sagOn ? "" : " (SAG OFF)",
+				(sagOn && t * degs < 2.0) ? "   (UNDER 2 DEG -- you will not feel this)" : ""));
+			// AND THE TRAIL, the same way and for the same reason: the input and the ceiling
+			// together, so a trail that is present and imperceptible cannot be mistaken for
+			// one that never ran. heft is the same weight ramp the sag uses.
+			if (!lagOn)
+				WM_Log.Info(String.Format("%s hand TRAIL: off (wm_weight_lag)", HandName(h)));
+			else
+			{
+				double trail = t * CVar.GetCVar("wm_weight_lag_trail", players[consoleplayer]).GetFloat();
+				double keep  = clamp(CVar.GetCVar("wm_weight_lag_settle", players[consoleplayer]).GetFloat(), 0.0, 0.95);
+				double cap   = CVar.GetCVar("wm_weight_lag_max", players[consoleplayer]).GetFloat();
+				// What a steady 90 deg/sec sweep settles at: 2.57 deg of hand turn per tic,
+				// through the same accumulate-and-decay the rig runs, then the ceiling.
+				double sweep = min(2.57 * trail * keep / max(0.001, 1.0 - keep), cap);
+				WM_Log.Info(String.Format("%s hand TRAIL: heft %.2f -> %.2f deg behind on a steady sweep (cap %.1f)%s",
+					HandName(h), t, sweep, cap,
+					(sweep < 0.5) ? "   (UNDER 0.5 DEG -- you will not feel this)" : ""));
+			}
 		}
 	}
 

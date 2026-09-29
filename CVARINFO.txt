@@ -2781,7 +2781,14 @@ nosave float wm_hs_flamer_off_foregrip_scale           = 1.0;
 // source), 1.58 lb (BW_P38) to 35 (WM_Chaingun). The other 80 state nothing.
 // The gun turns about the GRIP; the hand never moves, because the player's real hand is
 // ground truth. 0 lb means NO DATA (80 guns have none) and gives NO sag, never "light".
-server bool  sv_wm_weight_sag  = true;
+// OFF, AND DELIBERATELY (the owner, 2026-09-29). Sag is a STEADY turn: the drawn gun points
+// somewhere other than the controller and STAYS there, so every gun in the fleet has to be
+// re-learned by hand before you can put a shot where you meant to. That is a real cost and
+// it is paid on the firing line, which is where it is least affordable. The expression below
+// is kept, intact and inert, because the feel of it was right -- flip this to true to have it
+// back. What replaced it is wm_weight_lag: a TRANSIENT turn that settles to zero, so a heavy
+// gun feels heavy to swing without ever changing where it points at rest.
+server bool  sv_wm_weight_sag  = false;
 // FITTED TO THE FLEET WE ACTUALLY SHIP, not to a guess. At the first values (free 6,
 // span 20) THIRTY-TWO of the 75 weighted guns landed between "nothing" and 2 degrees --
 // they carried a real measured weight and still did nothing a headset could feel, which
@@ -2793,3 +2800,26 @@ user   float wm_weight_free    = 3.0;   // lb that still hangs level in one hand
 user   float wm_weight_span    = 14.0;  // lb above that to reach full sag
 user   float wm_weight_sag_deg = 12.0;  // degrees the muzzle drops at full sag
 user   float wm_weight_twohand = 0.15;  // what is left of the sag with both hands on it
+
+// ---- GUN WEIGHT: a heavy gun is SLUGGISH TO SWING --------------------------
+// WHAT THIS IS AND WHY IT IS NOT SAG. The gun's turn TRAILS the controller and then catches
+// up: swing a 25 lb machine gun and the muzzle arrives late, hold still and it sits exactly
+// where the controller points. Zero steady-state error is the whole point -- sag moved the
+// aim permanently, this never does, so a gun you have never held still orients the way your
+// hand does. The Walking Dead: Saints & Sinners is the reference feel.
+//
+// ROTATION ONLY, AND THAT IS A RULING, NOT A STAGE. The gun stays planted on the hand; only
+// its turn about the grip lags. The arm chains run absolute stretch because the player's
+// real hand is ground truth, and nothing here may displace it. S&S also drags the gun's
+// POSITION behind the hand and that was considered and deliberately not built (the owner,
+// 2026-09-29: the hand and gun attachment is delicate right now). Do not add it quietly.
+//
+// OFF BY DEFAULT. The owner's call: it changes how every heavy gun handles, and a change
+// that big arrives when he switches it on and looks, not when he opens the game.
+//
+// SIGNS UNCONFIRMED. Which way a trail reads is a headset question and has never been asked.
+// WM_Rig.LAG_TILT_SIGN flips all three at once if the first look says they are backwards.
+user   bool  wm_weight_lag        = false;
+user   float wm_weight_lag_trail  = 0.45;   // how much of this tic's hand turn the gun fails to follow
+user   float wm_weight_lag_settle = 0.72;   // what is left of the trail each tic (0 snaps, 0.9 wallows)
+user   float wm_weight_lag_max    = 8.0;    // degrees the trail may never exceed, however hard you swing

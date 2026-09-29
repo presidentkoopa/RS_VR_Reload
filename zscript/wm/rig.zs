@@ -2032,6 +2032,28 @@ class WM_Rig play
 	double recoilJoltRoll;
 	const RECOIL_TILT_SIGN = 1.0;   // -1 flips the drawn gun's recoil turn, if a headset look says the signs are backward
 
+	// THE WEIGHT TRAIL (wm_weight_lag). How far the drawn gun's turn is currently BEHIND the
+	// hand's, in the hand's own frame -- the same three channels FollowHandRot is written in.
+	// Carried across tics because a trail is a running error, not a per-tic reading.
+	double lagYaw;
+	double lagPitch;
+	double lagRoll;
+	double lagPrevYaw;
+	double lagPrevPitch;
+	double lagPrevRoll;
+	bool   lagSeen;                 // false until one tic of hand angles has been recorded to difference against
+	const LAG_TILT_SIGN = 1.0;      // -1 flips the trail's three channels at once, same as RECOIL_TILT_SIGN
+
+	// A DEGREE DIFFERENCE THE SHORT WAY ROUND. Written here rather than reaching for
+	// deltaangle(): turning past 180 must read as a small turn, not a 359-degree snap that
+	// slams the trail into its ceiling.
+	static double ShortDeg(double d)
+	{
+		while (d >  180.0) d -= 360.0;
+		while (d < -180.0) d += 360.0;
+		return d;
+	}
+
 	void RecoilLook()
 	{
 		if (!prop) return;
@@ -2039,6 +2061,7 @@ class WM_Rig play
 		if (!g || !card || !resolved || stowed)
 		{
 			recoilJoltLeft = 0;
+			lagYaw = 0; lagPitch = 0; lagRoll = 0; lagSeen = false;
 			prop.FollowHandOfs = (0, 0, 0);
 			prop.FollowHandRot = (0, 0, 0);
 			return;
@@ -2049,6 +2072,9 @@ class WM_Rig play
 			recoilSeenGun     = gunItem;
 			recoilSeenShotTic = g.recoilShotTic;
 			recoilJoltLeft    = 0;
+			// AND THE TRAIL. A gun just drawn has not been swung yet; inheriting the last
+			// gun's running error would swing it for you on the frame it appears.
+			lagYaw = 0; lagPitch = 0; lagRoll = 0; lagSeen = false;
 		}
 		bool on = RSB_Recoil.Enabled();
 		if (g.recoilShotTic != recoilSeenShotTic)
@@ -2138,10 +2164,76 @@ class WM_Rig play
 				if (pmo && pmo.TwoHandedHold) sag *= Cvf("wm_weight_twohand", 0.15);
 			}
 		}
+		// A HEAVY GUN IS SLUGGISH TO SWING (wm_weight_lag), summed into the SAME expression as
+		// sag and recoil for the reason given above: three writers on FollowHandRot would
+		// fight every tic.
+		//
+		// WHY A TRAIL AND NOT A DROOP. Sag is a STEADY turn -- the drawn gun points somewhere
+		// other than the controller and stays there, so every gun has to be re-learned before
+		// you can put a shot where you meant to, and that bill is paid on the firing line.
+		// This settles to zero: swing it and the muzzle arrives late, hold still and it sits
+		// exactly where the controller points. Same "this is heavy" message, none of the
+		// orienting cost (the owner, 2026-09-29). It is why sv_wm_weight_sag now ships false.
+		//
+		// ROTATION ONLY, AND THAT IS A RULING. The gun stays planted on the hand, exactly as
+		// the sag note above says and for the same reason. Dragging the gun's POSITION behind
+		// the hand is the other half of the reference feel; it was considered and deliberately
+		// NOT built, because the hand and gun attachment is delicate. Do not add it quietly.
+		//
+		// THE HAND'S TURN, BY DIFFERENCING ITS OWN ANGLES rather than reading AttackAngularVel.
+		// The velocity fields are sensor-fused and strictly better data, but they are
+		// radians/second about the MAP axes (actor.h) and this needs the HAND's three channels
+		// -- the frame FollowHandRot is written in. Differencing amplifies tracker jitter,
+		// which is fatal for a gesture detector and harmless here: the decay is itself a
+		// low-pass filter and lag_max is a hard ceiling. If this ever needs to be exact,
+		// project the angular velocity onto the hand's axes; do one or the other, never both.
+		//
+		// MainHandRoll, NOT AttackRoll: the playsim zeroes AttackRoll every tic to keep peers
+		// deterministic (actor.h), and this is presentation, drawn on the one machine that can
+		// see the wrist.
+		//
+		// ZERO POUNDS MEANS NO DATA here too -- an unweighed gun gets no trail at all.
+		if (pmo && Cvb("wm_weight_lag", false) && g.BaseWeightLbs() > 0)
+		{
+			double free  = Cvf("wm_weight_free", 3.0);
+			double span  = max(1.0, Cvf("wm_weight_span", 14.0));
+			double heft  = clamp((g.BaseWeightLbs() - free) / span, 0.0, 1.0);
+			double trail = heft * Cvf("wm_weight_lag_trail", 0.45);
+			// BOTH HANDS ON IT STEADIES IT, the same fraction the sag used -- one weight
+			// curve for both effects rather than two that can be tuned apart.
+			if (pmo.TwoHandedHold) trail *= Cvf("wm_weight_twohand", 0.15);
+
+			double hy = (hand == 0) ? pmo.AttackAngle  : pmo.OffhandAngle;
+			double hp = (hand == 0) ? pmo.AttackPitch  : pmo.OffhandPitch;
+			double hr = (hand == 0) ? pmo.MainHandRoll : pmo.OffhandRoll;
+			if (lagSeen)
+			{
+				// keep < 1 is what makes this settle; at 1 the error never decays and the
+				// gun would drift away and stay there, which is the sag we just removed.
+				double keep = clamp(Cvf("wm_weight_lag_settle", 0.72), 0.0, 0.95);
+				double cap  = max(0.0, Cvf("wm_weight_lag_max", 8.0));
+				lagYaw   = clamp((lagYaw   + ShortDeg(hy - lagPrevYaw)   * trail) * keep, -cap, cap);
+				lagPitch = clamp((lagPitch + ShortDeg(hp - lagPrevPitch) * trail) * keep, -cap, cap);
+				lagRoll  = clamp((lagRoll  + ShortDeg(hr - lagPrevRoll)  * trail) * keep, -cap, cap);
+			}
+			lagPrevYaw = hy; lagPrevPitch = hp; lagPrevRoll = hr; lagSeen = true;
+		}
+		else
+		{
+			lagYaw = 0; lagPitch = 0; lagRoll = 0; lagSeen = false;
+		}
+
 		// + pitch DROPS the muzzle (see above), so sag is added positive. INSIDE the tilt
 		// sign on purpose: if that flips because the hand-transform reading was backwards,
 		// sag is in the same frame and has to flip with it.
-		prop.FollowHandRot = (kickYaw, -(kickPitch + recoilJoltRise * joltShare) + sag, recoilJoltRoll * joltShare) * RECOIL_TILT_SIGN;
+		//
+		// THE TRAIL IS SUBTRACTED: it is where the gun has NOT yet caught up to, so it turns
+		// against the hand's motion. Inside the tilt sign for the same reason sag is, and
+		// behind LAG_TILT_SIGN of its own because which way a trail reads is a headset
+		// question that has not been asked yet.
+		prop.FollowHandRot = (kickYaw                                         - lagYaw   * LAG_TILT_SIGN,
+		                      -(kickPitch + recoilJoltRise * joltShare) + sag - lagPitch * LAG_TILT_SIGN,
+		                      recoilJoltRoll * joltShare                      - lagRoll  * LAG_TILT_SIGN) * RECOIL_TILT_SIGN;
 	}
 
 	// THE MUZZLE, AN RS_BALLISTICS FLASH (RSB_CALL_SITES_HANDOFF.md): light, lit-air cone, bore sparks,
