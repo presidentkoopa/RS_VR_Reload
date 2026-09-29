@@ -23,3 +23,7 @@ version "5.0.0"
 #include "zscript/wm/menu.zs"
 #include "zscript/wm/handprofile.zs"
 #include "zscript/wm/cardvalidator.zs"
+
+// THE FRAMEWORK EVERY WEAPON SET NEEDS, moved out of RS_VR_Weapons 2026-09-27 so a set
+// can stand on this package alone.
+#include "zscript/wm/setbridge.zs"

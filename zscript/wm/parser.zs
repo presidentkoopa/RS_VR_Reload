@@ -190,6 +190,8 @@ class WM_Parser
 		WM_Route     curRoute = null;    // a `route` block
 		WM_Fuse      curFuse  = null;    // a `fuse` block
 		WM_Mount     curMount = null;    // a `mount <id>` block
+		// [GRIP] Step 4a: the weapon's grip block. One per card, no id, closed with `end`.
+		bool inGrip = false;
 		int          surfaceTotal = 0;   // moving surfaces named by this card's closed parts
 
 		for (int ln = 0; ln < lines.Size(); ln++)
@@ -263,9 +265,11 @@ class WM_Parser
 
 			String lower = raw.MakeLower();
 			String thrOpen = ThrowableBlockOpen(curThrow, curRoute, curFuse, curMount);   // "" when none is open
+			// [GRIP] a `grip` block is open; its keys go to GripKey.
 			if (lower == "end")
 			{
-				if (curDof != null) curDof = null;
+				if (inGrip) inGrip = false;   // [GRIP]
+				else if (curDof != null) curDof = null;
 				else if (curPart != null)
 				{
 					// NO MORE MOVING SURFACES THAN A GUN HAS OVERRIDE SLOTS. Past
@@ -503,6 +507,30 @@ class WM_Parser
 				continue;
 			}
 
+			// [GRIP] Step 4a. `grip` opens ALONE, like the throwable blocks below -- so
+			// `grip = something` is an unknown key and is refused rather than silently read
+			// as a block. One per card: it describes this mesh's grip and a mesh has one.
+			if (head == "grip" && (nWords == 1 || second.Left(1) != "="))
+			{
+				String gripWhy = "";
+				if (arch != null)           gripWhy = "an archetype holds verb blocks only -- a grip is measured on each weapon's own card";
+				else if (curPart != null)   gripWhy = "a grip cannot open inside a part -- close the part with `end` first";
+				else if (curStore != null)  gripWhy = "a grip cannot open inside a store -- close the store with `end` first";
+				else if (curVerb != null)   gripWhy = "a grip cannot open inside a verb block -- close the verb with `end` first";
+				else if (curBarrel != null) gripWhy = "a grip cannot open inside a barrel -- close the barrel with `end` first";
+				else if (thrOpen != "")     gripWhy = String.Format("a grip cannot open inside a %s block -- close it with `end` first", thrOpen);
+				else if (inGrip)            gripWhy = "this card already has a grip block";
+				else if (nWords > 1)        gripWhy = "one key per line: `grip` alone, then its keys, then `end`";
+				if (gripWhy != "")
+				{
+					Refuse(sourceName, ln + 1, raw, gripWhy);
+					refused = true;
+					continue;
+				}
+				inGrip = true;
+				continue;
+			}
+
 			// A THROWABLE'S BLOCKS (throw.zs): `throw`, `route` and `fuse` open ALONE -- `throw = ...` is a
 			// key no card has, so it is refused as unknown -- and `mount <id>` opens with its id.
 			bool throwHead = (head == "throw" || head == "route" || head == "fuse") && (nWords == 1 || second.Left(1) != "=");
@@ -625,6 +653,7 @@ class WM_Parser
 			else if (curRoute != null)  { why = RouteKey(curRoute, key, val); ok = (why == ""); }
 			else if (curFuse != null)   { why = FuseKey(curFuse, key, val); ok = (why == ""); }
 			else if (curMount != null)  { why = MountKey(curMount, key, val); ok = (why == ""); }
+			else if (inGrip)           { why = GripKey(card, key, val); ok = (why == ""); }   // [GRIP]
 			else if (curVerb != null)  { why = VerbKey(curVerb, key, val); ok = (why == ""); }
 			else if (arch != null)
 			{
@@ -1108,6 +1137,19 @@ class WM_Parser
 			card.gunTypeFrom = "derived from pistol grammar -- no mechanism, verbs synthesised from its action and feed parts";
 		}
 		else card.gunTypeFrom = "no type, no mechanism, and verbs of its own";
+
+		// [GRIP] Step 4a: the grip class defaults from the type, decided HERE so the two
+		// cannot disagree -- this is where the type itself is settled. A card that states its
+		// own class keeps it: the handoff's table has per-gun exceptions, and those are facts
+		// about a gun rather than about its type.
+		if (card.gripClass == "")
+		{
+			card.gripClass = WM_Card.DefaultGripClass(card.gunType);
+			card.gripClassFrom = (card.gripClass != "")
+				? "the default for type " .. card.gunType
+				: "no grip class -- the hand uses the one authored gun_grip";
+		}
+
 		return "", "", "", 0;
 	}
 
@@ -2136,6 +2178,40 @@ class WM_Parser
 	//
 	// Each returns WHY a key is refused, or "" when it is taken. Words and numbers are checked here; how
 	// the blocks fit together, once the card is whole (ThrowableProblem).
+	// [GRIP] Step 4a. WHY A KEY IN A `grip` BLOCK CANNOT WORK, or "" when it can.
+	//
+	//   class    the finger pose this grip wants -- pistol, shotgun, ssg, rifle, rocket,
+	//            plasma, bfg, saw, melee. The engine reads `grip_<class>` and
+	//            `grip_<class>_fire` from the curl table.
+	//   seat     where the palm sits, in the gun's own model space
+	//   seatrot  how the palm is turned on the grip: yaw, pitch, roll
+	//   support  the off hand's pose name on a two-handed gun
+	//
+	// A class this build does not know is REFUSED rather than passed through. A typo would
+	// otherwise reach the engine, find no `grip_<typo>` pose, fall back to gun_grip, and look
+	// exactly like a card with no grip block at all.
+	private static String GripKey(WM_Card c, String key, String val)
+	{
+		String v = Unquote(val);
+		if (key == "class")
+		{
+			String w = v.MakeLower();
+			if (w != "pistol" && w != "shotgun" && w != "ssg" && w != "rifle" && w != "rocket"
+				&& w != "plasma" && w != "bfg" && w != "saw" && w != "melee")
+			{
+				return String.Format("class = %s -- not one of pistol, shotgun, ssg, rifle, "
+					"rocket, plasma, bfg, saw, melee", v);
+			}
+			c.gripClass = w;
+			c.gripClassFrom = "its card says so";
+			return "";
+		}
+		if (key == "seat")    { c.gripSeat = ReadTriple(val); return ""; }
+		if (key == "seatrot") { c.gripSeatRot = ReadTriple(val); return ""; }
+		if (key == "support") { c.gripSupport = v; return ""; }
+		return "a grip block takes class, seat, seatrot and support";
+	}
+
 	private static String ThrowKey(WM_Throw t, String key, String val)
 	{
 		String w  = Unquote(val);

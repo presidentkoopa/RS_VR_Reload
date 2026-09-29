@@ -554,6 +554,38 @@ class WM_Rig play
 		prop.A_ChangeModel(card.propClass, 0, card.modelPath, card.modelFile,
 			0, card.skinPath, card.skinFile);
 		prop.FollowHandMode  = hand + 1;
+
+		// [VRAVATAR] THE RIG'S ROLE, so the avatar's hand and this gun agree about where
+		// the hand is (VR_BODY_HANDS_SPEC.md M2 task 1).
+		//
+		// Role 2 means "a weapon held in a hand". While an avatar is worn the engine places
+		// this prop from the same hand target it places the avatar's hand joint from, which
+		// is what makes the hand and the gun impossible to separate -- neither derives its
+		// own copy of where the hand is. With no avatar worn, VRRigRole is ignored and
+		// FollowHandMode above is still what moves the gun, exactly as before.
+		//
+		// Set here rather than every tic because this runs whenever the prop is (re)built,
+		// and the fields are plain render state that nothing else writes.
+		prop.VRRigRole = 2;
+		prop.VRRigHand = hand;
+
+		// [GRIP] WHAT SHAPE THE HAND MAKES ON THIS GUN (handoff Step 4d).
+		//
+		// The card's grip class -- its own `grip class` line, or the default for its type.
+		// The engine turns it into the `grip_<class>` and `grip_<class>_fire` curl poses and
+		// blends the index finger between them by the analog trigger.
+		//
+		// SET HERE AND NOWHERE ELSE. This is already the one writer of the prop's rig fields,
+		// and it runs whenever the prop is (re)built -- which is exactly when the gun in the
+		// hand changes. A second writer is how the old body ended up with three systems each
+		// believing it owned the hand.
+		//
+		// Empty stays 'None', and the engine then uses the single authored gun_grip: a card
+		// with no grip class, or a type this build does not know, behaves as it always did.
+		// Split rather than a ternary: gripClass is a String and the field is a Name, and
+		// ZScript will not pick a common type for the two branches.
+		if (card.gripClass != "") prop.VRGripPose = Name(card.gripClass);
+		else                      prop.VRGripPose = 'None';
 		// NO PlacementPrefix HERE. The prop's own MODELDEF names its placement set (the pistols' say
 		// wm_main / wm_off; a test weapon names its own). Forcing the prefix here overrode every
 		// weapon's MODELDEF, so a shotgun silently sat on the pistol's seat and its sliders did nothing.

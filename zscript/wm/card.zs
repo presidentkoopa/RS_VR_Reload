@@ -505,6 +505,43 @@ class WM_Card
 	// none -- the uncalibrated seats. gunTypeFrom says which, for the bind log.
 	String gunType;
 	String gunTypeFrom;
+	// ---- THE GRIP: WHAT SHAPE THE HAND MAKES ON THIS GUN, AND WHERE ----------------
+	//
+	// `grip` block. It is on the card because it describes THIS MESH: where a palm sits on
+	// this particular grip, and which of the authored finger poses that grip wants.
+	//
+	//   gripClass    picks the finger pose -- the engine reads `grip_<class>` and
+	//                `grip_<class>_fire` out of the curl table. Empty means "no opinion", and
+	//                the engine falls back to the one authored gun_grip, which is what every
+	//                card did before this block existed.
+	//   gripSeat     where the palm sits, in the gun's own model space
+	//   gripSeatRot  how the palm is turned on the grip -- yaw, pitch, roll
+	//   gripSupport  the off hand's pose name on a two-handed gun, or empty
+	//
+	// gripClassFrom says where the class came from -- the card, or its type's default -- for
+	// the same reason gunTypeFrom exists: so a bind log can be read.
+	String gripClass;
+	String gripClassFrom;
+	Vector3 gripSeat;
+	Vector3 gripSeatRot;
+	String gripSupport;
+
+	// The default grip class for a weapon type, from VR_BODY_CODER_HANDOFF.md's Step 4 table.
+	// A card's own `class` line wins over this; the table's exceptions are per-gun facts.
+	static String DefaultGripClass(String type)
+	{
+		if (type == "pistol" || type == "revolver")                            return "pistol";
+		if (type == "pump" || type == "shotgun")                               return "shotgun";
+		if (type == "breakaction")                                             return "ssg";
+		if (type == "rifle" || type == "smg" || type == "chaingun")             return "rifle";
+		if (type == "launcher")                                                return "rocket";
+		if (type == "plasma" || type == "railgun" || type == "flamethrower")    return "plasma";
+		if (type == "bfg")                                                     return "bfg";
+		if (type == "chainsaw")                                                return "saw";
+		if (type == "melee" || type == "grenade")                              return "melee";
+		return "";   // unknown type: no opinion, and the engine uses gun_grip
+	}
+
 	// ITS OWN HAND SEATS: `handprofile = <word>` reads wm_hs_<word>_* where a weapon
 	// package declares them, before its type's. A seat that package leaves out falls
 	// back to the type's, then to wm_hs_default_*.
