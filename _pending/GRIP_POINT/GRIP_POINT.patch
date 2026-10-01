@@ -1,0 +1,49 @@
+--- a/zscript/wm/card.zs	2026-09-29 09:09:30.058296470 -0400
++++ b/zscript/wm/card.zs	2026-09-29 09:09:30.087106625 -0400
+@@ -523,6 +523,12 @@
+ 	String gripClass;
+ 	String gripClassFrom;
+ 	Vector3 gripSeat;
++	// `seat` WAS STATED. The palm point then IS the gun's grip for the engine: WM_Rig.MakeProp hands it to
++	// the prop (Actor.FollowHandGrip), and the gun is drawn with that point in the hand and every turn --
++	// the seat's, recoil's, weight's -- pivoting about it. MODELDEF Offset and the _ofs_* sliders are
++	// then not read; <placement prefix>_grip_x/_y/_z trim the point instead. Unstated: placed by
++	// MODELDEF Offset exactly as before.
++	bool    gripSeatStated;
+ 	Vector3 gripSeatRot;
+ 	String gripSupport;
+ 
+--- a/zscript/wm/parser.zs	2026-09-29 09:09:30.058748948 -0400
++++ b/zscript/wm/parser.zs	2026-09-29 09:09:35.032897078 -0400
+@@ -2206,7 +2206,14 @@
+ 			c.gripClassFrom = "its card says so";
+ 			return "";
+ 		}
+-		if (key == "seat")    { c.gripSeat = ReadTriple(val); return ""; }
++		// THE POINT OF THE MESH THAT IS IN THE HAND (WM_Card.gripSeatStated): model space, card axes.
++		if (key == "seat")
++		{
++			if (!IsTriple(Unquote(val))) return "seat is x, y, z in model space -- the point of the grip that is in the palm";
++			c.gripSeat = ReadTriple(val);
++			c.gripSeatStated = true;
++			return "";
++		}
+ 		if (key == "seatrot") { c.gripSeatRot = ReadTriple(val); return ""; }
+ 		if (key == "support") { c.gripSupport = v; return ""; }
+ 		return "a grip block takes class, seat, seatrot and support";
+--- a/zscript/wm/rig.zs	2026-09-29 09:10:12.083024659 -0400
++++ b/zscript/wm/rig.zs	2026-09-29 09:10:19.645595195 -0400
+@@ -558,6 +558,13 @@
+ 			0, card.skinPath, card.skinFile);
+ 		prop.FollowHandMode  = hand + 1;
+ 
++		// [GRIP POINT] THE GUN IS HELD BY ITS GRIP, not placed by an offset. The card's `grip` block
++		// `seat` is the point of the mesh that is in the palm; the engine puts it on the hand and turns
++		// everything about it (Actor.FollowHandGrip, models.cpp useGrip). A card with no seat leaves the
++		// prop on its MODELDEF Offset, exactly as before. Set on every (re)build, like the rig fields below.
++		prop.FollowHandGripSet = card.gripSeatStated;
++		if (card.gripSeatStated) prop.FollowHandGrip = card.gripSeat;
++
+ 		// [VRAVATAR] THE RIG'S ROLE, so the avatar's hand and this gun agree about where
+ 		// the hand is (VR_BODY_HANDS_SPEC.md M2 task 1).
+ 		//
