@@ -2819,6 +2819,34 @@ class WM_System : EventHandler
 			// claims support now, and it is not this one.
 		}
 
+		// THIS WAS THE ONE PATH THAT WROTE THE ENGINE FIELD WITH NO CLAIM AT ALL,
+		// and it decided ownership by IsOurs -- a VALUE test. That cannot work and
+		// never could: rs_grabpolicy hands GRIPSUBJ_Magazine to every Ammo, Health,
+		// Armor, Inventory and barrel RS_WorldHands picks up, and Magazine is on
+		// the IsOurs list. So a health pack in the off hand read as ours, and this
+		// would both overwrite that claim and later clear it. Misidentification by
+		// shared int is the exact bug the arbiter exists to end, and this function
+		// was still doing it.
+		//
+		// Asked properly now, with the SAME two conditions as before -- free, or
+		// already ours -- except that "ours" is an answer rather than a guess, and
+		// the arbiter writes the field on the grant (PROTOCOL 3).
+		if (arbiter)
+		{
+			bool mineNow = arbiter.GetInt("grip.mine", "", h, 0, pmo, 'RS_WeaponMech') == 1;
+			bool free    = arbiter.GetInt("grip.held", "", h, 0, pmo, 'RS_WeaponMech') == 0;
+			if (subj != GRIPSUBJ_None)
+			{
+				if (free || mineNow)
+					arbiter.GetInt("grip.claim", "", h, subj, pmo, 'RS_WeaponMech');
+			}
+			else if (mineNow)
+			{
+				arbiter.GetInt("grip.release", "", h, 0, pmo, 'RS_WeaponMech');
+			}
+			return;
+		}
+
 		int mine = GetClaim(pmo, h);
 		bool ours = IsOurs(mine);
 		if (subj != GRIPSUBJ_None) { if (mine == GRIPSUBJ_None || ours) SetClaim(pmo, h, subj); }
@@ -2904,19 +2932,52 @@ class WM_System : EventHandler
 				arbiter.GetInt("grip.release", "", h, 0, pmo, 'RS_WeaponMech');
 				granted = arbiter.GetInt("grip.claim", "", h, subject, pmo, 'RS_WeaponMech') == 1;
 			}
-			if (!granted && !arbWarned)
+			if (!granted)
 			{
-				arbWarned = true;
-				WM_Log.Info("the arbiter says a hand is spoken for -- taking it anyway; a gun's own parts are not shared with anything.");
+				if (!arbWarned)
+				{
+					arbWarned = true;
+					WM_Log.Info("the arbiter says a hand is spoken for -- taking it anyway; a gun's own parts are not shared with anything.");
+				}
+
+				// AND NOW IT SAYS SO. The policy above is unchanged -- a gun's own
+				// parts win -- but it used to be carried out by writing the engine
+				// field over the top and leaving the ledger naming the old owner.
+				// Everything that then asked the arbiter who held the hand got a
+				// confident wrong answer, which is worse than no arbiter at all.
+				// grip.take is the same outcome, recorded: it always grants, it
+				// files the displaced owner where grip.lost can find them, and it
+				// publishes the field itself. Phase C is where this stops being
+				// needed, because by then a loser can actually be made to let go.
+				arbiter.GetInt("grip.take", "", h, subject, pmo, 'RS_WeaponMech');
 			}
+
+			// THE ARBITER WROTE THE FIELD (PROTOCOL 3) -- on the grant, on the
+			// retry's grant, or on the take. Writing it again here is the second
+			// writer this whole exercise exists to remove.
+			//
+			// ONE BEHAVIOUR CHANGE, DELIBERATE: with subject GRIPSUBJ_None -- which
+			// SubjectFor returns for a part that declares no subject -- the old
+			// line below wrote nothing, so the field kept whatever the PREVIOUS
+			// part had put there until a release came along. It now reads None,
+			// which is what a subjectless part means.
+			return;
 		}
 		if (subject != GRIPSUBJ_None) SetClaim(pmo, h, subject);
 	}
 
 	private void ReleaseClaim(PlayerPawn pmo, int h)
 	{
+		// Through the arbiter when it is loaded, and ONLY through it. The IsOurs
+		// test below is the same value compare PoseHand was caught out by: it
+		// cannot tell our magazine from RS_WorldHands' health pack, so a release
+		// on a hand we had already lost was blanking the new owner's claim.
+		if (arbiter)
+		{
+			arbiter.GetInt("grip.release", "", h, 0, pmo, 'RS_WeaponMech');
+			return;
+		}
 		if (IsOurs(GetClaim(pmo, h))) SetClaim(pmo, h, GRIPSUBJ_None);
-		if (arbiter) arbiter.GetInt("grip.release", "", h, 0, pmo, 'RS_WeaponMech');
 	}
 
 	// ---- the pouch ------------------------------------------------------------
