@@ -1052,12 +1052,15 @@ class WM_Gun : Weapon
 		// that does not say more, without asking; otherwise the loaded chambers, up to
 		// the class's number. Asked before a pellet leaves, and OnShot spends exactly
 		// that many on the same tic, so the pellets and the spent cases always agree.
-		int chambers = (most > 1) ? sys.ChambersToFire(pn, h, most) : 1;
+		// RELOADING OFF (wm_reload_mode 0): the chambers are never loaded, so they are not counted -- a pull
+		// fires what the gun fires, and the reserve pays for it below.
+		bool noReload = WM_System.ReloadMode(pn) == WM_System.RELOAD_OFF;
+		int chambers = (most > 1) ? (noReload ? sys.ArcadeChambers(pn, invoker.GetClassName(), most) : sys.ChambersToFire(pn, h, most)) : 1;
 		// A double shell on a chamber gun with only one chamber live takes its second shell from the store its cycle feeds
 		// from -- a pump's tube (WM_System.DoubleShellFeed) -- spent with the shot below; with none there, it is that
 		// chamber's plain shot.
 		bool dblFromFeed = false;
-		if (dbl && chambers < 2 && sys.FiresFrom(invoker.GetClassName()) == WM_Card.FIRES_CHAMBER)
+		if (!noReload && dbl && chambers < 2 && sys.FiresFrom(invoker.GetClassName()) == WM_Card.FIRES_CHAMBER)
 		{
 			dblFromFeed = sys.DoubleShellFeed(pn, h, false);
 			dbl = dblFromFeed;
@@ -1072,8 +1075,14 @@ class WM_Gun : Weapon
 		// weapon's own action, which runs on every machine in a netgame -- never in the rig,
 		// which runs on one. RoundsPerShot of Weapon.AmmoType1, by DepleteAmmo, which honours
 		// infinite ammo; CanFire has already said the reserve holds that much.
-		if (sys.FiresFrom(invoker.GetClassName()) == WM_Card.FIRES_RESERVE)
+		int firesFrom = sys.FiresFrom(invoker.GetClassName());
+		if (firesFrom == WM_Card.FIRES_RESERVE)
 			invoker.DepleteAmmo(false, true, rounds, true);
+		// RELOADING OFF: EVERY gun pays here, from the same reserve CanFire checked -- a round a chamber for a
+		// chamber gun, its RoundsPerShot for the rest. Before 2026-09-29 nothing did, and arcade mode never
+		// ran out. Here, in the fire action, so every machine in a netgame charges the same pull.
+		else if (noReload && firesFrom != WM_Card.FIRES_NOTHING)
+			invoker.DepleteAmmo(false, true, (firesFrom == WM_Card.FIRES_CHAMBER) ? max(chambers, 1) : rounds, true);
 		// THE SHOT THIS CLASS DESCRIBES: PelletsPerShot rounds a chamber, each scattered
 		// within its spread and dealing its damage. Read off the invoker, so every machine
 		// fires the same pellets. A class silent on all three is one round, dead on,

@@ -45,6 +45,16 @@ class RS_WeaponAmmoService : Service
 		let a = g.wmAmmo;
 		bool firesNothing = a && a.firesFrom == WM_Card.FIRES_NOTHING;
 		bool firesReserve = a && a.firesFrom == WM_Card.FIRES_RESERVE;
+		// RELOADING OFF (the owner's wm_reload_mode 0): every gun fires from the reserve, and its stores never
+		// move, so the HUD reads it as a reserve gun -- rounds are the reserve, and nothing is ever "empty".
+		// Read straight off the owner (clearscope; WM_System.ReloadMode is play).
+		bool arcade = false;
+		if (a && !firesNothing && g.Owner && g.Owner.player)
+		{
+			let rm = CVar.GetCVar("wm_reload_mode", g.Owner.player);
+			arcade = rm && rm.GetInt() == 0;
+		}
+		if (arcade) firesReserve = true;
 
 		if (request ~== "reserve")
 		{
@@ -66,7 +76,7 @@ class RS_WeaponAmmoService : Service
 		}
 		if (request ~== "state")
 		{
-			if (!a) return 0;
+			if (!a || arcade) return 0;
 			int bits = 0;
 			if (a.firesFrom == WM_Card.FIRES_CHAMBER && !a.chambered) bits |= 1;
 			if (!a.magIn && a.MagDetaches()) bits |= 2;

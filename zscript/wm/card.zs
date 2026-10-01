@@ -523,6 +523,12 @@ class WM_Card
 	String gripClass;
 	String gripClassFrom;
 	Vector3 gripSeat;
+	// `seat` WAS STATED. The palm point then IS the gun's grip for the engine: WM_Rig.MakeProp hands it to
+	// the prop (Actor.FollowHandGrip), and the gun is drawn with that point in the hand and every turn --
+	// the seat's, recoil's, weight's -- pivoting about it. MODELDEF Offset and the _ofs_* sliders are
+	// then not read; <placement prefix>_grip_x/_y/_z trim the point instead. Unstated: placed by
+	// MODELDEF Offset exactly as before.
+	bool    gripSeatStated;
 	Vector3 gripSeatRot;
 	String gripSupport;
 

@@ -30,7 +30,7 @@ OptionValue "WMReloadModes"
 	1, "By hand -- work the gun"
 	2, "Gun to the pouch, pull to reload"
 	3, "Flick the gun down"
-	4, "A key reloads"
+	4, "The drop-mag button reloads"
 }
 
 OptionValue "WMPinPreview"
@@ -1810,8 +1810,10 @@ OptionMenu "WM_MagMenu"
 	StaticText "Flick down and pouch-fire both FILL the gun and keep what was", "DarkGray"
 	StaticText "already in it -- your reserve pays only for what goes in.", "DarkGray"
 	Slider "  Flick effort", "wm_snapload_scale", 0.25, 3.0, 0.05, 2
-	StaticText "1.00 is the speed that snaps a break action shut. Raise it if the", "DarkGray"
-	StaticText "gun reloads while you are just moving; lower it if the flick is work.", "DarkGray"
+	StaticText "Raise it if the gun reloads while you are just moving;", "DarkGray"
+	StaticText "lower it if the flick is work.", "DarkGray"
+	Slider "  Flick must travel (metres)", "wm_snapload_dist", 0.05, 0.5, 0.01, 2
+	Slider "  Button reload takes (tics, 35 = 1 second)", "wm_stockreload_tics", 1, 140, 1, 0
 	StaticText ""
 	StaticText "ON THE FLOOR", "Gold"
 	Slider "Walking over one picks it up after (tics)", "wm_walk_grace", 0, 700, 5, 0

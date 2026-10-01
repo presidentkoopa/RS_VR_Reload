@@ -341,9 +341,8 @@ class WM_System : EventHandler
 	//   3 SNAP DOWN  flick the gun down and it reloads
 	//   4 ONE KEY    the bind does the whole reload
 	//
-	// Modes 2-4 are not built yet. Anything other than 0 behaves as 1, so a
-	// config that names one of them is never stuck -- it just reloads by hand
-	// until the mode exists.
+	// All five are built (2 PouchFire, 3 WM_Rig.FlickSnapLoad, 4 StockReload, 2026-09-29). In every
+	// mode but 0 the gun can still be worked by hand as well.
 	const RELOAD_OFF     = 0;
 	const RELOAD_BYHAND  = 1;
 	const RELOAD_POUCHFIRE = 2;
@@ -398,7 +397,11 @@ class WM_System : EventHandler
 		// IN BATTERY (G16, wm_verbs on): not with an action open -- a forend part-way back,
 		// a stroke ejected and not yet fed, an open verb open. A pistol's slide is spring-
 		// returned and never asked (WM_Rig.OutOfBattery), so both fire as before.
-		else if (WM_Verb.EnabledFor(pn) && !rig.InBattery()) blocked = true;
+		// NOT WITH RELOADING OFF: nothing is ever loaded or cycled there, so an action left open
+		// from before the mode changed must not leave the gun dead.
+		else if (ReloadMode(pn) != RELOAD_OFF && WM_Verb.EnabledFor(pn) && !rig.InBattery()) blocked = true;
+		// [STOCKRELOAD] MID-RELOAD: the gun is in the player's hands being loaded, not fired.
+		else if (ph.stockReloadTics[h] > 0) blocked = true;
 
 		if (blocked == ammo.fireBlocked) return;
 		// APPLIED HERE TOO, not only through the event, so this machine's own next tic
@@ -547,6 +550,63 @@ class WM_System : EventHandler
 		level.VRHaptic(h, 0.6, 14.0);
 	}
 
+	// ============================================================================
+	// [STOCKRELOAD] THE BUTTON RELOADS (wm_reload_mode 4). Owner, 2026-09-29: "Stock Reloading".
+	//
+	// The drop-mag button under that gun's thumb -- already bound on every controller, one per hand --
+	// starts it. The gun cannot fire for wm_stockreload_tics (the reload), then SnapLoad fills it
+	// exactly as the flick and the pouch do: the reserve pays only for what goes in, nothing is thrown
+	// away. (The owner said losing the partial magazine was acceptable; not losing it is better.)
+	//
+	// Same shape as PouchFire: the press is seen on this machine, the fire block is published through
+	// PublishFireBlock, and the fill is one `wm_snapload` event every machine applies alike.
+	// ============================================================================
+	private bool StockReloadPress(WM_PlayerHands ph, PlayerPawn pmo, int r)
+	{
+		if (!pmo || !pmo.player || ReloadMode(pmo.PlayerNumber()) != RELOAD_KEY) return false;
+		let rig = ph.rigs[r];
+		if (!rig || !rig.card || !rig.ammo || !rig.prop || rig.stowed) return true;
+		if (ph.stockReloadTics[r] > 0) return true;
+		if (rig.ammo.RoomTotal() <= 0)
+		{
+			// FULL. Said with a tick of the hand rather than silence, so the button is not "broken".
+			level.VRHaptic(r, 0.2, 4.0);
+			return true;
+		}
+		// NOTHING TO LOAD FROM: a dry click now, not a second of a dead gun and then the click.
+		if (!ReserveHolds(pmo.PlayerNumber(), rig.card, 1))
+		{
+			if (rig.card.drySound != "") rig.prop.A_StartSound(rig.card.drySound, CHAN_AUTO, CHANF_OVERLAP, 0.4);
+			level.VRHaptic(r, 0.2, 4.0);
+			return true;
+		}
+		ph.stockReloadGun[r] = rig.gunItem;
+		let cv = CVar.GetCVar("wm_stockreload_tics", pmo.player);
+		// +1: the fill is sent with one tic still to run, so the fire block holds until it has landed.
+		ph.stockReloadTics[r] = clamp(cv ? cv.GetInt() : 35, 1, 350) + 1;
+		if (rig.card.magOutSound != "") rig.prop.A_StartSound(rig.card.magOutSound, CHAN_AUTO, CHANF_OVERLAP);
+		level.VRHaptic(r, 0.4, 8.0);
+		return true;
+	}
+
+	private void StockReloadTick(WM_PlayerHands ph, PlayerPawn pmo, int r)
+	{
+		if (ph.stockReloadTics[r] <= 0) return;
+		let rig = ph.rigs[r];
+		// THE GUN LEFT THE HAND, OR THE MODE CHANGED: the reload is abandoned, and nothing is charged.
+		if (!pmo || !pmo.player || ReloadMode(pmo.PlayerNumber()) != RELOAD_KEY
+			|| !rig || !rig.card || !rig.prop || rig.stowed || rig.gunItem != ph.stockReloadGun[r])
+		{
+			ph.stockReloadTics[r] = 0;
+			return;
+		}
+		if (--ph.stockReloadTics[r] != 1) return;
+		EventHandler.SendNetworkEvent("wm_snapload", r);
+		if (rig.card.magInSound != "") rig.prop.A_StartSound(rig.card.magInSound, CHAN_AUTO, CHANF_OVERLAP);
+		else if (rig.card.rackResetSound != "") rig.prop.A_StartSound(rig.card.rackResetSound, CHAN_AUTO, CHANF_OVERLAP);
+		level.VRHaptic(r, 0.6, 14.0);
+	}
+
 	private void SnapLoad(PlayerPawn pmo, int h)
 	{
 		if (!pmo || !pmo.player) return;
@@ -585,6 +645,18 @@ class WM_System : EventHandler
 		if (pn == consoleplayer)
 			WM_Log.Info(String.Format("snap reload: %s gun filled with %d round(s)%s",
 				(h == 1) ? "off" : "main", spent, free ? " (free)" : ""));
+	}
+
+	// RELOADING OFF: how many chambers a multi-chamber pull fires -- as many as the reserve can pay for, at
+	// least one (CanFire has already said it holds one). So a double with one shell left fires one barrel and
+	// pays one, rather than asking for two, being refused by DepleteAmmo, and firing both for nothing.
+	int ArcadeChambers(int pn, String weaponClass, int most)
+	{
+		let card = CardForWeapon(weaponClass);
+		if (!card) return 1;
+		int n = max(most, 1);
+		while (n > 1 && !ReserveHolds(pn, card, n)) n--;
+		return n;
 	}
 
 	private bool ReserveHolds(int pn, WM_Card card, int n)
@@ -783,6 +855,7 @@ class WM_System : EventHandler
 		spoken.Clear();
 		toldOnce = false;
 		LoadCards();
+		ApplyLedger();
 		ApplySheetsToAllGuns();
 
 		let ph = ForPlayer(consoleplayer);   // makes both rigs if they are not there yet
@@ -1122,7 +1195,9 @@ class WM_System : EventHandler
 		for (int r = 0; r < 2; r++)
 		{
 			int bit = (r == 0) ? BT_MAINHANDDROPMAG : BT_OFFHANDDROPMAG;
-			if ((b & bit) && !(ph.lastButtons & bit)) ButtonDrop(ph, pmo, r);
+			// IN MODE 4 THE BUTTON RELOADS instead of dropping the magazine.
+			if ((b & bit) && !(ph.lastButtons & bit) && !StockReloadPress(ph, pmo, r)) ButtonDrop(ph, pmo, r);
+			StockReloadTick(ph, pmo, r);
 		}
 		ph.lastButtons = b;
 	}
@@ -2944,6 +3019,7 @@ class WM_System : EventHandler
 			rig.card.weaponClass, rig.HandName(), what);
 		int slots = rig.GrabSlotCount();
 		int printed = 0;
+		bool cardTook = false;
 		for (int s = 0; s < slots; s++)
 		{
 			if (mode == 0 && s != tunedSlot) continue;
@@ -2963,8 +3039,42 @@ class WM_System : EventHandler
 			String lines = rig.BakeSlot(s, nudge, shape, ball);
 			if (lines == "") continue;
 			Console.Printf("%s", lines);
-			if (record) WM_BakeLedger.Keep(rig.card.weaponClass, lines);
+			if (record)
+			{
+				// THE LEDGER KEEPS THE CARD'S OWN NUMBERS (forCard): without the whole-gun offset and the
+				// global reach, which stay live on top of whatever card is in play. The printed paste above
+				// still folds them in, as it always did, for a card edited by hand.
+				WM_BakeLedger.Keep(rig.card.weaponClass, rig.BakeSlot(s, nudge, shape, ball, true));
+				// AND INTO THE CARD IN PLAY, so the oval stays where it was put once the scratch is cleared.
+				// Single player only: the ledger is this machine's ini, and a card is load-time data that must
+				// read alike on every machine in a netgame (NETPLAY_SPEC R6/R7). A netgame keeps printing and
+				// recording; the next single-player load lays the ledger over the cards (ApplyLedger).
+				// Not mode 2: the old per-slot sets it reads stay live, so writing them in would double them.
+				if (!multiplayer && mode != 2)
+				{
+					int kind, index;
+					Vector3 at, size;
+					[kind, index, at, size] = rig.BakedSlot(s, nudge, shape, ball, true);
+					String id = (kind == WM_Rig.BAKED_PART) ? rig.card.parts[index].id
+						: (kind == WM_Rig.BAKED_LOAD) ? rig.card.verbs[index].id : "";
+					ApplyBaked(rig.card, kind, id, at, size);
+					let shared = CardForWeapon(rig.card.weaponClass);
+					if (shared && shared != rig.card) ApplyBaked(shared, kind, id, at, size);
+					if (s == tunedSlot) cardTook = true;
+				}
+			}
 			printed++;
+		}
+		// THE CARD NOW HOLDS THE TUNED SLOT'S NUMBERS, so its scratch is emptied here -- for every sender,
+		// the grab-point page's Bake button as much as the stick adjuster -- or the nudge and the shape would
+		// be applied a second time on top of the card that already contains them.
+		int tunedFor = int(CvfS("wm_tune_for"));
+		if (cardTook && (tunedFor == 0 || tunedFor == gun * 16 + tunedSlot + 1))
+		{
+			static const String zero[] = { "wm_tune_ofs_x", "wm_tune_ofs_y", "wm_tune_ofs_z", "wm_tune_r" };
+			for (int z = 0; z < 4; z++) { let c = CVar.FindCVar(zero[z]); if (c) c.SetFloat(0); }
+			static const String one[] = { "wm_tune_sh_scale_x", "wm_tune_sh_scale_y", "wm_tune_sh_scale_z" };
+			for (int z = 0; z < 3; z++) { let c = CVar.FindCVar(one[z]); if (c) c.SetFloat(1); }
 		}
 		if (printed == 0) Console.Printf("  (nothing in that slot to bake)");
 		else if (record)
@@ -2973,6 +3083,101 @@ class WM_System : EventHandler
 			Console.Printf("\c[Gold]WM BAKE: kept in the bake ledger (%d of %d parts) and saved to the ini.",
 				WM_BakeLedger.Count(), WM_BakeLedger.SIZE);
 		}
+	}
+
+	// ---- THE BAKE LEDGER, LAID OVER THE CARDS (2026-09-29) --------------------------------------------
+	//
+	// A bake used to be card lines to paste and nothing more: the oval jumped back to the shipped card the
+	// moment its scratch was cleared, and stayed there every launch until somebody edited the card. Now the
+	// ledger IS the tuning. Every entry is absolute numbers (a grab point and its half-sizes in model space),
+	// so laying it over a card twice changes nothing, and it is laid over at every map load. The shipped
+	// cards are still the defaults; the ledger is this machine's copy on top, until it is pasted into them.
+	//
+	// SINGLE PLAYER ONLY. The ledger lives in this machine's ini, and in a netgame every machine must read
+	// the same card (NETPLAY_SPEC R6/R7), so a netgame plays the cards as shipped.
+	private static double CvfS(String n)
+	{
+		let c = CVar.FindCVar(n);
+		return c ? c.GetFloat() : 0;
+	}
+
+	static void ApplyBaked(WM_Card c, int kind, String id, Vector3 at, Vector3 size)
+	{
+		if (!c || id == "") return;
+		if (kind == WM_Rig.BAKED_PART)
+		{
+			for (int i = 0; i < c.parts.Size(); i++)
+			{
+				if (!(c.parts[i].id ~== id)) continue;
+				c.parts[i].grabAt     = at;
+				c.parts[i].grabSize   = size;
+				// The one-number readers (a hammer's fan reach, the marker's light) take the biggest half-size.
+				c.parts[i].grabRadius = max(size.X, max(size.Y, size.Z));
+				return;
+			}
+		}
+		else if (kind == WM_Rig.BAKED_LOAD)
+		{
+			for (int k = 0; k < c.verbs.Size(); k++)
+			{
+				if (!(c.verbs[k].id ~== id)) continue;
+				c.verbs[k].loadAt   = at;
+				c.verbs[k].loadSize = size;
+				return;
+			}
+		}
+	}
+
+	// "x, y, z" or a lone "r" (a ball) -- the right-hand side of a baked card line.
+	private static Vector3 LedgerVec(String v)
+	{
+		Array<String> n;
+		v.Split(n, ",", TOK_SKIPEMPTY);
+		if (n.Size() >= 3) return (n[0].ToDouble(), n[1].ToDouble(), n[2].ToDouble());
+		if (n.Size() == 1) { double r = n[0].ToDouble(); return (r, r, r); }
+		return (0, 0, 0);
+	}
+
+	private void ApplyLedger()
+	{
+		if (multiplayer || !set) return;
+		int applied = 0;
+		for (int i = 0; i < WM_BakeLedger.SIZE; i++)
+		{
+			let cv = CVar.FindCVar(WM_BakeLedger.EntryName(i));
+			if (!cv) continue;
+			String entry = cv.GetString();
+			if (entry == "") continue;
+			// "WM_M4A3|part slide|grab = x, y, z|grabradius = r" -- or "|load gate|at = ...|size = ...".
+			Array<String> rows;
+			entry.Split(rows, "|", TOK_SKIPEMPTY);
+			if (rows.Size() < 3) continue;
+			let c = CardForWeapon(rows[0]);
+			if (!c) continue;
+			Array<String> head;
+			rows[1].Split(head, " ", TOK_SKIPEMPTY);
+			if (head.Size() < 2) continue;
+			int kind = (head[0] ~== "part") ? WM_Rig.BAKED_PART : (head[0] ~== "load") ? WM_Rig.BAKED_LOAD : WM_Rig.BAKED_NONE;
+			if (kind == WM_Rig.BAKED_NONE) continue;
+			bool haveAt = false;
+			bool haveSize = false;
+			Vector3 at, size;
+			for (int r = 2; r < rows.Size(); r++)
+			{
+				int eq = rows[r].IndexOf("=");
+				if (eq < 0) continue;
+				String key = rows[r].Left(eq);
+				key.StripLeftRight();
+				Vector3 val = LedgerVec(rows[r].Mid(eq + 1));
+				if (key ~== "grab" || key ~== "at") { at = val; haveAt = true; }
+				else if (key ~== "grabradius" || key ~== "grabsize" || key ~== "size") { size = val; haveSize = true; }
+			}
+			if (!haveAt || !haveSize) continue;
+			ApplyBaked(c, kind, head[1], at, size);
+			applied++;
+		}
+		if (applied > 0)
+			WM_Log.Info(String.Format("%d baked grab oval(s) from the bake ledger laid over the cards", applied));
 	}
 
 	// ---- moving a pouch by hand -------------------------------------------

@@ -2206,7 +2206,14 @@ class WM_Parser
 			c.gripClassFrom = "its card says so";
 			return "";
 		}
-		if (key == "seat")    { c.gripSeat = ReadTriple(val); return ""; }
+		// THE POINT OF THE MESH THAT IS IN THE HAND (WM_Card.gripSeatStated): model space, card axes.
+		if (key == "seat")
+		{
+			if (!IsTriple(Unquote(val))) return "seat is x, y, z in model space -- the point of the grip that is in the palm";
+			c.gripSeat = ReadTriple(val);
+			c.gripSeatStated = true;
+			return "";
+		}
 		if (key == "seatrot") { c.gripSeatRot = ReadTriple(val); return ""; }
 		if (key == "support") { c.gripSupport = v; return ""; }
 		return "a grip block takes class, seat, seatrot and support";

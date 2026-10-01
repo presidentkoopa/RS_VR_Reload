@@ -191,6 +191,9 @@ class WM_PlayerHands play
 	// [POUCHFIRE] trigger held last tic, so the pull that reloads is an EDGE:
 	// a held trigger at the belt would empty the pouch into the gun a tic at a time.
 	bool         pouchFireHeld[2];
+	// [STOCKRELOAD] tics until the button reload fills this hand's gun (wm_reload_mode 4), 0 none.
+	int          stockReloadTics[2];
+	Weapon       stockReloadGun[2];   // the gun the reload was started on; a swap abandons it
 	Vector3      trail[8];       // four samples per hand, the fallback for throws
 
 	// Per player.

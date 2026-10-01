@@ -88,6 +88,9 @@ class WM_Rig play
 	int    snapQuiet;
 	double snapLast;
 	bool   snapCalm;
+	int    snapRun;       // consecutive tics the flick has stayed fast (2026-09-29)
+	double snapTravel;    // how far down the gun has gone in that run, map units
+	int    snapCalmTics;  // consecutive tics slow enough to re-arm
 
 	const STROKE_HOME = 0;    // the next pull past outat does the far end
 	const STROKE_OUT  = 1;    // the far end is done; back to homeat does the near end
@@ -555,6 +558,16 @@ class WM_Rig play
 			0, card.skinPath, card.skinFile);
 		prop.FollowHandMode  = hand + 1;
 
+		// [GRIP POINT] THE GUN IS HELD BY ITS GRIP, not placed by an offset. The card's `grip` block
+		// `seat` is the point of the mesh that is in the palm; the engine puts it on the hand and turns
+		// everything about it (Actor.FollowHandGrip, models.cpp useGrip). A card with no seat leaves the
+		// prop on its MODELDEF Offset, exactly as before. Set on every (re)build, like the rig fields below.
+		// [GRIP ROLLOUT, TEMPORARY] ...AND ONLY THE GUNS THAT HAVE BEEN LOOKED AT.
+		// See GripAllowed below. Delete this gate, and the cvar, once the grip path is proven.
+		bool gripOn = card.gripSeatStated && GripAllowed(card.weaponClass, pmo);
+		prop.FollowHandGripSet = gripOn;
+		if (gripOn) prop.FollowHandGrip = card.gripSeat;
+
 		// [VRAVATAR] THE RIG'S ROLE, so the avatar's hand and this gun agree about where
 		// the hand is (VR_BODY_HANDS_SPEC.md M2 task 1).
 		//
@@ -592,6 +605,40 @@ class WM_Rig play
 		resolved = false;
 		return true;
 	}
+
+	// WHICH GUNS ARE HELD BY THEIR GRIP YET (cvar wm_grip_only), while the transform is
+	// proven one gun at a time.
+	//
+	// WHY A GATE AT ALL. Sixty-two guns were given a grip `seat` computed from where each is
+	// drawn today, and the proof was a replay of the engine's transform in Python agreeing
+	// with itself to 1e-14. That cannot show where the engine actually draws the gun. If the
+	// replay's model of the transform is wrong it is wrong for all sixty-two the same way,
+	// every gun moves together, and it reads as a global offset bug -- the exact shape of
+	// thing that has cost the most time on this project.
+	//
+	// So: a list of weapon classes that may use the grip path. Everything else keeps its
+	// MODELDEF Offset, unchanged. Empty means every gun with a seat, which is the finished
+	// behaviour once the path is trusted. A missing cvar means NO gun uses it, because
+	// falling back to how the guns are drawn today is the safe side of that question.
+	//
+	// THIS IS SCAFFOLDING. Delete it, and wm_grip_only, when the rollout is done.
+	static bool GripAllowed(String weaponClass, PlayerPawn pmo)
+	{
+		let cv = (pmo && pmo.player) ? CVar.GetCVar("wm_grip_only", pmo.player) : null;
+		if (!cv) return false;
+		String only = cv.GetString();
+		only = only.MakeLower();
+		only.Replace(" ", "");
+		if (only == "") return true;             // every gun with a seat
+		String want = weaponClass;
+		want = want.MakeLower();
+		Array<String> names;
+		only.Split(names, ",", TOK_SKIPEMPTY);
+		for (int i = 0; i < names.Size(); i++)
+			if (names[i] == want) return true;
+		return false;
+	}
+
 
 	// A NAME, OR AN INDEX WHERE THE MESH OFFERS NO USABLE NAME (WM_SurfaceRef),
 	// AND IT RETRIES. A_ChangeModel binds as a side effect that is not always
@@ -761,41 +808,67 @@ class WM_Rig play
 	// ONE SLOT'S CARD LINES with a tuning folded in: nudge in frame units, shape as multipliers, reach a
 	// ball's radius (0: none) -- and the whole-gun offset, when this is the gun being tuned. Tune a part
 	// at rest: a nudge is measured where the part is drawn. "" for a slot this gun does not fill.
-	String BakeSlot(int slot, Vector3 nudgeFrame, Vector3 shapeMult, double reachBall)
+	String BakeSlot(int slot, Vector3 nudgeFrame, Vector3 shapeMult, double reachBall, bool forCard = false)
 	{
-		if (!card || !prop || slot < 0) return "";
+		int kind, index;
+		Vector3 at, size;
+		[kind, index, at, size] = BakedSlot(slot, nudgeFrame, shapeMult, reachBall, forCard);
+		if (kind == BAKED_PART)
+		{
+			let p = card.parts[index];
+			String sizeLine;
+			if (abs(size.X - size.Y) < 0.001 && abs(size.X - size.Z) < 0.001) sizeLine = String.Format("    grabradius = %.3f", size.X);
+			else sizeLine = String.Format("    grabsize   = %.3f, %.3f, %.3f", size.X, size.Y, size.Z);
+			return String.Format("  part %s\n    grab       = %.3f, %.3f, %.3f\n%s", p.id, at.X, at.Y, at.Z, sizeLine);
+		}
+		if (kind == BAKED_LOAD)
+		{
+			return String.Format("  load %s\n    at   = %.3f, %.3f, %.3f\n    size = %.3f, %.3f, %.3f",
+				card.verbs[index].id, at.X, at.Y, at.Z, size.X, size.Y, size.Z);
+		}
+		return "";
+	}
+
+	// THE NUMBERS A BAKE STANDS FOR, once, for both of its readers: BakeSlot prints them as card lines, and
+	// ApplyBakedSlot writes them into the card in play so a baked oval stays where it was put (2026-09-29).
+	// Before that the bake only printed, the scratch was cleared, and the oval jumped back to the shipped card
+	// until someone pasted the lines -- which is what "the grip adjuster loses my work" looked like.
+	const BAKED_NONE = 0;
+	const BAKED_PART = 1;
+	const BAKED_LOAD = 2;
+	//
+	// `forCard` is the numbers for the CARD IN PLAY and the ledger, as opposed to the printed paste: it leaves
+	// out the two things that stay live on top of a card -- the whole-gun offset (wm_grab_all, added at draw
+	// and test time) and the global reach override -- or they would be applied twice, and again every load.
+	int, int, Vector3, Vector3 BakedSlot(int slot, Vector3 nudgeFrame, Vector3 shapeMult, double reachBall, bool forCard = false)
+	{
+		if (!card || !prop || slot < 0) return BAKED_NONE, -1, (0, 0, 0), (0, 0, 0);
 		Vector3 allFrame = (0, 0, 0);
-		if (int(Cvf("wm_tune_gun", 0)) == hand)
+		if (!forCard && int(Cvf("wm_tune_gun", 0)) == hand)
 			allFrame = (Cvf("wm_grab_all_ofs_x", 0), Cvf("wm_grab_all_ofs_y", 0), Cvf("wm_grab_all_ofs_z", 0));
 		Vector3 delta = ModelDelta(FrameToWorld(nudgeFrame + allFrame));
 		if (slot < card.parts.Size())
 		{
-			if (!card.PartIsWorkable(slot)) return "";
+			if (!card.PartIsWorkable(slot)) return BAKED_NONE, -1, (0, 0, 0), (0, 0, 0);
 			let p = card.parts[slot];
 			Vector3 a = p.grabSize;
 			if (a.X <= 0.01 || a.Y <= 0.01 || a.Z <= 0.01) a = (p.grabRadius, p.grabRadius, p.grabRadius);
-			double over = Cvf("wm_reach_override", 0);
+			double over = forCard ? 0 : Cvf("wm_reach_override", 0);
 			if (reachBall > 0.01) a = (reachBall, reachBall, reachBall);
 			else if (over > 0.01) a = (over, over, over);
 			a = (a.X * max(0.01, shapeMult.X), a.Y * max(0.01, shapeMult.Y), a.Z * max(0.01, shapeMult.Z));
-			Vector3 g = p.grabAt + delta;
-			String sizeLine;
-			if (abs(a.X - a.Y) < 0.001 && abs(a.X - a.Z) < 0.001) sizeLine = String.Format("    grabradius = %.3f", a.X);
-			else sizeLine = String.Format("    grabsize   = %.3f, %.3f, %.3f", a.X, a.Y, a.Z);
-			return String.Format("  part %s\n    grab       = %.3f, %.3f, %.3f\n%s", p.id, g.X, g.Y, g.Z, sizeLine);
+			return BAKED_PART, slot, p.grabAt + delta, a;
 		}
 		for (int k = 0; k < card.verbs.Size(); k++)
 		{
 			if (LoadTagIndex(k) != slot) continue;
 			let v = card.verbs[k];
-			Vector3 zoneAt = v.loadAt + delta;
 			Vector3 zoneSize = v.loadSize;
 			if (reachBall > 0.01) zoneSize = (reachBall, reachBall, reachBall);
 			zoneSize = (zoneSize.X * max(0.01, shapeMult.X), zoneSize.Y * max(0.01, shapeMult.Y), zoneSize.Z * max(0.01, shapeMult.Z));
-			return String.Format("  load %s\n    at   = %.3f, %.3f, %.3f\n    size = %.3f, %.3f, %.3f",
-				v.id, zoneAt.X, zoneAt.Y, zoneAt.Z, zoneSize.X, zoneSize.Y, zoneSize.Z);
+			return BAKED_LOAD, k, v.loadAt + delta, zoneSize;
 		}
-		return "";
+		return BAKED_NONE, -1, (0, 0, 0), (0, 0, 0);
 	}
 
 	// EVERY PART'S OWN NAME FOR ITS OWN NUMBERS: wm_gp_m3 is the main gun's
@@ -1743,6 +1816,11 @@ class WM_Rig play
 	// for every class that says nothing; a chamber gun never reads it.
 	void OnShot(PlayerPawn pmo, int chambers = 1, int rounds = 1)
 	{
+		// RELOADING OFF (wm_reload_mode 0): the weapon's own fire action already charged the owner's reserve
+		// (WM_Gun.WM_TryFire, on every machine), so the gun's stores are NOT spent too. Until 2026-09-29 they
+		// were, and the reserve never was: CanFire only asked that the reserve held a round, so arcade mode
+		// was infinite ammo with a gun that looked emptier every shot.
+		bool noReload = pmo && pmo.player && WM_System.ReloadMode(pmo.PlayerNumber()) == WM_System.RELOAD_OFF;
 		// NO CHAMBER (WM_Card.firesFrom), on either wm_verbs path, and no case waits in a
 		// chamber -- so nothing below keeps one. From the MAGAZINE the pull is paid here; from
 		// the RESERVE the weapon's own fire action already paid it (on every machine); on
@@ -1752,16 +1830,22 @@ class WM_Rig play
 		// A MANUAL ACTION (wm_verbs on) keeps the fired case in its chamber for the
 		// stroke to throw, so no brass leaves on the shot. Both pistols cycle on the
 		// shot, so for them this is false and the shot is exactly as it was.
-		bool manual = !noChamber && WM_Verb.Enabled() && ManualAction();
+		bool manual = !noReload && !noChamber && WM_Verb.Enabled() && ManualAction();
 		// THE CASE STAYS IN ITS CHAMBER until something throws it out (WM_Card.KeepsCaseOnShot):
 		// a revolver's, until the gun opens. False for both pistols, true for both pumps --
 		// which `manual` already said -- so for them nothing here changes.
-		bool keeps  = !noChamber && WM_Verb.Enabled() && card.KeepsCaseOnShot();
+		bool keeps  = !noReload && !noChamber && WM_Verb.Enabled() && card.KeepsCaseOnShot();
 		hammerFell = true;
 		firedTic = level.maptime;
 		int fired = 1;
 		int spent = 0;
-		if (noChamber)
+		if (noReload)
+		{
+			fired = max(chambers, 1);
+			hammerCocked = true;
+			hammerDownTics = 2;
+		}
+		else if (noChamber)
 		{
 			if (fromMag) spent = ammo.SpendFromMagazine(rounds);
 			hammerCocked = true;
@@ -1786,7 +1870,14 @@ class WM_Rig play
 		if (!sawing) Flash(pmo);
 		if (!manual && !keeps) Brass(pmo);
 
-		if (fromMag)
+		if (noReload)
+		{
+			let arcadeClass = WM_LooseMag.ReserveFor(card.weaponClass);
+			let arcadeInv = pmo ? pmo.FindInventory(arcadeClass) : null;
+			WM_Log.Info(String.Format("%s gun: SHOT -- reloading is off, paid from the reserve, %d left", HandName(),
+				arcadeInv ? arcadeInv.Amount : 0));
+		}
+		else if (fromMag)
 		{
 			WM_Log.Info(String.Format("%s gun: SHOT -- %d round%s straight from the magazine, %d left", HandName(),
 				spent, (spent == 1) ? "" : "s", ammo.rounds));
@@ -3023,11 +3114,22 @@ class WM_Rig play
 	// every machine -- the same shape as PublishFireBlock and for the same reason
 	// (NETPLAY_SPEC section 10, approach B).
 	// ============================================================================
+	//
+	// RETUNED 2026-09-29 -- "too sensitive". It borrowed the break action's shut speed (1.5 m/s,
+	// ordinary arm motion), fired after TWO tics over it, needed no distance, ignored the trigger, and
+	// re-armed six tics later. Lowering the gun after a shot, recoil recovery and crouching all reloaded.
+	// Now it needs, all at once:
+	//   its OWN speed, wm_snapload_speed (2.8 m/s) x the menu's "Flick effort";
+	//   that speed held for wm_snapload_tics tics in a row (3, about 86 ms), not a two-tic mean;
+	//   the gun to have TRAVELLED wm_snapload_dist metres down in that run (0.15) -- a stroke, not a jolt;
+	//   the trigger for that hand up -- a shot's recoil is never a reload;
+	//   room in the gun -- a full gun does not "reload" and burn the gesture;
+	// and afterwards eight calm tics in a row below a third of the speed before it can fire again.
 	private void FlickSnapLoad(PlayerPawn pmo)
 	{
-		if (!pmo || !pmo.player || !card || !prop || stowed) { snapCalm = false; snapLast = 0.0; return; }
+		if (!pmo || !pmo.player || !card || !prop || stowed) { snapCalm = false; snapLast = 0.0; snapRun = 0; snapTravel = 0; return; }
 		int pn = pmo.PlayerNumber();
-		if (WM_System.ReloadMode(pn) != WM_System.RELOAD_SNAP) { snapCalm = false; snapLast = 0.0; return; }
+		if (WM_System.ReloadMode(pn) != WM_System.RELOAD_SNAP) { snapCalm = false; snapLast = 0.0; snapRun = 0; snapTravel = 0; return; }
 
 		// WORLD DOWN. The hand's own velocity along it, plus the part the wrist
 		// swings: the gun sits away from the hand, so a rotation moves it even when
@@ -3037,28 +3139,40 @@ class WM_Rig play
 		if (hand == 0) { lin = pmo.AttackVel;  ang = pmo.AttackAngularVel;  handAt = pmo.AttackPos; }
 		else           { lin = pmo.OffhandVel; ang = pmo.OffhandAngularVel; handAt = pmo.OffhandPos; }
 
-		Vector3 gunAt = prop.Pos;
+		// WHERE THE GUN IS DRAWN, not prop.Pos: the prop's actor is parked on the player for culling
+		// (WM_System), so measured from it the wrist term pointed at the floor and came out near zero --
+		// a wrist snap barely counted.
+		Vector3 gunAt = World((0, 0, 0));
+		if (gunAt == (0, 0, 0)) gunAt = handAt;   // not drawn yet this tic: no wrist term, rather than a wild one
 		double along = (lin dot down) + ((ang cross (gunAt - handAt)) dot down);
-		double need  = Cvf("wm_flick_speed", 1.5) * Cvf("vr_vunits_per_meter", 34.0)
-		             * max(0.1, Cvf("wm_snapload_scale", 1.0));
-
-		// TWO TICS AVERAGED, as FlickByVerbs does: one tic of noise from a tracker
-		// glitch is not a gesture, and the mean costs nothing.
-		double mean = (along + snapLast) * 0.5;
+		double upm   = Cvf("vr_vunits_per_meter", 34.0);
+		double need  = Cvf("wm_snapload_speed", 2.8) * upm * max(0.1, Cvf("wm_snapload_scale", 1.0));
+		int    run   = clamp(int(Cvf("wm_snapload_tics", 3)), 1, 12);
+		double dist  = Cvf("wm_snapload_dist", 0.15) * upm;
 		snapLast = along;
 
-		if (snapQuiet > 0) { snapQuiet--; return; }
-		// SETTLE FIRST. Without this the follow-through of the flick that just
-		// reloaded fires it again, and again, every tic it stays fast.
+		if (snapQuiet > 0) { snapQuiet--; snapRun = 0; snapTravel = 0; return; }
+		// SETTLE FIRST, AND PROPERLY. Eight tics in a row well below the speed, so the follow-through
+		// of the flick that just reloaded -- or a wave of the arm -- cannot fire it again.
 		if (!snapCalm)
 		{
-			if (along < need * 0.5) snapCalm = true;
+			snapCalmTics = (along < need / 3.0) ? snapCalmTics + 1 : 0;
+			if (snapCalmTics >= 8) { snapCalm = true; snapCalmTics = 0; }
 			return;
 		}
-		if (mean < need) return;
-
+		// THE TRIGGER DOWN IS SHOOTING, NOT RELOADING: recoil and the recovery from it are fast and down.
+		uint b = pmo.player.cmd.buttons;
+		if (b & ((hand == 0) ? BT_ATTACK : BT_OFFHANDATTACK)) { snapRun = 0; snapTravel = 0; return; }
+		if (along < need) { snapRun = 0; snapTravel = 0; return; }
+		snapRun++;
+		snapTravel += along / TICRATE;
+		if (snapRun < run || snapTravel < dist) return;
+		snapRun = 0; snapTravel = 0;
+		// A FULL GUN HAS NOTHING TO TAKE. Not sent, and not re-armed either -- a second flick straight
+		// after would only be the same gesture's tail.
 		snapCalm  = false;
 		snapQuiet = FLICK_GRACE_TICS;
+		if (ammo && ammo.RoomTotal() <= 0) return;
 		// THE MACHINE THAT SAW IT TELLS EVERY MACHINE. Never applied here.
 		EventHandler.SendNetworkEvent("wm_snapload", hand);
 		level.VRHaptic(hand, 0.6, 14.0);

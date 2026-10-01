@@ -1947,10 +1947,22 @@ user float wm_recoil_travel = 1.0;
 // zero, so there only a hand does.
 user bool  wm_flick_close = true;
 user float wm_flick_speed = 1.5;
-// [SNAPLOAD] HOW HARD THE DOWN-FLICK HAS TO BE, as a multiple of wm_flick_speed
-// (wm_reload_mode 3). 1.0 is the same speed that snaps a break action shut; raise
-// it if the gun reloads while you are just moving, lower it if the flick is work.
+// [SNAPLOAD] HOW HARD THE DOWN-FLICK HAS TO BE (wm_reload_mode 3), as a multiple of
+// wm_snapload_speed -- the menu's "Flick effort". Raise it if the gun reloads while
+// you are just moving, lower it if the flick is work.
 user float wm_snapload_scale = 1.0;
+// Its own speed, METRES A SECOND, straight down (hand plus wrist, at the gun). Until
+// 2026-09-29 it borrowed wm_flick_speed (1.5, the break action's shut), which is
+// ordinary arm motion -- lowering the gun reloaded it.
+user float wm_snapload_speed = 2.8;
+// That speed held this many tics IN A ROW (35 a second). Was a two-tic mean.
+user int   wm_snapload_tics  = 3;
+// And the gun must travel this far down, METRES, in that run: a stroke, not a jolt.
+user float wm_snapload_dist  = 0.15;
+
+// [STOCKRELOAD] HOW LONG THE BUTTON RELOAD TAKES, tics (wm_reload_mode 4; 35 a second).
+// The gun cannot fire for this long, then it is filled.
+user int   wm_stockreload_tics = 35;
 
 // HOW FAR BACK STILL COUNTS AS CLOSED, per kind of gun (the owner, 2026-09-13: a pump moved a hair
 // would not fire). wm_feel_<type>_home: a cycle returned by hand (a pump) counts as home within it;
@@ -2477,11 +2489,10 @@ user float wm_gp_o7_sh_scale_z = 1.0;
 // 0 off -- guns never need loading, as Doom's never did; every gun fires from
 //   the owner's reserve and no chamber, magazine or action state is asked.
 // 1 by hand -- ours: pull the magazine, reach the pouch, seat it, rack it.
-// 2 gun in the pouch and pull the trigger   (not built yet)
-// 3 snap the gun down                       (not built yet)
-// 4 one key does the whole reload           (not built yet)
-// Anything above 1 behaves as 1 until it is built, so a config naming one is
-// never stuck with a gun it cannot load.
+// 2 gun in the pouch and pull the trigger
+// 3 snap the gun down
+// 4 the drop-mag button reloads (wm_stockreload_tics)
+// 2, 3 and 4 fill the gun and throw nothing away; the reserve pays for what goes in.
 user int wm_reload_mode = 1;
 
 // ---- BOLTRIFLE -- seeded from RIFLE: a bolt rifle is a rifle whose action a hand turns and pulls
@@ -2823,3 +2834,17 @@ user   bool  wm_weight_lag        = false;
 user   float wm_weight_lag_trail  = 0.45;   // how much of this tic's hand turn the gun fails to follow
 user   float wm_weight_lag_settle = 0.72;   // what is left of the trail each tic (0 snaps, 0.9 wallows)
 user   float wm_weight_lag_max    = 8.0;    // degrees the trail may never exceed, however hard you swing
+
+// ---- [GRIP ROLLOUT, TEMPORARY] WHICH GUNS ARE HELD BY THEIR GRIP -------------
+// The grip path (a card's `grip` block `seat`) replaces MODELDEF Offset for the guns named
+// here. Sixty-two guns have a seat, all computed offline and none yet seen in a headset, so
+// they go live one at a time instead of together: a wrong transform would move every gun
+// the same way and read as a global offset bug.
+//
+//   "BD_Pistol"            just that gun on the grip path (the default while proving it)
+//   "BD_Pistol,BD_Shotgun" a list, commas, spaces ignored
+//   ""                     every gun that has a seat -- the finished behaviour
+//
+// Unlisted guns keep their MODELDEF Offset exactly as today. Delete this cvar and
+// WM_Rig.GripAllowed when the rollout is done.
+user string wm_grip_only = "BD_Pistol";
