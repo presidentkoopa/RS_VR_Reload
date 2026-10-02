@@ -493,6 +493,55 @@ class WM_System : EventHandler
 		return loaded;
 	}
 
+	// ---- WHICH GATE SAID NO (wm_why) ------------------------------------------------
+	//
+	// CanFire above has nine ways to answer false and tells you none of them. Every
+	// "it won't fire" report so far has cost a round trip to the headset to find out
+	// which, and twelve BD22 guns sat broken for days behind one of them.
+	//
+	// THIS WALKS THE SAME LADDER IN THE SAME ORDER and names the first rung that
+	// refuses. It is DIAGNOSTIC ONLY -- read-only, never on a path that decides
+	// whether a shot happens -- so it may read whatever it likes.
+	//
+	// IT MUST BE CHANGED WITH CanFire, EVERY TIME. A gate added above and not here
+	// makes this lie, and a diagnostic that lies is worse than none: it sends the
+	// next reader off to look at the wrong thing. It is placed directly below CanFire
+	// so a change to one is in the same screen as the other.
+	String WhyCantFire(int pn, int h)
+	{
+		let gun = GunInHand(pn, h);
+		if (!gun) return "no carded gun in this hand";
+		let card = CardForWeapon(gun.GetClassName());
+		if (!card) return String.Format("%s has no card -- the card was refused at load, or no WMCARD names this class", gun.GetClassName());
+		let ammo = gun.EnsureAmmo();
+		if (!ammo) return "the gun has no ammo state yet (EnsureAmmo returned null)";
+		if (ammo.fireBlocked)
+			return "fireBlocked -- the machine working these hands says out of battery, support let go, or stowed";
+		if (card.HasVerbKind(WM_Verb.START) && !ammo.engineRunning)
+			return "the engine is not running -- this gun has a start verb and wants its ripcord first";
+
+		if (ReloadMode(pn) == RELOAD_OFF)
+		{
+			if (card.firesFrom == WM_Card.FIRES_NOTHING) return "";
+			return ReserveHolds(pn, card, 1) ? ""
+				: "wm_reload_mode 0: every gun fires from the reserve, and the reserve is empty";
+		}
+
+		if (card.firesFrom == WM_Card.FIRES_NOTHING) return "";
+		if (card.firesFrom == WM_Card.FIRES_RESERVE)
+			return ReserveHolds(pn, card, 1) ? ""
+				: "firesfrom = reserve and the owner's reserve is empty";
+		if (card.FiresFromMagazine())
+			return ammo.MagazineHolds(1) ? ""
+				: String.Format("firesfrom = magazine and the magazine holds %d", ammo.rounds);
+		if (ammo.actionLock)
+			return "the action is locked back -- it has to come home before the chamber feeds";
+		if (!ammo.CanFire())
+			return String.Format("nothing in the chamber (magazine %d, chambered %s)",
+				ammo.rounds, ammo.chambered ? "yes" : "no");
+		return "";
+	}
+
 	// CAN THE OWNER'S RESERVE PAY FOR A PULL (WM_Card.FIRES_RESERVE): the gun class's
 	// Weapon.AmmoType1 in that player's own inventory -- keyed by pn, never the console
 	// player -- at least n of it, or infinite ammo (Weapon.DepleteAmmo's own test).
@@ -989,6 +1038,20 @@ class WM_System : EventHandler
 		// states and the two rigs if they are not there yet.
 		let ph = ForPlayer(consoleplayer);
 		if (!ph) return;
+
+		// WHY WON'T IT FIRE, FOLLOWED THROUGH THE TRIGGER (wm_why above). Inert unless
+		// asked for, off by itself after ten seconds, rate-limited to twice a second so a
+		// held trigger does not fill the console. Read-only: it only prints.
+		if (whyUntil != 0)
+		{
+			if (level.maptime > whyUntil) whyUntil = 0;
+			else if ((p.cmd.buttons & (BT_ATTACK | BT_OFFHANDATTACK)) != 0
+			         && level.maptime - whyLast >= 17)
+			{
+				whyLast = level.maptime;
+				Why(consoleplayer, "trigger");
+			}
+		}
 
 		Equip(ph, pmo);
 		if (ph.equipWindow > 0) ph.equipWindow--;
@@ -3912,6 +3975,110 @@ class WM_System : EventHandler
 
 	// ---- diagnostics -------------------------------------------------------------
 
+	// ============================================================================
+	// WHY WON'T IT FIRE (`wm_why`).
+	//
+	// Generalised out of RS_VR_Weapons' bd22_why (bridge_bd22.zs:252-374), which was
+	// written for one set during the BD22 "fires once" hunt and then could not be
+	// pointed at anything else: it printed BD's own ammo classes and BD's own
+	// blocking tokens by name. This asks the gun and the card instead, so it answers
+	// for any gun in any set.
+	//
+	// WHAT IT ADDS over the version it came from: WhyCantFire names the CanFire gate
+	// that refused, rather than printing canfire=0 and leaving the reader to guess
+	// between nine of them; and it prints the card's stores and verbs, which is where
+	// the BD22 fault actually was -- a magazine that existed and was unreachable.
+	//
+	// READ-ONLY, AND THE SENDER'S MACHINE ONLY. It changes nothing and prints to one
+	// console, so it is in the local-UI group with wm_dump and wm_selftest.
+	// ============================================================================
+	private int whyUntil;    // maptime it stops reporting; 0 = off
+	private int whyLast;     // maptime of the last trigger report, to rate-limit it
+
+	private static String WhyCls(Object o) { return o ? String.Format("%s", o.GetClassName()) : "none"; }
+
+	// HOW MUCH OF ONE AMMO CLASS THE PLAYER HAS, by the class the GUN names -- never a
+	// list of names written here. A list is what made the version this came from
+	// single-set, and it goes stale the moment a mod renames a pickup.
+	private static String WhyAmmo(Actor pmo, Class<Ammo> c)
+	{
+		if (!c) return "";
+		let it = pmo ? pmo.FindInventory(c) : null;
+		return String.Format("%s %d", c.GetClassName(), it ? it.Amount : 0);
+	}
+
+	void Why(int pn, String why)
+	{
+		if (pn < 0 || pn >= MAXPLAYERS || !playeringame[pn]) return;
+		let pmo = players[pn].mo;
+		if (!pmo || !pmo.player) return;
+		let pl = pmo.player;
+
+		Console.Printf("\c[Gold][wm_why %s] pawn %s  ready %s  pending %s  offhand %s",
+			why, WhyCls(pmo), WhyCls(pl.ReadyWeapon), WhyCls(pl.PendingWeapon), WhyCls(pl.OffhandWeapon));
+
+		int ws = pl.WeaponState;
+		Console.Printf("  engine: weaponready=%d  buttons=%x  attack=%d  offhandattack=%d  frozen=%d  totallyfrozen=%d",
+			(ws & WF_WEAPONREADY) ? 1 : 0, pl.cmd.buttons,
+			(pl.cmd.buttons & BT_ATTACK) ? 1 : 0,
+			(pl.cmd.buttons & BT_OFFHANDATTACK) ? 1 : 0,
+			(pl.cheats & CF_FROZEN) ? 1 : 0, (pl.cheats & CF_TOTALLYFROZEN) ? 1 : 0);
+
+		// WHERE THE WEAPON'S OWN STATE MACHINE IS. A gun stuck in Fire or in a reload
+		// sequence of its parent mod's making is not a card fault, and this is the line
+		// that tells the two apart.
+		let psp = pl.FindPSprite(PSP_WEAPON);
+		if (psp && psp.CurState && pl.ReadyWeapon)
+		{
+			let w = pl.ReadyWeapon;
+			String where = "other";
+			if (Actor.InStateSequence(psp.CurState, w.FindState("Ready")))         where = "Ready";
+			else if (Actor.InStateSequence(psp.CurState, w.FindState("Fire")))     where = "Fire";
+			else if (Actor.InStateSequence(psp.CurState, w.FindState("AltFire")))  where = "AltFire";
+			else if (Actor.InStateSequence(psp.CurState, w.FindState("Reload")))   where = "Reload";
+			else if (Actor.InStateSequence(psp.CurState, w.FindState("Select")))   where = "Select";
+			else if (Actor.InStateSequence(psp.CurState, w.FindState("Deselect"))) where = "Deselect";
+			Console.Printf("  psprite: %s (tics %d)", where, psp.Tics);
+		}
+		else
+			Console.Printf("  psprite: none -- nothing is drawn in the weapon layer");
+
+		Console.Printf("  wm_verbs %s   wm_reload_mode %d",
+			WM_Verb.EnabledFor(pn) ? "on" : "off", ReloadMode(pn));
+
+		for (int h = 0; h < 2; h++)
+		{
+			let gun = GunInHand(pn, h);
+			if (!gun) { Console.Printf("  %s hand: no carded gun", HandName(h)); continue; }
+			String blocked = WhyCantFire(pn, h);
+			Console.Printf("  %s hand: %s  canfire=%d%s", HandName(h), WhyCls(gun),
+				CanFire(pn, h, 1, 1, gun) ? 1 : 0,
+				blocked == "" ? "" : ("  BLOCKED BY: " .. blocked));
+
+			let card = CardForWeapon(gun.GetClassName());
+			if (card)
+			{
+				// THE STORES, which is where the BD22 fault was: a counted magazine at
+				// the stated capacity that nothing in the card could ever refill.
+				String st = "";
+				for (int i = 0; i < card.stores.Size(); i++)
+					st = st .. (i > 0 ? "; " : "") .. card.stores[i].Describe();
+				Console.Printf("    stores: %s", st == "" ? "none declared" : st);
+				Console.Printf("    verbs:  %s", card.VerbsSummary());
+				Console.Printf("    firesfrom %s%s   type %s", card.FiresFromWord(),
+					card.noCasing ? ", no casing" : "",
+					card.gunType == "" ? "unstated" : card.gunType);
+			}
+
+			// ITS OWN RESERVE, from the classes the gun names. Both, because a gun with
+			// an alt fire spends a second pool and that is often the one that is empty.
+			String res = WhyAmmo(pmo, gun.AmmoType1);
+			String res2 = WhyAmmo(pmo, gun.AmmoType2);
+			Console.Printf("    reserve: %s%s", res == "" ? "no AmmoType1" : res,
+				res2 == "" ? "" : ("   alt " .. res2));
+		}
+	}
+
 	void Dump()
 	{
 		WM_Log.Rule("DUMP");
@@ -4080,7 +4247,8 @@ class WM_System : EventHandler
 		// machine of the player who sent them. Another player's copy of the event, arriving here, does nothing.
 		if (e.Name ~== "rs_body_edit" || e.Name ~== "rs_body_grab_main" || e.Name ~== "rs_body_grab_off"
 			|| e.Name ~== "wm_bake_ofs" || e.Name ~== "wm_bake_shape" || e.Name ~== "wm_bake_go"
-			|| e.Name ~== "wm_dump" || e.Name ~== "wm_selftest" || e.Name.Left(8) ~== "wm_card:")
+			|| e.Name ~== "wm_dump" || e.Name ~== "wm_selftest" || e.Name ~== "wm_why"
+			|| e.Name.Left(8) ~== "wm_card:")
 		{
 			if (e.Player == consoleplayer) LocalUiEvent(e, pmo);
 			return;
@@ -4178,6 +4346,18 @@ class WM_System : EventHandler
 		if (e.Name ~== "wm_bake_go")    { BakePrint(ph, e.Args[0], e.Args[1] % 100, e.Args[1] / 100, e.Args[2] / 1000.0, true); return; }
 		if (e.Name ~== "wm_dump")     { Dump(); return; }
 		if (e.Name ~== "wm_selftest") { SelfTest(); return; }
+		// WHY WON'T IT FIRE: print now, then again on each trigger pull for ten seconds.
+		// The follow-up is the point -- the state that refuses a pull is often gone by the
+		// time you have taken the headset off and typed the command, so the useful print is
+		// the one taken WITH the trigger down. Ten seconds is enough to get a hand back on
+		// the gun and pull; after that it stops by itself, so it cannot be left running.
+		if (e.Name ~== "wm_why")
+		{
+			whyUntil = level.maptime + 350;
+			whyLast = 0;
+			Why(consoleplayer, "asked");
+			return;
+		}
 		// THE CARD AND SHEET PRINTOUT (sheet.zs): `wm_card <weapon class> | all | check`, KEYCONF's alias for
 		// `netevent wm_card:<arg>`. Prints only.
 		if (e.Name.Left(8) ~== "wm_card:") { WM_SheetReader.Print(set, e.Name.Mid(8)); return; }

@@ -7,3 +7,12 @@ alias wm_card "netevent wm_card:%1"
 // you wanted. wm_sets lists what is loaded.
 alias wm_giveset "netevent wm_giveset:%1"
 alias wm_sets    "netevent wm_sets"
+
+// wm_why -- why won't the gun in my hand fire (zscript/wm/system.zs Why / WhyCantFire).
+// Prints the engine's weapon state, the psprite's state sequence, and for each hand the
+// card's stores, its verbs and WHICH of CanFire's nine gates refused -- then prints again
+// on every trigger pull for ten seconds, because the state that refuses a pull is usually
+// gone by the time the headset is off and the command typed. Read-only, sender's machine.
+// Generalised from RS_VR_Weapons' bd22_why, which named Brutal Doom's own ammo classes and
+// blocking tokens and so could only ever answer for one set.
+alias wm_why "netevent wm_why"
