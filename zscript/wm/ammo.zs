@@ -509,9 +509,16 @@ class WM_Ammo
 	// a double's barrels and a plain chamber are all stores, and the owner asked
 	// for this to work on every set.
 	//
-	// WHOLE STORES ONLY. Fill() is all-or-nothing, so a store is filled only while
-	// the budget covers the whole of it; half-filling would charge for rounds that
-	// never arrived.
+	// WHOLE STORES FIRST, THEN WHAT IS LEFT OVER. Two passes: every store the budget
+	// covers entirely, then the remainder split into whatever still has room. The order
+	// is not tidiness -- a single round in the pouch has to reach the CHAMBER, and one
+	// pass that filled part of the first store it met would sink it into a fifteen-round
+	// magazine and hand back a gun that still cannot fire.
+	//
+	// A SECOND BARREL'S STORE IS NOT FILLED HERE AT ALL (WM_Store.barrelStore, marked on
+	// this gun's own copies at every bind by WM_Rig.Bind). This reload charges exactly ONE
+	// reserve, the weapon's own AmmoType1 (WM_System.SnapLoad via WM_LooseMag.ReserveFor),
+	// so topping up an underbarrel launcher here bought a grenade for the price of a bullet.
 	// ============================================================================
 	int SnapFill(int budget)
 	{
@@ -520,6 +527,7 @@ class WM_Ammo
 		for (int i = 0; i < stores.Size(); i++)
 		{
 			let st = stores[i];
+			if (st.barrelStore) continue;
 			int room = st.Room();
 			if (room <= 0) continue;
 			if (spent + room > budget) continue;
@@ -527,6 +535,21 @@ class WM_Ammo
 			if (st.Detached()) st.Insert(0);
 			st.Fill();
 			spent += room;
+		}
+		// SECOND PASS: THE REMAINDER, SPLIT. The pass above takes whole stores only, so a
+		// reserve smaller than the magazine bought nothing at all and the reload read as
+		// broken on exactly the low ammunition it exists for. Whatever budget is still
+		// unspent now goes in, part of a store at a time. This can only ADD rounds the
+		// first pass left unpaid for; it never takes a store the first pass already filled.
+		for (int i = 0; i < stores.Size() && spent < budget; i++)
+		{
+			let st = stores[i];
+			if (st.barrelStore) continue;
+			int take = min(st.Room(), budget - spent);
+			if (take <= 0) continue;
+			if (st.Detached()) st.Insert(0);
+			st.FillSome(take);
+			spent += take;
 		}
 		// THE ACTION COMES HOME WITH IT: an instant reload that leaves the gun
 		// locked open is not an instant reload.
@@ -541,7 +564,10 @@ class WM_Ammo
 	{
 		Adopt();
 		int n = 0;
-		for (int i = 0; i < stores.Size(); i++) n += stores[i].Room();
+		// BARRELS LEFT OUT, for the same reason SnapFill skips them: this total becomes the
+		// budget charged against the weapon's one reserve, so counting a launcher's room
+		// would charge bullets for grenades and report a full gun as needing a reload.
+		for (int i = 0; i < stores.Size(); i++) if (!stores[i].barrelStore) n += stores[i].Room();
 		return n;
 	}
 

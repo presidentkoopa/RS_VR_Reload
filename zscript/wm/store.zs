@@ -245,6 +245,25 @@ class WM_Store
 		for (int s = 0; s < size; s++) slots[s] = SLOT_LIVE;
 	}
 
+	// AS MANY ROUNDS AS ASKED FOR AND NO MORE. Fill() being all-or-nothing is why a snap
+	// reload off a nearly empty pouch used to load nothing: the caller is charged for
+	// exactly what goes in, so a store it cannot afford whole must still take its share.
+	// Slot by slot from the front, replacing spent cases exactly as Fill does, so a
+	// half-filled cylinder is the same shape as a full one, only shorter.
+	void FillSome(int n)
+	{
+		if (placeholder || n <= 0) return;
+		if (kind == COUNTED) { rounds = min(capacity, rounds + n); return; }
+		int size = slots.Size();
+		int left = n;
+		for (int s = 0; s < size && left > 0; s++)
+		{
+			if (slots[s] == SLOT_LIVE) continue;
+			slots[s] = SLOT_LIVE;
+			left--;
+		}
+	}
+
 	// ---- SLOTTED ---------------------------------------------------------------
 
 	// The selected position: the index when indexed, otherwise always 0.
