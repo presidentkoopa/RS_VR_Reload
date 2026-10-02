@@ -20,6 +20,11 @@ version "5.0.0"
 #include "zscript/wm/become.zs"
 #include "zscript/wm/ammoservice.zs"
 #include "zscript/wm/weightservice.zs"
+
+// WHAT A MOUNT NEEDS TO KNOW ABOUT A WM GUN. For RS_HardPoints, which parks weapons on the
+// body and has to draw, bind and reload guns whose rules live here. Found by string through
+// ServiceIterator, so neither package names the other and either ships alone. See the file.
+#include "zscript/wm/mountservice.zs"
 #include "zscript/wm/menu.zs"
 #include "zscript/wm/handprofile.zs"
 #include "zscript/wm/cardvalidator.zs"
