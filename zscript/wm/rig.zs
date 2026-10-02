@@ -1272,7 +1272,10 @@ class WM_Rig play
 
 	double DrawnValue(WM_Part part)
 	{
-		// [BONE DRIVE OUT 2026-09-25] the joint branch stood here. jointDriven is never set now.
+		// [BONE DRIVE BACK 2026-10-01] the joint branch, restored with the engine's joint
+		// drive (src/r_data/model_jointdrive.cpp). Same contract as the surface line below:
+		// what was DRAWN, never script's estimate of it.
+		if (part.jointDriven && prop) return prop.GetModelJointDrawnValue(Name(part.jointName), part.modelIndex);
 		if (part.driveSlot >= 0 && prop) return prop.GetModelSurfaceDrawnValue(part.driveSlot);
 		return part.value;
 	}
@@ -1284,9 +1287,16 @@ class WM_Rig play
 		// changes nothing in the engine, so it costs no generation.
 		for (int k = 0; k < hideSurfaceIdx.Size() && hideSlotBase >= 0; k++)
 			if (hideSurfaceIdx[k] >= 0) prop.SetModelSurfaceHidden(hideSlotBase + k, 0, hideSurfaceIdx[k], true);
-		// [BONE DRIVE OUT 2026-09-25] card `hidejoint` collapsed a joint here. Surfaces are
-		// hidden by the loop above and still work; a joint cannot be hidden any more, so a
-		// card naming hidejoint leaves that piece drawn.
+		// [BONE DRIVE BACK 2026-10-01] card `hidejoint`, collapsing a joint and everything
+		// under it (MJP_Hide). The parked duplicate magazine every Breach AR rig carries
+		// (j_mag2), and the Benelli's parked shell, are what this is for: the rig models a
+		// spare that must never be drawn. Named, not indexed -- the engine resolves the name
+		// per model and logs a miss once -- so unlike the surface loop above this needs no
+		// slot and no resolved array, which is why there is no hideJointIdx beside
+		// hideSurfaceIdx.
+		for (int k = 0; k < card.hideJoints.Size(); k++)
+			prop.SetModelJointDrawPose(Name(card.hideJoints[k]), Quat(0, 0, 0, 1), Actor.MJP_Hide, 0);
+
 		for (int i = 0; i < card.parts.Size(); i++)
 		{
 			let part = card.parts[i];
@@ -1341,32 +1351,99 @@ class WM_Rig play
 	// of the gun, and cleared when it is back; otherwise its drawn value taken from a held drive, and a model-space joint
 	// offset from the very PartOffset / PartRotation a surface part gets -- the engine draws the drive instead while one
 	// holds it. Set once and updated after: no tic adds or removes the joint's entries (the Body IK lane's note).
-	// [BONE DRIVE OUT 2026-09-25] THIS DOES NOTHING NOW, AND THAT IS DELIBERATE.
+	// [BONE DRIVE BACK 2026-10-01] THIS WAS AN EMPTY FUNCTION FOR FIVE DAYS, and the note
+	// that stood here said the right fix was to give those guns surfaces rather than bring
+	// the bone drive back. That was overtaken: the engine's joint drive is back, in its own
+	// file (src/r_data/model_jointdrive.cpp) and without the arm IK it used to share one
+	// with, so the thing that made it a liability is gone. A rigged gun is now as capable as
+	// an unrigged one, which is the way round it should always have been.
 	//
-	// It posed a `joint` part by collapsing and offsetting a BONE of the gun's model. The
-	// engine's bone drive went to _old with the arm IK -- they shared one file -- and the
-	// owner's decision is that the slate stays clean rather than half of it coming back.
-	//
-	// THE SURFACE DRIVE IS UNTOUCHED AND IS THE MAIN PATH: 14 surface calls in this file
-	// against 10 joint ones, and the card pipeline finds parts as mesh SURFACES. So every
-	// gun whose parts are separate surfaces -- nearly all of them -- works exactly as
-	// before. What is lost is the handful of guns that are one welded rigged mesh, whose
-	// parts can only be moved by bone. Those guns' parts now sit still.
-	//
-	// The right fix is to give those guns surfaces, not to bring the bone drive back.
+	// IT MIRRORS THE SURFACE BLOCK IN Pose(), case for case, because a joint part is still
+	// a part: the caller `continue`s straight after this, so anything the surface block does
+	// has to be done here or it does not happen at all. That `continue` is why a joint part
+	// was not merely undriven while this was empty -- it was never hidden, never offset,
+	// never round-gated and never flip-gated either.
 	private void PoseJointPart(WM_Part part)
 	{
+		if (!prop) return;
+		Name j = Name(part.jointName);
+
+		// Not drawn at all: animation-only pieces, and a magazine that has left the gun.
+		// "Hidden" and "away" are different things, and an empty gun must not still show a
+		// magazine in its well. A PART THAT FLIPS is hidden off its beat, the same as a
+		// surface one. Hiding a joint COLLAPSES it, so everything under it goes too -- which
+		// is what you want for a magazine and its floorplate.
+		bool flipHidden = (part.flipBy != WM_Part.FLIP_NONE) && !FlipShown(part);
+		if (part.role == "hidden" || !part.present || flipHidden)
+		{
+			prop.SetModelJointDrawPose(j, Quat(0, 0, 0, 1), Actor.MJP_Hide, part.modelIndex);
+			return;
+		}
+		// Back in the gun: take the collapse off. Cheap and idempotent -- with no pose entry
+		// standing, MJP_Clear allocates nothing and returns true.
+		prop.SetModelJointDrawPose(j, Quat(0, 0, 0, 1), Actor.MJP_Clear, part.modelIndex);
+
+		// Written every tic, driven or not. While a hand drives this joint the renderer
+		// ignores the offset below and draws the drive instead; the instant the hand lets
+		// go, this is what shows -- so the part carries on from exactly where it was drawn.
+		if (part.jointDriven) part.value = prop.GetModelJointDrawnValue(j, part.modelIndex);
+		if (part.dof2) NoteSplitCrossing(part);
+
+		prop.SetModelJointOffset(j, PartOffset(part), PartRotation(part), part.modelIndex);
 	}
 
 	// A JOINT PART IN THE HAND (card `joint`): the engine's bone drive, on exactly StartDrive's axes, signs and pivots
 	// (WM_Space.Eng; a hinge's negated degrees; a twist; a dof2 stage), so the posed part and the driven part agree at
 	// every value. The drive's entry is made on the first grab and kept; each grab re-arms it, each release switches it
 	// off (StopDrive).
+	// [BONE DRIVE BACK 2026-10-01] This is StartDrive below with `surface` read as `joint`:
+	// the same axes, the same signs, the same pivots, the same WM_Space.Eng conversion and a
+	// hinge's negated degrees -- because the two call the SAME SOLVER in the engine
+	// (model_handdrive.h), and the posed part and the driven part have to agree at every
+	// value or the gun snaps on release.
+	//
+	// ONE DIFFERENCE, AND IT IS THE GOOD KIND: a joint is addressed by NAME and a surface by
+	// a slot, so there is no per-surface loop and no slot to reserve. That is why Bind()
+	// reserves nothing for a joint part and why WM_Part needs no jointIndex.
 	private void StartJointDrive(WM_Part part, int workHand, double startValue)
 	{
-		// [BONE DRIVE OUT 2026-09-25] the engine's bone drive is gone -- see PoseJointPart.
-		// jointDriven stays false, so DrawnValue and StopDrive take the plain value path and
-		// a joint part behaves as one nothing can move.
+		Name j = Name(part.jointName);
+		let d = part.dof;
+
+		// A PART THAT ONLY TURNS -- a break-top's barrel, a crane, the Benelli's trigger --
+		// is driven as a hinge: the renderer reads the hand by its angle round the pin, so
+		// the part turns exactly as far as the hand swings round it.
+		if (d.moveKind == WM_Dof.MOVE_HINGE)
+		{
+			prop.SetModelJointDriveHinge(j, part.modelIndex, workHand,
+				WM_Space.Eng(d.axis), -d.degrees, WM_Space.Eng(d.pivot), startValue);
+		}
+		else
+		{
+			prop.SetModelJointDrive(j, part.modelIndex, workHand,
+				WM_Space.Eng(d.axis), d.distance, startValue);
+			// A part that turns as it slides (a card `twist`) turns in the hand too, not
+			// only once it is let go.
+			if (d.twist != 0)
+				prop.SetModelJointDriveRotation(j, part.modelIndex,
+					WM_Space.Eng(d.twistAxis), -d.twist, WM_Space.Eng(d.pivot));
+		}
+
+		// The second stage, on the same joint, straight after the drive -- the native's
+		// rule, exactly as DriveSecondStage does it for a surface.
+		let d2 = part.dof2;
+		if (d2)
+		{
+			bool isHinge2 = (d2.moveKind == WM_Dof.MOVE_HINGE);
+			if (!prop.SetModelJointDriveStage(j, part.modelIndex,
+					isHinge2 ? Actor.DRIVESTAGE_Hinge : Actor.DRIVESTAGE_Slide,
+					WM_Space.Eng(d2.axis), isHinge2 ? -d2.degrees : d2.distance,
+					WM_Space.Eng(d2.pivot), d2.split))
+				WM_Log.Err(String.Format("%s gun: the engine refused %s's dof2 on joint %s -- in the hand it is a single-stage drive",
+					HandName(), part.id, part.jointName));
+		}
+
+		part.jointDriven = true;
 		part.value = startValue;
 	}
 
@@ -1457,8 +1534,19 @@ class WM_Rig play
 	// visibly still out.
 	double StopDrive(WM_Part part)
 	{
-		// [BONE DRIVE OUT 2026-09-25] a joint part was released here. Nothing drives one now.
-		if (part.jointName != "") return part.value;
+		// [BONE DRIVE BACK 2026-10-01] a joint part released. ClearModelJointDrive switches
+		// the drive off and KEEPS the entry, exactly as ClearModelSurfaceDrive leaves its
+		// slot -- so a grab and a release never add or remove an entry, and the drawn value
+		// stays readable. Read it BEFORE clearing.
+		if (part.jointName != "")
+		{
+			if (!part.jointDriven || !prop) return part.value;
+			double jv = prop.GetModelJointDrawnValue(Name(part.jointName), part.modelIndex);
+			prop.ClearModelJointDrive(Name(part.jointName), part.modelIndex);
+			part.jointDriven = false;
+			part.value = jv;
+			return jv;
+		}
 		if (part.driveSlot < 0 || !prop) return part.value;
 		double v = prop.GetModelSurfaceDrawnValue(part.driveSlot);
 		for (int s = 0; s < part.surfaces.Size(); s++) prop.ClearModelSurfaceDrive(part.driveSlot + s);
