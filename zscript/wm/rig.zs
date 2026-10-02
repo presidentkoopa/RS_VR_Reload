@@ -3430,7 +3430,7 @@ class WM_Rig play
 	// fully home (WM_System.ReleaseByVerbs). The type is the card's, as its hand seats read it
 	// (WM_HandProfile.TypeOf); a type with no set of its own reads the default one.
 	// SCRIPT-READ, like every feel threshold (FEEL_PLAN section 10's cvar note).
-	// LINT-CVARS: wm_feel_pistol_home wm_feel_pistol_shut wm_feel_shotgun_home wm_feel_shotgun_shut wm_feel_breakaction_home wm_feel_breakaction_shut wm_feel_revolver_home wm_feel_revolver_shut wm_feel_rifle_home wm_feel_rifle_shut wm_feel_smg_home wm_feel_smg_shut wm_feel_chaingun_home wm_feel_chaingun_shut wm_feel_plasma_home wm_feel_plasma_shut wm_feel_launcher_home wm_feel_launcher_shut wm_feel_bfg_home wm_feel_bfg_shut wm_feel_railgun_home wm_feel_railgun_shut wm_feel_flamethrower_home wm_feel_flamethrower_shut wm_feel_chainsaw_home wm_feel_chainsaw_shut wm_feel_default_home wm_feel_default_shut
+	// LINT-CVARS: wm_feel_pistol_home wm_feel_pistol_shut wm_feel_pump_home wm_feel_pump_shut wm_feel_shotgun_home wm_feel_shotgun_shut wm_feel_breakaction_home wm_feel_breakaction_shut wm_feel_revolver_home wm_feel_revolver_shut wm_feel_rifle_home wm_feel_rifle_shut wm_feel_smg_home wm_feel_smg_shut wm_feel_chaingun_home wm_feel_chaingun_shut wm_feel_plasma_home wm_feel_plasma_shut wm_feel_launcher_home wm_feel_launcher_shut wm_feel_bfg_home wm_feel_bfg_shut wm_feel_railgun_home wm_feel_railgun_shut wm_feel_flamethrower_home wm_feel_flamethrower_shut wm_feel_chainsaw_home wm_feel_chainsaw_shut wm_feel_default_home wm_feel_default_shut
 	double HomeAt(WM_Verb v)  { return max(v.homeAt, FeelThreshold("home")); }
 	double CloseAt(WM_Verb v) { return max(v.closeAt, FeelThreshold("shut")); }
 

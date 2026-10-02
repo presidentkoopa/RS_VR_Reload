@@ -1971,6 +1971,13 @@ user int   wm_stockreload_tics = 35;
 // Script, read as the game runs -- not on a live page. NOSAVE: config only, never userinfo.
 nosave float wm_feel_pistol_home  = 0.0;
 nosave float wm_feel_pistol_shut  = 0.0;
+// A PUMP IS A KIND OF GUN A CARD CAN SAY (type = pump), and wm_hs_pump_* hand seats
+// have always been declared for it -- but these two never were, so the lookup fell
+// through to wm_feel_default_home, which is 0.0: a pump moved a hair would not fire,
+// the exact complaint 0.25 was added for on 2026-09-13. Same values as shotgun,
+// because to everything that asks (WM_Card.DefaultGripClass) they are one thing.
+nosave float wm_feel_pump_home    = 0.25;
+nosave float wm_feel_pump_shut    = 0.0;
 nosave float wm_feel_shotgun_home = 0.25;
 nosave float wm_feel_shotgun_shut = 0.0;
 nosave float wm_feel_breakaction_home = 0.0;
