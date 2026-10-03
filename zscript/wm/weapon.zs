@@ -74,7 +74,20 @@ class WM_Gun : Weapon
 		if (!gc) return;
 		let def = GetDefaultByType(gc);
 		if (!def) return;
+
 		bool has = (s != null);
+
+		// THE SET'S EFFECT SWITCH -- see the end of this function, where it is applied. It is NOT
+		// applied here, because it must not reach the keys read below.
+		bool swapLook = false;
+		if (s && s.alt && s.switchCvar != "")
+		{
+			// CVar.FindCVar and not GetCVar: this runs in the playsim for every gun in the level,
+			// and a server cvar is the same on every machine by definition, so there is no player
+			// to ask.
+			let sw = CVar.FindCVar(s.switchCvar);
+			swapLook = (sw != null && sw.GetInt() != 0);
+		}
 
 		shotPelletCount      = (has && s.shotPelletsStated)      ? s.shotPelletCount      : def.shotPelletCount;
 		shotSpreadYaw        = (has && s.shotSpreadStated)       ? s.shotSpreadYaw        : def.shotSpreadYaw;
@@ -87,6 +100,10 @@ class WM_Gun : Weapon
 		firstShotsDeadOn     = (has && s.firstShotsStated)       ? s.firstShotsDeadOn     : def.firstShotsDeadOn;
 		roundsPerShotCount   = (has && s.roundsPerShotStated)    ? s.roundsPerShotCount   : def.roundsPerShotCount;
 		shotClassName        = (has && s.shotClassStated)        ? s.shotClassName        : def.shotClassName;
+		shotClassCycleText   = (has && s.shotClassCycleStated)   ? s.shotClassCycleText   : def.shotClassCycleText;
+		muzzleThrowText      = (has && s.muzzleThrowStated)      ? s.muzzleThrowText      : def.muzzleThrowText;
+		shotCycleBuilt       = false;   // both lists are rebuilt from the text this sheet left
+		muzzleThrowBuilt     = false;
 		railShotOn           = (has && s.shotRailStated)         ? s.railShotOn           : def.railShotOn;
 		railSpiralRGB        = (has && s.railColorsStated)       ? s.railSpiralRGB        : def.railSpiralRGB;
 		railCoreRGB          = (has && s.railColorsStated)       ? s.railCoreRGB          : def.railCoreRGB;
@@ -116,6 +133,47 @@ class WM_Gun : Weapon
 		ejectaProfileName    = (has && s.ejectaProfileStated)    ? s.ejectaProfileName    : def.ejectaProfileName;
 		recoilProfileName    = (has && s.recoilProfileStated)    ? s.recoilProfileName    : def.recoilProfileName;
 		altRecoilProfileName = (has && s.altRecoilProfileStated) ? s.altRecoilProfileName : def.altRecoilProfileName;
+
+		// ---- THE SET'S EFFECT SWITCH, LAST, AND LOOK ONLY -------------------------------------
+		//
+		// The owner, 2026-10-03: a set's DAMAGE, RATE OF FIRE and ALT FIRES are its identity and
+		// are fixed. Vanilla's are Doom's, Vanilla+ is its own redesign, BD22's are Brutal Doom's.
+		// So the switch may move how a gun LOOKS and must never move how it BEHAVES.
+		//
+		// IT IS APPLIED HERE, AFTER EVERYTHING, AND READS ONLY THESE NINE FIELDS. An earlier
+		// version swapped the whole sheet, which would have carried shotdamage, firetics and
+		// altmode across with the look -- flip BD22 to our ballistics and its damage quietly
+		// changes. That is a fault nobody would connect to an effects switch three days later.
+		// Keeping the swap to a named list means a key added to the grammar tomorrow cannot join
+		// it by accident; it has to be put here on purpose.
+		//
+		// shotclass IS NOT IN THE LIST, deliberately. For most guns the projectile and the look
+		// are separate things, but for a few the projectile IS the look -- Brutal Doom's flame
+		// gout is the fire you see AND the burn it does, and Doom's rocket is the same. There is
+		// no way to borrow one without the other, so those guns keep their own projectile in both
+		// modes. Nothing is lost by that: BD's flame is the good one and it simply stays.
+		//
+		// muzzlethrow IS in the list, and it is how the striking effect-only projectiles still
+		// travel: BD's RailgunTrailEffectMissile is damage (random(0, 0)) and pure show, so it
+		// can come and go freely. That is the capable half of this, kept without risking a number.
+		if (swapLook)
+		{
+			let a = s.alt;
+			// SAID ONCE PER CLASS. A switch that silently does nothing and a switch that works
+			// look identical from outside, and the only way to tell them apart was to read the
+			// profiles back -- which nothing prints. One line, at the moment of the swap.
+			WM_Log.Once(WM_Log.LV_INFO, "lookswap:" .. GetClassName(), String.Format(
+				"%s takes its `instead` look: %s is on", GetClassName(), s.switchCvar));
+			if (a.roundProfileStated)      roundProfileName     = a.roundProfileName;
+			if (a.flashProfileStated)      flashProfileName     = a.flashProfileName;
+			if (a.altFlashProfileStated)   altFlashProfileName  = a.altFlashProfileName;
+			if (a.ejectaProfileStated)     ejectaProfileName    = a.ejectaProfileName;
+			if (a.trailProfileStated)      trailProfileName     = a.trailProfileName;
+			if (a.recoilProfileStated)     recoilProfileName    = a.recoilProfileName;
+			if (a.altRecoilProfileStated)  altRecoilProfileName = a.altRecoilProfileName;
+			if (a.muzzleThrowStated)     { muzzleThrowText      = a.muzzleThrowText; muzzleThrowBuilt = false; }
+			if (a.railColorsStated)      { railSpiralRGB        = a.railSpiralRGB; railCoreRGB = a.railCoreRGB; }
+		}
 	}
 
 	// ONE SHOT'S RECOIL (RS_Ballistics' RSB_Recoil, RECOIL_PLAN.md): the turn this shot's rounds take (yaw, pitch, in
@@ -205,6 +263,19 @@ class WM_Gun : Weapon
 	//                               and drawn by the class's RoundProfile. Rocket, PlasmaBall
 	//                               and BFGBall bring their own speed, damage and death;
 	//                               LaunchRound and ShotDamage touch an RSB_Bullet only.
+	//   WM_Gun.ShotClassCycle "..." SEVERAL projectiles, comma separated, one a ROUND in turn --
+	//                               for an authored gun whose shot comes in variants (three gout
+	//                               sizes, a tracer every fifth). It outranks ShotClass. The turn
+	//                               advances in the playsim on every machine alike, no roll, and
+	//                               is saved with the gun. "" (unset) is ShotClass alone.
+	//   WM_Gun.MuzzleThrow "..."    EXTRA ACTORS alongside the shot, "<actor>[ xN], ...", thrown
+	//                               down its line once a SHOT. They spend no ammo, take no
+	//                               ShotDamage, no scatter and no round profile -- each keeps
+	//                               whatever its OWN class does, damage included. For an authored
+	//                               gun that fires more than one thing a pull: Brutal Doom's
+	//                               railgun draws no engine rail at all (A_RailAttack with "none",
+	//                               "none") and throws a trail missile and a bouncing blast
+	//                               beside it. "" (unset) throws nothing, as every gun did before.
 	//   WM_Gun.RoundProfile "name"  RS_Ballistics profiles (RSBDEFS) for this class's shot: the
 	//   WM_Gun.FlashProfile "name"  round's ballistics and look ("default" unset); the muzzle's
 	//   WM_Gun.AltFlashProfile "n"  light, cone, sparks, flame and smoke ("default"); a second
@@ -292,6 +363,8 @@ class WM_Gun : Weapon
 	const MAX_SHOT_PELLETS = 64;
 	const MAX_CHAMBERS_PER_PULL = 8;
 	const MAX_ROUNDS_PER_SHOT = 1000;
+	const MAX_SHOT_CYCLE = 8;         // actor names in a WM_Gun.ShotClassCycle
+	const MAX_MUZZLE_THROW = 32;      // effect actors a shot throws (WM_Gun.MuzzleThrow)
 	// WM_Gun.AltMode's modes, and the kind of shot a Fire cycle is taking (altShotKind).
 	const ALT_NONE        = 0;
 	const ALT_BURST       = 1;
@@ -324,6 +397,17 @@ class WM_Gun : Weapon
 	int    firstShotsDeadOn;
 	int    roundsPerShotCount;
 	String shotClassName;
+	// SEVERAL PROJECTILES IN TURN (WM_Gun.ShotClassCycle): a comma-separated list of actor names,
+	// one taken per round, round-robin. "" (unset) is ShotClass alone, exactly as before.
+	String shotClassCycleText;
+	private transient Array<String> shotCycleNames;   // shotClassCycleText split, built once
+	private transient bool shotCycleBuilt;
+	int    shotCycleAt;                               // which name the next round takes; saved with the gun
+	// THE GUN'S OWN EFFECT ACTORS (WM_Gun.MuzzleThrow): "<actor>[ xN], ..." thrown down the shot's
+	// line once a shot, spending no ammo and taking no damage from the gun.
+	String muzzleThrowText;
+	private transient Array<String> muzzleThrowNames;  // muzzleThrowText expanded, counts included
+	private transient bool muzzleThrowBuilt;
 	bool   railShotOn;
 	int    railSpiralRGB;
 	int    railCoreRGB;
@@ -396,6 +480,8 @@ class WM_Gun : Weapon
 	property FirstShotsAccurate: firstShotsDeadOn;
 	property RoundsPerShot: roundsPerShotCount;
 	property ShotClass: shotClassName;
+	property ShotClassCycle: shotClassCycleText;
+	property MuzzleThrow: muzzleThrowText;
 	property ShotRail: railShotOn;
 	property RailColors: railSpiralRGB, railCoreRGB;
 	property TrailProfile: trailProfileName;
@@ -509,11 +595,103 @@ class WM_Gun : Weapon
 		return (Class<Actor>)(Object.FindClass("BulletPuff", "Actor"));
 	}
 
+	// THE NAMES A CYCLING GUN TAKES IN TURN (WM_Gun.ShotClassCycle), split once and kept. Built
+	// lazily rather than in BeginPlay because a weapon sheet lands on the gun after it exists.
+	private void BuildShotCycle()
+	{
+		shotCycleBuilt = true;
+		shotCycleNames.Clear();
+		if (shotClassCycleText == "") return;
+		Array<String> parts;
+		shotClassCycleText.Split(parts, ",", TOK_SKIPEMPTY);
+		for (int i = 0; i < parts.Size(); i++)
+		{
+			String one = parts[i];
+			one.StripLeftRight();
+			if (one != "") shotCycleNames.Push(one);
+		}
+		if (shotCycleAt >= shotCycleNames.Size()) shotCycleAt = 0;
+	}
+
+	// THE GUN'S OWN EFFECT ACTORS (WM_Gun.MuzzleThrow), expanded once: "a, b x11" becomes a list
+	// with b in it eleven times, so the fire loop is a plain walk.
+	private void BuildMuzzleThrow()
+	{
+		muzzleThrowBuilt = true;
+		muzzleThrowNames.Clear();
+		if (muzzleThrowText == "") return;
+		Array<String> parts;
+		muzzleThrowText.Split(parts, ",", TOK_SKIPEMPTY);
+		for (int i = 0; i < parts.Size(); i++)
+		{
+			String one = parts[i];
+			one.StripLeftRight();
+			if (one == "") continue;
+			int many = 1;
+			int x = one.RightIndexOf(" x");
+			if (x > 0)
+			{
+				String tail = one.Mid(x + 2);
+				tail.StripLeftRight();
+				int n = tail.ToInt(10);
+				if (n >= 1 && n <= MAX_MUZZLE_THROW && String.Format("%d", n) == tail)
+				{
+					many = n;
+					one = one.Left(x);
+					one.StripLeftRight();
+				}
+			}
+			for (int k = 0; k < many && muzzleThrowNames.Size() < MAX_MUZZLE_THROW; k++)
+				muzzleThrowNames.Push(one);
+		}
+	}
+
+	int MuzzleThrowCount()
+	{
+		if (!muzzleThrowBuilt) BuildMuzzleThrow();
+		return muzzleThrowNames.Size();
+	}
+
+	// One of them, found by name as it is thrown. A name that is no actor is said once and skipped,
+	// never swapped for a bullet: an effect that does not exist should draw nothing, not shoot.
+	Class<Actor> MuzzleThrowAt(int i)
+	{
+		if (!muzzleThrowBuilt) BuildMuzzleThrow();
+		if (i < 0 || i >= muzzleThrowNames.Size()) return null;
+		Class<Actor> one = (Class<Actor>)(Object.FindClass(muzzleThrowNames[i], "Actor"));
+		if (one) return one;
+		WM_Log.Once(WM_Log.LV_ERR, "muzzlethrow:" .. GetClassName() .. ":" .. muzzleThrowNames[i], String.Format(
+			"%s: WM_Gun.MuzzleThrow names '%s', which is not an actor class -- nothing is thrown for it",
+			GetClassName(), muzzleThrowNames[i]));
+		return null;
+	}
+
 	// THE PROJECTILE A PELLET IS (WM_Gun.ShotClass), found by name as it fires. A name that is
 	// no actor is said once, and the gun fires RSB_Bullet rather than nothing.
+	//
+	// A GUN MAY NAME SEVERAL (WM_Gun.ShotClassCycle "a, b, c") and then each ROUND takes the next
+	// in turn, round-robin, with the cycle outranking ShotClass. This is how an authored gun whose
+	// projectile comes in variants keeps its own look: Brutal Doom's flamethrower throws three gout
+	// sizes in rotation, and only the middle one carries its smoke, embers and splash, so firing any
+	// one of them alone is either a thin flame or a splash every tic.
+	//
+	// The index advances in the fire action, which runs in the playsim on every machine from the
+	// same starting value, so it stays in step without a roll (NETPLAY_SPEC). It is saved with the
+	// gun so a reload does not restart the rotation mid-burst.
 	Class<Actor> ShotActor()
 	{
 		Class<Actor> fallback = "RSB_Bullet";
+		if (!shotCycleBuilt) BuildShotCycle();
+		if (shotCycleNames.Size() > 0)
+		{
+			String pick = shotCycleNames[shotCycleAt % shotCycleNames.Size()];
+			shotCycleAt = (shotCycleAt + 1) % shotCycleNames.Size();
+			Class<Actor> one = (Class<Actor>)(Object.FindClass(pick, "Actor"));
+			if (one) return one;
+			WM_Log.Once(WM_Log.LV_ERR, "shotcycle:" .. GetClassName() .. ":" .. pick, String.Format(
+				"%s: WM_Gun.ShotClassCycle names '%s', which is not an actor class -- that turn fires RSB_Bullet", GetClassName(), pick));
+			return fallback;
+		}
 		if (shotClassName == "") return fallback;
 		Class<Actor> named = (Class<Actor>)(Object.FindClass(shotClassName, "Actor"));
 		if (named) return named;
@@ -567,12 +745,16 @@ class WM_Gun : Weapon
 			if (trailProfileName != "") railLook = String.Format("RS_Ballistics' '%s' trail (the engine's switched off)", trailProfileName);
 			s = s .. String.Format(", each a RAIL (A_RailAttack), damage %s, %s", railHurt, railLook);
 		}
+		else if (shotClassCycleText != "")
+			s = s .. String.Format(", cycling %s a round, each with its own damage", shotClassCycleText);
 		else if (shotClassName != "")
 			s = s .. String.Format(", each a %s with its own damage", shotClassName);
 		else if (shotDamageLo > 0)
 			s = s .. String.Format(", damage %d-%d a pellet", shotDamageLo, max(shotDamageLo, shotDamageHi));
 		else
 			s = s .. String.Format(", damage the round profile's own (%s: 5 x 1d3 unless it says otherwise)", RoundProfileOrDefault());
+		if (muzzleThrowText != "")
+			s = s .. String.Format(", THROWING %s with it", muzzleThrowText);
 		if (roundsPerShotCount > 1)
 			s = s .. String.Format(", %d rounds a shot (spent by a gun that fires from its magazine or the reserve)", RoundsEachShot());
 		// Said only by a class that sets them, so every other gun's line reads as it did.
@@ -1214,6 +1396,16 @@ class WM_Gun : Weapon
 			if (shot && (sprH > 0 || sprV > 0)) invoker.ScatterShot(shot, sprH, sprV);
 			invoker.LaunchRound(shot, player, h, true);
 			if (dbl) invoker.ScaleShotDamage(shot, invoker.AltDamageScaleEach());
+		}
+		// EXTRA ACTORS ALONGSIDE THE SHOT (WM_Gun.MuzzleThrow), thrown down its line once a SHOT --
+		// after the pellets, so a gun that misfired on an empty chamber never threw any. No ammo,
+		// no ShotDamage, no scatter, no profile: each keeps what its own class does, which is the
+		// point -- it is the authored mod's actor, fired the way its own DECORATE fires it.
+		int extras = invoker.MuzzleThrowCount();
+		for (int e = 0; e < extras; e++)
+		{
+			Class<Actor> ex = invoker.MuzzleThrowAt(e);
+			if (ex) A_FireProjectile(ex, 0, false, 0, 0, FPF_NOAUTOAIM);
 		}
 		invoker.fireStarted = true;
 		if (dblFromFeed) sys.DoubleShellFeed(pn, h, true);

@@ -12,6 +12,10 @@
 //     shotspread = yaw, pitch      fullauto = yes | no           firstshotsaccurate = N
 //     shotdamage = lo, hi          roundspershot = N             releasetics = N
 //     shotclass = "<actor>"        shotrail = yes | no           railcolors = spiral, core   (0xRRGGBB ok)
+//     shotclasses = "<a>, <b>, ..."  two or more actors, one a ROUND in turn; outranks shotclass
+//     muzzlethrow = "<a>[ xN], ..."  EXTRA actors alongside the shot, thrown down its line once a
+//                                    shot: no ammo, no ShotDamage, no scatter, no round profile --
+//                                    each keeps whatever its own class does, damage included
 //     trailprofile = "<profile>"   chargetics = N                chargesound = "<sound>"
 //     shotsaw = yes | no           sawsounds = "<full>", "<hit>" sawpuff = "<actor>"
 //     spinuptics = N               spindowntics = N
@@ -85,6 +89,29 @@ class WM_Sheet
 	String sourceName;
 	int    line;
 
+	// ---- THE SET'S EFFECT SWITCH ------------------------------------------------------------
+	// A SET CHOOSES ITS LOOK AS A SET, NOT A GUN AT A TIME. The owner, 2026-10-03: "no pergun
+	// shit. bdguns use either bd effects or our ballistics. vanilla and v+ use ours or vanilla."
+	//
+	// So a sheet lump names ONE cvar, once, before its first gun:
+	//
+	//     effectswitch = bd22_effects
+	//
+	// and any gun in it may carry an `instead ... end` block holding the shot keys for the other
+	// mode. When the cvar is on, that block is laid over the gun after its ordinary keys.
+	//
+	// `instead` IS A WHOLE SHEET, not a special-case list: it is parsed by the same SheetKey as
+	// everything else, so every key a gun can state works inside it and nothing has to be kept in
+	// step as the grammar grows. That is also why it is a WM_Sheet rather than forty more fields.
+	//
+	// THE CVAR MUST BE A SERVER CVAR AND THIS IS NOT A STYLE CHOICE. The switch moves shotclass,
+	// which decides what actor is spawned and what damage it does -- gameplay, not look. A user
+	// cvar here would have two machines in a netgame firing different projectiles from the same
+	// pull (NETPLAY_SPEC). A set that only wanted to swap looks could use a user cvar safely, but
+	// nothing stops a sheet putting shotclass in its `instead`, so the rule is the strict one.
+	String   switchCvar;      // "" when the lump names none
+	WM_Sheet alt;             // the `instead` block, or null
+
 	// ---- THE SHOT (WM_Gun), each with whether the sheet states it --------------------------------------
 	int    shotPelletCount;                     bool shotPelletsStated;
 	double shotSpreadYaw, shotSpreadPitch;      bool shotSpreadStated;
@@ -95,6 +122,8 @@ class WM_Sheet
 	int    firstShotsDeadOn;                    bool firstShotsStated;
 	int    roundsPerShotCount;                  bool roundsPerShotStated;
 	String shotClassName;                       bool shotClassStated;
+	String shotClassCycleText;                  bool shotClassCycleStated;
+	String muzzleThrowText;                     bool muzzleThrowStated;
 	bool   railShotOn;                          bool shotRailStated;
 	int    railSpiralRGB, railCoreRGB;          bool railColorsStated;
 	String trailProfileName;                    bool trailProfileStated;
@@ -159,6 +188,8 @@ class WM_SheetReader
 		WM_SheetBarrel barrel  = null;
 		bool           refused = false;
 		bool           inClass = false;   // inside a `class` … `end` block, which this reader skips
+		bool           inInstead = false; // inside an `instead` … `end` block: keys go to sheet.alt
+		String         switchCvar = "";   // this lump's `effectswitch`, shared by every gun in it
 
 		for (int ln = 0; ln < lines.Size(); ln++)
 		{
@@ -196,10 +227,27 @@ class WM_SheetReader
 				sheet.weaponClass = gunClass;
 				sheet.sourceName  = sourceName;
 				sheet.line        = ln + 1;
+				sheet.switchCvar  = switchCvar;   // the lump's, so every gun in it answers one switch
+				inInstead = false;
 				continue;
 			}
 
 			if (refused) continue;
+
+			// `effectswitch = <cvar>` -- THE SET'S ONE SWITCH, before the first gun. It applies to
+			// every gun in this lump, which is the whole point: a set chooses its look as a set.
+			if (!sheet && head == "effectswitch")
+			{
+				int eqs = raw.IndexOf("=");
+				String nm = (eqs > 0) ? raw.Mid(eqs + 1) : "";
+				nm.StripLeftRight();
+				nm = Unquote(nm);
+				if (nm == "" || nm.IndexOf(" ") >= 0)
+					Refuse(sourceName, ln + 1, raw, "effectswitch is the name of one server cvar");
+				else
+					switchCvar = nm;
+				continue;
+			}
 			if (!sheet)
 			{
 				Refuse(sourceName, ln + 1, raw, "nothing here belongs to a `gun` line");
@@ -228,7 +276,11 @@ class WM_SheetReader
 
 			if (raw.MakeLower() == "end")
 			{
-				if (barrel)
+				if (inInstead)
+				{
+					inInstead = false;
+				}
+				else if (barrel)
 				{
 					sheet.barrels.Push(barrel);
 					barrel = null;
@@ -238,6 +290,32 @@ class WM_SheetReader
 					into.sheets.Push(sheet);
 					sheet = null;
 				}
+				continue;
+			}
+
+			// `instead` opens the OTHER mode's shot data for this gun -- see WM_Sheet.switchCvar.
+			// Its keys are read by the same SheetKey into a second sheet, so everything a gun can
+			// state works here with nothing to keep in step.
+			if (head == "instead" && words.Size() == 1)
+			{
+				String insteadWhy = "";
+				if (barrel)          insteadWhy = "an instead block goes in the gun, not inside a barrel block";
+				else if (inInstead)  insteadWhy = "an instead block is already open -- close it with `end` first";
+				else if (sheet.alt)  insteadWhy = "this gun already has an instead block -- one a gun";
+				else if (switchCvar == "") insteadWhy = "this lump names no `effectswitch`, so nothing would ever choose this block";
+				if (insteadWhy != "")
+				{
+					Refuse(sourceName, ln + 1, raw, insteadWhy);
+					refused = true;
+					sheet   = null;
+					barrel  = null;
+					continue;
+				}
+				sheet.alt = new("WM_Sheet");
+				sheet.alt.weaponClass = sheet.weaponClass;
+				sheet.alt.sourceName  = sourceName;
+				sheet.alt.line        = ln + 1;
+				inInstead = true;
 				continue;
 			}
 
@@ -272,7 +350,21 @@ class WM_SheetReader
 				key = key.MakeLower();
 				String val = raw.Mid(eq + 1);
 				val.StripLeftRight();
-				keyWhy = barrel ? BarrelKey(barrel, key, val) : SheetKey(sheet, key, val);
+				if (barrel)
+					keyWhy = BarrelKey(barrel, key, val);
+				else if (inInstead && !LookKey(key))
+				{
+					// REFUSED RATHER THAN IGNORED. A set's damage, rate of fire and alt fires are
+					// its identity and the switch must never move them -- so a behaviour key in
+					// here is a mistake, and taking it quietly would mean a sheet that reads as
+					// though it changes damage and does not. Said out loud, with the key named.
+					keyWhy = String.Format("`%s` is not a look: an instead block may only state "
+						.. "roundprofile, flashprofile, altflashprofile, ejectaprofile, trailprofile, "
+						.. "recoilprofile, altrecoilprofile, muzzlethrow or railcolors. A set's damage, "
+						.. "rate of fire and alt fires are the same in both of its modes", key);
+				}
+				else
+					keyWhy = SheetKey(inInstead ? sheet.alt : sheet, key, val);
 			}
 			if (keyWhy != "")
 			{
@@ -340,6 +432,73 @@ class WM_SheetReader
 			s.roundsPerShotCount = lw.ToInt(10);  s.roundsPerShotStated = true;
 		}
 		else if (key == "shotclass")      { s.shotClassName       = word;  s.shotClassStated       = true; }
+		else if (key == "shotclasses")
+		{
+			// TWO OR MORE ACTOR NAMES, taken a round each in turn. One name is `shotclass`, and
+			// writing it here instead is refused rather than quietly meaning the same thing --
+			// a one-entry cycle reads as a typo for the list that was meant.
+			Array<String> names;
+			word.Split(names, ",", TOK_SKIPEMPTY);
+			String joined = "";
+			for (int i = 0; i < names.Size(); i++)
+			{
+				String one = names[i];
+				one.StripLeftRight();
+				if (one == "") continue;
+				if (one.IndexOf(" ") >= 0) return String.Format("shotclasses: '%s' is not an actor name -- the list is separated by commas", one);
+				joined = (joined == "") ? one : (joined .. ", " .. one);
+			}
+			names.Clear();
+			joined.Split(names, ",", TOK_SKIPEMPTY);
+			if (names.Size() < 2)  return "shotclasses is two or more actor names, comma separated -- one name is `shotclass`";
+			if (names.Size() > WM_Gun.MAX_SHOT_CYCLE) return String.Format("shotclasses is at most %d actor names", WM_Gun.MAX_SHOT_CYCLE);
+			s.shotClassCycleText = joined;  s.shotClassCycleStated = true;
+		}
+		else if (key == "muzzlethrow")
+		{
+			// `none` THROWS NOTHING, STATED OUT LOUD. RSBDEFS' own rule -- "ANY KIND A GUN CAN
+			// NAME GETS ITS `none` WHEN THE KIND IS BORN" -- and this is the kind's first need
+			// of it: an `instead` block has to be able to say "and no extra actors in this mode",
+			// which an omitted key cannot, because an omitted key means the other mode's value
+			// survives the swap. Absence is not a statement; this is.
+			if (lw == "none" || lw == "")
+			{
+				s.muzzleThrowText = "";  s.muzzleThrowStated = true;
+				return "";
+			}
+			// "<actor>, <actor> xN, ..." -- the gun's own effect actors, thrown once a shot.
+			Array<String> names;
+			word.Split(names, ",", TOK_SKIPEMPTY);
+			String joined = "";
+			int total = 0;
+			for (int i = 0; i < names.Size(); i++)
+			{
+				String one = names[i];
+				one.StripLeftRight();
+				if (one == "") continue;
+				int many = 1;
+				int x = one.RightIndexOf(" x");
+				if (x > 0)
+				{
+					String tail = one.Mid(x + 2);
+					tail.StripLeftRight();
+					int n = tail.ToInt(10);
+					if (String.Format("%d", n) != tail || n < 1 || n > WM_Gun.MAX_MUZZLE_THROW)
+						return String.Format("muzzlethrow: '%s' -- a count is ` xN`, 1 to %d", one, WM_Gun.MAX_MUZZLE_THROW);
+					many = n;
+					one = one.Left(x);
+					one.StripLeftRight();
+				}
+				if (one == "" || one.IndexOf(" ") >= 0)
+					return String.Format("muzzlethrow: '%s' is not an actor name -- the list is `<actor>[ xN]` separated by commas", names[i]);
+				total += many;
+				String piece = (many > 1) ? String.Format("%s x%d", one, many) : one;
+				joined = (joined == "") ? piece : (joined .. ", " .. piece);
+			}
+			if (total < 1) return "muzzlethrow is one or more actor names, comma separated, each with an optional ` xN`";
+			if (total > WM_Gun.MAX_MUZZLE_THROW) return String.Format("muzzlethrow throws at most %d actors a shot", WM_Gun.MAX_MUZZLE_THROW);
+			s.muzzleThrowText = joined;  s.muzzleThrowStated = true;
+		}
 		else if (key == "shotrail")
 		{
 			int yn = ReadYesNo(lw);
@@ -719,6 +878,8 @@ class WM_SheetReader
 		Row("firstshotsaccurate", String.Format("%d", has && s.firstShotsStated ? s.firstShotsDeadOn : def.firstShotsDeadOn),  has && s.firstShotsStated, "class");
 		Row("roundspershot",      String.Format("%d", has && s.roundsPerShotStated ? s.roundsPerShotCount : def.roundsPerShotCount), has && s.roundsPerShotStated, "class");
 		Row("shotclass",          Quoted(has && s.shotClassStated ? s.shotClassName : def.shotClassName),                     has && s.shotClassStated, "class");
+		Row("shotclasses",        Quoted(has && s.shotClassCycleStated ? s.shotClassCycleText : def.shotClassCycleText),     has && s.shotClassCycleStated, "class");
+		Row("muzzlethrow",        Quoted(has && s.muzzleThrowStated ? s.muzzleThrowText : def.muzzleThrowText),             has && s.muzzleThrowStated, "class");
 		Row("shotrail",           YesNo(has && s.shotRailStated ? s.railShotOn : def.railShotOn),                            has && s.shotRailStated, "class");
 		Row("railcolors",         has && s.railColorsStated ? String.Format("0x%06X, 0x%06X", s.railSpiralRGB, s.railCoreRGB) : String.Format("0x%06X, 0x%06X", def.railSpiralRGB, def.railCoreRGB), has && s.railColorsStated, "class");
 		Row("trailprofile",       Quoted(has && s.trailProfileStated ? s.trailProfileName : def.trailProfileName),           has && s.trailProfileStated, "class");
@@ -781,6 +942,8 @@ class WM_SheetReader
 				if (s.firstShotsStated && s.firstShotsDeadOn != def.firstShotsDeadOn)           diffs += Diff(who, "firstshotsaccurate", String.Format("%d", def.firstShotsDeadOn), String.Format("%d", s.firstShotsDeadOn));
 				if (s.roundsPerShotStated && s.roundsPerShotCount != def.roundsPerShotCount)    diffs += Diff(who, "roundspershot", String.Format("%d", def.roundsPerShotCount), String.Format("%d", s.roundsPerShotCount));
 				if (s.shotClassStated && s.shotClassName != def.shotClassName)                  diffs += Diff(who, "shotclass", Quoted(def.shotClassName), Quoted(s.shotClassName));
+				if (s.shotClassCycleStated && s.shotClassCycleText != def.shotClassCycleText)   diffs += Diff(who, "shotclasses", Quoted(def.shotClassCycleText), Quoted(s.shotClassCycleText));
+				if (s.muzzleThrowStated && s.muzzleThrowText != def.muzzleThrowText)            diffs += Diff(who, "muzzlethrow", Quoted(def.muzzleThrowText), Quoted(s.muzzleThrowText));
 				if (s.shotRailStated && s.railShotOn != def.railShotOn)                         diffs += Diff(who, "shotrail", YesNo(def.railShotOn), YesNo(s.railShotOn));
 				if (s.railColorsStated && (s.railSpiralRGB != def.railSpiralRGB || s.railCoreRGB != def.railCoreRGB))
 					diffs += Diff(who, "railcolors", String.Format("0x%06X, 0x%06X", def.railSpiralRGB, def.railCoreRGB), String.Format("0x%06X, 0x%06X", s.railSpiralRGB, s.railCoreRGB));
@@ -855,6 +1018,16 @@ class WM_SheetReader
 		// fails the check. False in play.
 		if (DataValidation.Running())
 			DataValidation.Refuse(String.Format("%s line %d", src, line), String.Format("sheet '%s': %s", what, why));
+	}
+
+	// THE ONLY KEYS AN `instead` BLOCK MAY STATE -- the nine that are purely how a gun LOOKS.
+	// Kept beside the parser rather than in weapon.zs so a reader sees the refusal and the list
+	// together; WM_Gun.TakeSheet applies exactly these and says why shotclass is absent.
+	private static bool LookKey(String key)
+	{
+		return key == "roundprofile"  || key == "flashprofile"   || key == "altflashprofile"
+		    || key == "ejectaprofile" || key == "trailprofile"   || key == "recoilprofile"
+		    || key == "altrecoilprofile" || key == "muzzlethrow" || key == "railcolors";
 	}
 
 	private static String Unquote(String s)
