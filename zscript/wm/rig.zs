@@ -1280,6 +1280,93 @@ class WM_Rig play
 		return part.value;
 	}
 
+	// [HANDANCHOR] TELL THE RIG WHICH GUN THIS HAND IS HOLDING, AND WHERE ON IT.
+	//
+	// With this set the engine places the hand FROM the gun -- it builds the prop's own drawn
+	// matrix and maps these three through it -- instead of placing the hand at the controller
+	// and the gun separately. Those two were only ever reconciled by tuning, because the gun
+	// hangs off the controller's AIM pose and the hand off its GRIP pose, and the gap between
+	// them belongs to the controller rather than to any gun.
+	//
+	// EVERY TIC, not once per build. These are render-only engine fields that are deliberately
+	// not saved, so a savegame load comes back with them empty; anything set once at build time
+	// is simply gone afterwards and the hand silently stops following the gun. VRRigRole,
+	// VRRigHand and VRGripPose have exactly the same contract and are re-asserted here for the
+	// same reason -- they were set only in EnsureProp, which is why they were lost on load.
+	//
+	// Costs nothing to repeat: writing the same value changes no engine state.
+	void Anchor(PlayerPawn pmo)
+	{
+		if (!pmo) return;
+
+		// Re-assert the prop's own rig fields first. Cheap, and they are lost on a load.
+		if (prop)
+		{
+			prop.VRRigRole = 2;
+			prop.VRRigHand = hand;
+			if (card && card.gripClass != "") prop.VRGripPose = Name(card.gripClass);
+			else                              prop.VRGripPose = 'None';
+		}
+
+		// [GUNANCHOR] HELD BY THE PALM POINT, when the engine is anchoring guns to the real
+		// hand (vr_gun_anchor). The engine then puts the frame's origin on the controller's
+		// GRIP pose, and this says which point of the mesh belongs there -- so the gun turns
+		// about the handle the owner placed rather than about the aim pose.
+		//
+		// Set here rather than in EnsureProp so flipping the cvar takes effect the same tic,
+		// without holstering and redrawing. The old `seat` path is untouched when the cvar is
+		// off, so nothing changes for anyone not using this.
+		if (prop && card && card.gripPalmStated && Cvb("vr_gun_anchor", false))
+		{
+			prop.FollowHandGripSet = true;
+			prop.FollowHandGrip    = card.gripPalm;
+		}
+
+		// WHEN THE ANCHOR IS OFF:
+		//   no prop, or the card never resolved         -- there is nothing to hold
+		//   the card states no palm                     -- we do not know where on it
+		//   stowed                                      -- this hand is working the other gun
+		//   something has CAPTURED the prop             -- ModelHold_Capture froze it into a
+		//     hand's frame at a fixed offset, so it is no longer drawn where the follow-hand
+		//     path would put it and an anchor taken from its matrix would fight the capture
+		// Holster, drop and throw all end with the prop gone or the card unbound, so they are
+		// covered by the first test rather than needing one each.
+		bool on = prop && resolved && card && card.gripPalmStated
+			&& !stowed && !prop.HasHandHold();
+
+		Actor  ap = on ? prop : null;
+		Vector3 palm = on ? card.gripPalm : (0, 0, 0);
+
+		// THE TWO DIRECTIONS, in the gun's own mesh space.
+		//
+		// The bore is the card's own measured `barrel`, not an assumed +X: a card that states
+		// where its bore points is the only thing that knows, and a handful of meshes are not
+		// built to the usual convention.
+		//
+		// The handle comes from `rake`, the angle the grip leans back from the gun's +Z in its
+		// XZ plane. It points GRIP TO BUTT -- down the handle, away from the bore -- so an
+		// unraked grip is straight down and a pistol's leans back under the shooter's wrist.
+		Vector3 bore = on ? card.barrel : (1, 0, 0);
+		if (bore.Length() < 0.0001) bore = (1, 0, 0);
+		double rk = on ? card.gripRake : 0.0;
+		Vector3 handle = (-sin(rk), 0, -cos(rk));
+
+		if (hand == 0)
+		{
+			pmo.HandAnchorPropMain   = ap;
+			pmo.HandAnchorPalmMain   = palm;
+			pmo.HandAnchorBarrelMain = bore.Unit();
+			pmo.HandAnchorHandleMain = handle;
+		}
+		else
+		{
+			pmo.HandAnchorPropOff   = ap;
+			pmo.HandAnchorPalmOff   = palm;
+			pmo.HandAnchorBarrelOff = bore.Unit();
+			pmo.HandAnchorHandleOff = handle;
+		}
+	}
+
 	void Pose()
 	{
 		if (!prop || !resolved) return;

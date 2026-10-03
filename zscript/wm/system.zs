@@ -1091,6 +1091,13 @@ class WM_System : EventHandler
 		for (int h = 0; h < 2; h++) WorkHand(ph, pmo, h);
 		for (int r = 0; r < 2; r++) PutAway(ph, r);
 		for (int r = 0; r < 2; r++) ph.rigs[r].Pose();
+		// [HANDANCHOR] After PutAway and Pose, so it publishes whether the gun is held THIS
+		// tic rather than last tic's answer -- a gun holstered this tic must not leave a hand
+		// anchored to it for a frame. Runs for both rigs including the ones with no card, so
+		// a hand that has just lost its gun is cleared rather than left pointing at it.
+		for (int r = 0; r < 2; r++) ph.rigs[r].Anchor(pmo);
+		// [GUNFIT] After the anchor, so the gun it is posing is the one just placed.
+		FitTick(ph, pmo);
 		// WHAT THIS MACHINE CAN SEE OF THE HANDS, TOLD TO THE OTHERS. After the hands
 		// have been worked and the rigs posed, so it publishes this tic's answer rather
 		// than last tic's. Sends only when the answer CHANGES.
@@ -1252,6 +1259,93 @@ class WM_System : EventHandler
 	// THE MAGAZINE RELEASE IS ON THE GUN, under the thumb of the hand holding
 	// it. Two buttons, one per gun: with a pistol in each hand, "whichever
 	// needs it" guesses wrong exactly when both are low.
+	// ---- [GUNFIT] POSING A GUN IN THE HAND, AND RECORDING IT ------------------------------
+	//
+	// The gun now sits on the player's real palm (vr_gun_anchor) and its ROTATION still comes
+	// from MODELDEF angles and slider sets that were tuned around the old pivot -- so every gun
+	// is seated correctly and tilted wrong, differently. Rather than re-tune seventy-eight guns
+	// by hand through a menu, the player turns the one he is holding with the stick and records
+	// it.
+	//
+	// RECORDED ONCE, FOR EVERY BODY. The fit is stored against the GUN CLASS, and the frame it
+	// corrects is built from the CONTROLLER -- which is the same object whatever avatar is worn.
+	// Each body then reaches the gun through its own measured gripsocket. So a pose recorded on
+	// one body is right on all of them, which is the whole point of doing it this way.
+	//
+	// The engine keeps the string: VRAvatarTable.GetWeaponFit / SetWeaponFit create the cvar on
+	// demand and archive it, because there are far more weapon classes than CVARINFO could ever
+	// declare. Seven numbers: scale x y z pitch yaw roll. Scale is carried but never touched
+	// here -- MODELDEF already sizes these models.
+	private bool   fitOn;
+	private int    fitAxis;          // 0 aim, 1 roll and reach, 2 shift
+	private double fitV[7];
+	private String fitCls;
+
+	private String FitPack()
+	{
+		return String.Format("%.4f %.4f %.4f %.4f %.4f %.4f %.4f",
+			fitV[0], fitV[1], fitV[2], fitV[3], fitV[4], fitV[5], fitV[6]);
+	}
+
+	private void FitLoad(String cls, bool rightHand)
+	{
+		fitCls = cls;
+		fitV[0] = 1.0; for (int i = 1; i < 7; i++) fitV[i] = 0.0;
+		String s = VRAvatarTable.GetWeaponFit(cls, rightHand);
+		if (s == "") return;
+		Array<String> n; s.Split(n, " ", TOK_SKIPEMPTY);
+		for (int i = 0; i < 7 && i < n.Size(); i++) fitV[i] = n[i].ToDouble();
+		if (fitV[0] <= 0.0001) fitV[0] = 1.0;
+	}
+
+	private static String FitAxisName(int a)
+	{
+		if (a == 0) return "aim -- stick up/down pitches, left/right yaws";
+		if (a == 1) return "roll and reach -- left/right rolls, up/down moves it along the barrel";
+		return "shift -- left/right moves it sideways, up/down moves it up and down";
+	}
+
+	// Every tic while fitting. Suppresses the locomotion stick so turning the gun does not walk
+	// the player, and reads the stick straight from the VR path -- which still reports a real
+	// deflection after suppression, which is the only reason this can work at all.
+	private void FitTick(WM_PlayerHands ph, PlayerPawn pmo)
+	{
+		if (!fitOn || !pmo || !pmo.player) return;
+		let rig = ph.rigs[0];
+		if (!rig || !rig.prop) { FitStop(pmo, "the gun went away"); return; }
+
+		String cls = rig.prop.GetClassName();
+		bool rightHand = (CVar.FindCVar("vr_control_scheme") == null)
+			|| CVar.FindCVar("vr_control_scheme").GetInt() < 10;
+		if (cls != fitCls) FitLoad(cls, rightHand);
+
+		level.SuppressVRInput(true);
+		Vector2 st = level.GetRawStickMove();     // (forward, side)
+		// A dead zone, because a stick at rest is never quite at rest and this writes a value
+		// the player is meant to be able to walk away from and find unchanged.
+		if (abs(st.X) < 0.15) st.X = 0; else st.X = (st.X - (st.X > 0 ? 0.15 : -0.15)) / 0.85;
+		if (abs(st.Y) < 0.15) st.Y = 0; else st.Y = (st.Y - (st.Y > 0 ? 0.15 : -0.15)) / 0.85;
+		if (st.X == 0 && st.Y == 0) return;
+
+		double dps = 60.0 / 35.0;      // degrees per tic at full deflection
+		double ups = 6.0 / 35.0;       // map units per tic at full deflection
+		if (fitAxis == 0)      { fitV[4] += st.X * dps; fitV[5] += st.Y * dps; }
+		else if (fitAxis == 1) { fitV[6] += st.Y * dps; fitV[1] += st.X * ups; }
+		else                   { fitV[2] += st.Y * ups; fitV[3] += st.X * ups; }
+
+		// Written every tic rather than on save, so the gun turns AS he pushes the stick. The
+		// engine reads this string per frame; there is nothing to apply or commit.
+		VRAvatarTable.SetWeaponFit(fitCls, rightHand, FitPack());
+	}
+
+	private void FitStop(PlayerPawn pmo, String why)
+	{
+		fitOn = false;
+		level.SuppressVRInput(false);
+		if (pmo && pmo.player && pmo.player == players[consoleplayer])
+			Console.Printf("\cjWM fit: off%s.", why == "" ? "" : " -- " .. why);
+	}
+
 	private void Buttons(WM_PlayerHands ph, PlayerPawn pmo)
 	{
 		uint b = pmo.player.cmd.buttons;
@@ -4228,6 +4322,100 @@ class WM_System : EventHandler
 			if (e.Player == consoleplayer)
 				Console.Printf("\cjWM: gave %d gun(s) from %s.%s", n, sn,
 				               n == 0 ? " No set of that name is loaded -- try wm_sets." : "");
+			return;
+		}
+		// [GUNFIT] Three commands rather than three hard-wired buttons, so he binds them to
+		// whatever his controller has spare instead of me guessing which shoulder is free.
+		//   bind <key> wm_fit        turn posing on and off
+		//   bind <key> wm_fit_axis   cycle what the stick does
+		//   bind <key> wm_fit_reset  put this gun back to untouched
+		if (e.Name ~== "wm_fit")
+		{
+			if (e.Player != consoleplayer || !pmo) return;
+			let ph = HandsIfAny(e.Player);
+			if (fitOn) { FitStop(pmo, ""); return; }
+			if (!ph || !ph.rigs[0] || !ph.rigs[0].prop)
+			{
+				Console.Printf("\cgWM fit: nothing in your main hand to pose.");
+				return;
+			}
+			fitOn = true; fitAxis = 0; fitCls = "";
+			Console.MidPrint(null, String.Format("\cdPosing \cj%s", ph.rigs[0].prop.GetClassName()));
+			Console.Printf("\cjWM fit: ON for %s. Stick: %s. wm_fit_axis to change, wm_fit to stop.",
+				ph.rigs[0].prop.GetClassName(), FitAxisName(fitAxis));
+			return;
+		}
+		if (e.Name ~== "wm_fit_axis")
+		{
+			if (e.Player != consoleplayer) return;
+			if (!fitOn) { Console.Printf("\cgWM fit: not posing -- wm_fit first."); return; }
+			fitAxis = (fitAxis + 1) % 3;
+			Console.MidPrint(null, String.Format("\cd%s", FitAxisName(fitAxis)));
+			Console.Printf("\cjWM fit: stick now %s.", FitAxisName(fitAxis));
+			return;
+		}
+		// [GUNFIT] WHERE THE BRACING HAND SITS ON THIS GUN.
+		//
+		// He puts his off hand where he actually braces, presses this, and the point is kept
+		// against the gun. Recorded in the GUN'S OWN MESH SPACE, which is what a card's
+		// `supportat` is written in -- so it can be read out of his ini and written into the
+		// card, and it means the same thing on every body.
+		//
+		// World to mesh by PROBING rather than by a new native: ModelPointToWorld already maps
+		// a mesh point to the world through the gun's real drawn matrix, carrying every
+		// correction that matrix received. Probing the origin and one unit along each axis
+		// recovers that matrix's own basis, and the off hand resolves against it. Exact for a
+		// basis that is a rotation and a scale, which is what these are.
+		if (e.Name ~== "wm_fit_support")
+		{
+			if (e.Player != consoleplayer || !pmo) return;
+			let phs = HandsIfAny(e.Player);
+			if (!phs || !phs.rigs[0] || !phs.rigs[0].prop)
+			{
+				Console.MidPrint(null, "\cgNothing in your main hand to brace.");
+				return;
+			}
+			let bprop = phs.rigs[0].prop;
+			Vector3 hw = level.HandPos(1);          // the OFF hand -- the one that braces
+			if (hw == (0, 0, 0))
+			{
+				Console.MidPrint(null, "\cgNo off-hand controller -- nothing to record.");
+				return;
+			}
+			Vector3 o, ex, ey, ez, jf, ju;
+			[o,  jf, ju] = bprop.ModelPointToWorld(0, 0, 0);
+			[ex, jf, ju] = bprop.ModelPointToWorld(1, 0, 0);
+			[ey, jf, ju] = bprop.ModelPointToWorld(0, 1, 0);
+			[ez, jf, ju] = bprop.ModelPointToWorld(0, 0, 1);
+			ex -= o; ey -= o; ez -= o;
+			double lx = ex dot ex, ly = ey dot ey, lz = ez dot ez;
+			if (lx < 1e-9 || ly < 1e-9 || lz < 1e-9)
+			{
+				Console.MidPrint(null, "\cgThat gun is drawn with no size -- cannot record.");
+				return;
+			}
+			Vector3 rel = hw - o;
+			Vector3 mesh = ((rel dot ex) / lx, (rel dot ey) / ly, (rel dot ez) / lz);
+			String bcls = bprop.GetClassName();
+			VRAvatarTable.SetGunData("sup_" .. bcls,
+				String.Format("%.3f %.3f %.3f", mesh.x, mesh.y, mesh.z));
+			Console.MidPrint(null, String.Format("\cdBrace recorded\n\cj%s", bcls));
+			Console.Printf("\cjWM fit: %s support at %.3f %.3f %.3f (mesh units).",
+				bcls, mesh.x, mesh.y, mesh.z);
+			return;
+		}
+		if (e.Name ~== "wm_fit_reset")
+		{
+			if (e.Player != consoleplayer || !pmo) return;
+			let ph = HandsIfAny(e.Player);
+			if (!ph || !ph.rigs[0] || !ph.rigs[0].prop) return;
+			bool rightHand = (CVar.FindCVar("vr_control_scheme") == null)
+				|| CVar.FindCVar("vr_control_scheme").GetInt() < 10;
+			String cls = ph.rigs[0].prop.GetClassName();
+			VRAvatarTable.SetWeaponFit(cls, rightHand, "1 0 0 0 0 0 0");
+			fitCls = "";
+			Console.MidPrint(null, String.Format("\cdReset \cj%s", cls));
+			Console.Printf("\cjWM fit: %s back to untouched.", cls);
 			return;
 		}
 		if (e.Name ~== "wm_sets")

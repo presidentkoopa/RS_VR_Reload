@@ -514,8 +514,12 @@ class WM_Card
 	//                `grip_<class>_fire` out of the curl table. Empty means "no opinion", and
 	//                the engine falls back to the one authored gun_grip, which is what every
 	//                card did before this block existed.
-	//   gripSeat     where the palm sits, in the gun's own model space
-	//   gripSeatRot  how the palm is turned on the grip -- yaw, pitch, roll
+	//   gripPalm     THE GRIP FRAME'S ORIGIN -- the centre of the handle where the palm
+	//                closes. The hand is placed from it and the gun is anchored by it.
+	//   gripRake     the handle axis, tilted back from the gun's +Z, in degrees
+	//   gripSeat     SUPERSEDED by gripPalm, still read -- see the note on it below
+	//   gripSupportAt where the OFF hand sits, and gripSupportPart the moving part it rides
+	//   gripButt     the rear of the stock, for shouldering
 	//   gripSupport  the off hand's pose name on a two-handed gun, or empty
 	//
 	// gripClassFrom says where the class came from -- the card, or its type's default -- for
@@ -529,8 +533,55 @@ class WM_Card
 	// then not read; <placement prefix>_grip_x/_y/_z trim the point instead. Unstated: placed by
 	// MODELDEF Offset exactly as before.
 	bool    gripSeatStated;
-	Vector3 gripSeatRot;
 	String gripSupport;
+
+	// ---- THE GRIP FRAME: ONE PALM POINT AND ONE ANGLE, PER GUN ----------------------
+	//
+	// Why this exists when `seat` already did: every one of the 62 seats was back-solved
+	// from MODELDEF Offset, so a seat is the mesh point that happened to land on the
+	// OpenXR AIM pose's origin. On a real gun that is about the trigger. On WM_M4A3 the
+	// palm is 4.65 cm behind it and 7.61 cm below it. A seat therefore cannot place a
+	// hand, and it could never be made to: the aim-to-grip offset it was absorbing
+	// belongs to the CONTROLLER, not to the gun, so no per-gun number fixes it across
+	// controllers, `vr_weaponRotate` values or bodies. That is what 61 sets of ten
+	// sliders were for, and 29 of 76 guns were still wrong.
+	//
+	// gripPalm is a point ON THE HANDLE instead, which makes it a fact about the mesh
+	// that stays true whatever the engine does. The hand reads it (the IK target is the
+	// gun's drawn matrix x this frame x the avatar's own grip socket inverse), and the
+	// gun is anchored by it to the player's real palm.
+	//
+	// One angle is enough to finish the frame because every mesh in every set is +X
+	// muzzle, +Z up -- 74 of 74 -- so the palm normal is always the gun's side axis and
+	// only the handle's direction is left to state.
+	//
+	// BOTH HANDS USE THE SAME NUMBERS. These are mesh points, and all 78 props are
+	// NOAUTOREVERSE, so there is nothing to mirror: negating gripPalm.Y would throw
+	// WM_BreachKimber 13 cm sideways. Only the avatar's socket and the sign of the palm
+	// normal differ per hand, and both of those live in the engine.
+	Vector3 gripPalm;
+	bool    gripPalmStated;
+	// Degrees, tilted back from +Z in the gun's XZ plane. Unstated, DefaultGripRake for
+	// the grip class; gripRakeFrom says which, for the bind log.
+	double  gripRake;
+	bool    gripRakeStated;
+	String  gripRakeFrom;
+	// WHERE THE OFF HAND SITS. Deliberately not `support`, which is already the off
+	// hand's POSE NAME on this same block and keeps that meaning.
+	Vector3 gripSupportAt;
+	bool    gripSupportAtStated;
+	// The named part gripSupportAt rides when it is on something that moves -- a pump
+	// forend, most obviously. Empty means the point is fixed to the body.
+	String  gripSupportPart;
+	// The rear of the stock, for shouldering. Stocked guns only, so the card opts in.
+	Vector3 gripButt;
+	bool    gripButtStated;
+
+	// WHERE THE TRIGGER FACE IS, so the index finger can be aimed at it instead of being
+	// bent by a fixed curl. Named `triggerat` on the card, matching gripSupportAt: a barrel
+	// block already takes `trigger` for its input and `part trigger` is the moving part.
+	Vector3 gripTriggerAt;
+	bool    gripTriggerAtStated;
 
 	// The default grip class for a weapon type, from VR_BODY_CODER_HANDOFF.md's Step 4 table.
 	// A card's own `class` line wins over this; the table's exceptions are per-gun facts.
@@ -546,6 +597,21 @@ class WM_Card
 		if (type == "chainsaw")                                                return "saw";
 		if (type == "melee" || type == "grenade")                              return "melee";
 		return "";   // unknown type: no opinion, and the engine uses gun_grip
+	}
+
+	// THE DEFAULT HANDLE ANGLE for a grip class, in degrees back from +Z.
+	//
+	// A pistol grip is raked about 15 degrees off vertical and very nearly every gun in
+	// every set has one, so that is the default for all classes. The exception is a
+	// STRAIGHT STOCK, where the hand closes on the wrist of the stock and the angle is
+	// nearer 55 -- but which guns those are is a per-gun fact about the mesh, not a
+	// property of the class (plenty of class `shotgun` guns are pistol-gripped). So the
+	// four straight-stocked guns state `rake = 55` on their own cards and this stays one
+	// number. If a whole class ever turns out to want its own default, this is where it
+	// goes; do not guess one from the class name.
+	static double DefaultGripRake(String gripClass)
+	{
+		return 15.0;
 	}
 
 	// ITS OWN HAND SEATS: `handprofile = <word>` reads wm_hs_<word>_* where a weapon

@@ -1150,6 +1150,48 @@ class WM_Parser
 				: "no grip class -- the hand uses the one authored gun_grip";
 		}
 
+		// THE HANDLE ANGLE, settled in the same place and for the same reason. A card that
+		// states its own `rake` keeps it; a straight-stocked gun is a fact about that mesh.
+		if (!card.gripRakeStated)
+		{
+			card.gripRake = WM_Card.DefaultGripRake(card.gripClass);
+			card.gripRakeFrom = "the default handle angle";
+		}
+
+		// IT FIRES ONCE (CODER_PLAN step 58). A gun that takes its rounds from the chamber needs
+		// something that can put the NEXT one there. If it declares verbs but none of them
+		// chamber, and it has no mechanism, it fires one round and then clicks for ever.
+		//
+		// DECLARING NO VERBS IS SAFE; DECLARING THE WRONG ONE IS NOT. Synthesis runs only on the
+		// "no verbs and no mechanism" branch above, so an empty card is handed a full set with a
+		// cycle in it and works, while a card declaring `swap magwell` and nothing else gets only
+		// that swap. THE BROKEN CARD LOOKS MORE COMPLETE THAN THE WORKING ONE, which is why twelve
+		// BD22 cards shipped this way past every check we had.
+		//
+		// A WARNING, NEVER A REFUSAL: a gun that fires once still loads, still draws and still
+		// shoots, and the owner may have meant it. WeaponForge's set_gate FIRES1 fails the build
+		// for a set it generates; this is here for the hand-written card that never goes near it.
+		// `verbs.Size() > 0` IS LOAD-BEARING, NOT DEFENSIVE -- do not simplify it away. BD_Pistol
+		// and BD_AssaultShotgun declare no verbs, no mechanism and no cycle: their whole card is
+		// weapon, grip and part. They work, because synthesis then hands them a full set. Drop
+		// this clause and both warn falsely, on the owner's own pack, about guns that are fine.
+		if (card.FiresFromChamber() && card.mechanism == "" && card.verbs.Size() > 0)
+		{
+			bool chambers = false;
+			for (int i = 0; i < card.verbs.Size(); i++)
+			{
+				int k = card.verbs[i].kind;
+				if (k == WM_Verb.CYCLE || k == WM_Verb.OPEN || k == WM_Verb.LOAD || k == WM_Verb.EJECT) { chambers = true; break; }
+			}
+			if (!chambers)
+				// WM_Log.Warn, not WM_Log.Once: Once is a play function and FinishCard is data
+				// context. Warn is what the two checks just above this one use, for the same reason.
+				WM_Log.Warn(String.Format(
+					"%s fires from its chamber and has %s -- no cycle, open, load or eject to chamber the "
+					.. "next round, and no mechanism, so it FIRES ONCE. Declare a cycle, or say "
+					.. "firesfrom = magazine or reserve", card.weaponClass, card.VerbsSummary()));
+		}
+
 		return "", "", "", 0;
 	}
 
@@ -2183,13 +2225,34 @@ class WM_Parser
 	//   class    the finger pose this grip wants -- pistol, shotgun, ssg, rifle, rocket,
 	//            plasma, bfg, saw, melee. The engine reads `grip_<class>` and
 	//            `grip_<class>_fire` from the curl table.
-	//   seat     where the palm sits, in the gun's own model space
-	//   seatrot  how the palm is turned on the grip: yaw, pitch, roll
-	//   support  the off hand's pose name on a two-handed gun
+	//   palm        THE GRIP FRAME'S ORIGIN: the centre of the handle where the palm closes,
+	//               x, y, z in mesh units on the card axes. The hand is placed from this
+	//               point and the gun is anchored by it, so it must be a point ON THE
+	//               HANDLE -- not the trigger, not the model origin. See WM_Card.gripPalm
+	//               for why `seat` could not be this.
+	//   rake        the handle axis, tilted back from the gun's +Z in its XZ plane, degrees.
+	//               One angle finishes the frame because every mesh is +X muzzle, +Z up.
+	//               Unstated: WM_Card.DefaultGripRake for the class. Valid -10 .. 80.
+	//   supportat   where the OFF hand sits on a two-handed gun, x, y, z in mesh units.
+	//               NOT `support`, which on this same block is already the off hand's POSE
+	//               NAME and keeps that meaning.
+	//   supportpart the named part `supportat` rides when it is on something that moves,
+	//               such as a pump forend. Unstated: the point is fixed to the gun body.
+	//   butt        the rear of the stock, x, y, z in mesh units, for shouldering. Stocked
+	//               guns only, so the card opts in by stating it.
+	//   seat        SUPERSEDED by `palm`, still accepted: the mesh point that sat at the aim
+	//               pose's origin, which is about the trigger rather than the palm. Kept so
+	//               that no card stops loading while the fleet is converted.
+	//   support     the off hand's pose name on a two-handed gun
 	//
 	// A class this build does not know is REFUSED rather than passed through. A typo would
 	// otherwise reach the engine, find no `grip_<typo>` pose, fall back to gun_grip, and look
-	// exactly like a card with no grip block at all.
+	// exactly like a card with no grip block at all. A `rake` outside its range is refused for
+	// the same reason: 500 degrees would quietly twist the hand off the gun with nothing in
+	// the log to say why.
+	//
+	// `seatrot` was parsed here and read by nothing, and no card in any pack ever stated it.
+	// Removed rather than carried: the grip frame's rotation is `rake` now.
 	private static String GripKey(WM_Card c, String key, String val)
 	{
 		String v = Unquote(val);
@@ -2214,9 +2277,55 @@ class WM_Parser
 			c.gripSeatStated = true;
 			return "";
 		}
-		if (key == "seatrot") { c.gripSeatRot = ReadTriple(val); return ""; }
+		// THE GRIP FRAME (GUN_SEATING_PLAN.md step 1). A point on the handle and one angle.
+		if (key == "palm")
+		{
+			if (!IsTriple(v)) return "palm is x, y, z in mesh units -- the centre of the handle where the palm closes";
+			c.gripPalm = ReadTriple(v);
+			c.gripPalmStated = true;
+			return "";
+		}
+		if (key == "rake")
+		{
+			if (!IsNumber(v)) return "rake is one number: degrees of handle tilt back from the gun's +Z";
+			double r = v.ToDouble();
+			// A pistol grip is about 15 and the straightest stock about 55. Anything outside
+			// this band is a typo or a different convention, and either way it would place the
+			// hand somewhere that is not on the gun.
+			if (r < -10.0 || r > 80.0)
+				return String.Format("rake = %s -- outside -10 .. 80 degrees, which no handle is", v);
+			c.gripRake = r;
+			c.gripRakeStated = true;
+			c.gripRakeFrom = "its card says so";
+			return "";
+		}
+		if (key == "supportat")
+		{
+			if (!IsTriple(v)) return "supportat is x, y, z in mesh units -- where the off hand sits. The off hand's POSE is `support`";
+			c.gripSupportAt = ReadTriple(v);
+			c.gripSupportAtStated = true;
+			return "";
+		}
+		if (key == "supportpart") { c.gripSupportPart = v; return ""; }
+		// `triggerat`, not `trigger`: a barrel block already takes `trigger` for its input,
+		// and `part trigger` is the moving part. This is the POINT the finger reaches for,
+		// named the way `supportat` is.
+		if (key == "triggerat")
+		{
+			if (!IsTriple(v)) return "triggerat is x, y, z in mesh units -- the face of the trigger, where the index finger lands";
+			c.gripTriggerAt = ReadTriple(v);
+			c.gripTriggerAtStated = true;
+			return "";
+		}
+		if (key == "butt")
+		{
+			if (!IsTriple(v)) return "butt is x, y, z in mesh units -- the rear of the stock";
+			c.gripButt = ReadTriple(v);
+			c.gripButtStated = true;
+			return "";
+		}
 		if (key == "support") { c.gripSupport = v; return ""; }
-		return "a grip block takes class, seat, seatrot and support";
+		return "a grip block takes class, palm, rake, supportat, supportpart, triggerat, butt, seat and support";
 	}
 
 	private static String ThrowKey(WM_Throw t, String key, String val)
