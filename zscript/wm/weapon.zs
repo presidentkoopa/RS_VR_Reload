@@ -89,6 +89,37 @@ class WM_Gun : Weapon
 			swapLook = (sw != null && sw.GetInt() != 0);
 		}
 
+		// WHY THERE IS A DIAGNOSTIC HERE AND NOT JUST THE SWAP LINE BELOW.
+		//
+		// The switch shipped not working, and the only instrument was a log line AT the swap. That
+		// line never printed, which told us the swap did not happen and NOTHING about why -- a
+		// missing sheet, a null alt, an empty cvar name and a cvar that is off all look identical
+		// from the outside. An absent log line is not evidence; it is the absence of evidence,
+		// and this tree has lost whole nights to the difference.
+		//
+		// So this reports the four things that decide, separately, once per gun. It is INFO level
+		// behind wm_log, so it costs nothing when nobody is looking, and `Once` keyed on the class
+		// means 72 guns produce 72 lines and not 72 a tic.
+		if (s)
+		{
+			WM_Log.Once(WM_Log.LV_INFO, "fxswitch:" .. GetClassName(), String.Format(
+				"%s: alt=%s switch='%s' found=%s value=%d -> %s",
+				GetClassName(),
+				s.alt ? "yes" : "NO",
+				s.switchCvar,
+				s.switchCvar != "" ? (CVar.FindCVar(s.switchCvar) ? "yes" : "NO") : "n/a",
+				(s.switchCvar != "" && CVar.FindCVar(s.switchCvar)) ? CVar.FindCVar(s.switchCvar).GetInt() : -1,
+				swapLook ? "SWAPS" : "stays"));
+		}
+		else
+		{
+			// A gun with NO SHEET AT ALL is its own answer, and it is the one the swap log could
+			// never have shown: TakeSheet ran, there was nothing to apply, and every shot field
+			// fell back to the class Default.
+			WM_Log.Once(WM_Log.LV_INFO, "fxswitch:" .. GetClassName(), String.Format(
+				"%s: no sheet -- class defaults, and no effect switch can reach it", GetClassName()));
+		}
+
 		shotPelletCount      = (has && s.shotPelletsStated)      ? s.shotPelletCount      : def.shotPelletCount;
 		shotSpreadYaw        = (has && s.shotSpreadStated)       ? s.shotSpreadYaw        : def.shotSpreadYaw;
 		shotSpreadPitch      = (has && s.shotSpreadStated)       ? s.shotSpreadPitch      : def.shotSpreadPitch;
