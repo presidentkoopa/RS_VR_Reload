@@ -1098,6 +1098,7 @@ class WM_System : EventHandler
 		for (int r = 0; r < 2; r++) ph.rigs[r].Anchor(pmo);
 		// [GUNFIT] After the anchor, so the gun it is posing is the one just placed.
 		FitTick(ph, pmo);
+		FitBodyTick(ph, pmo);
 		// WHAT THIS MACHINE CAN SEE OF THE HANDS, TOLD TO THE OTHERS. After the hands
 		// have been worked and the rigs posed, so it publishes this tic's answer rather
 		// than last tic's. Sends only when the answer CHANGES.
@@ -1280,6 +1281,61 @@ class WM_System : EventHandler
 	private int    fitAxis;          // 0 aim, 1 roll and reach, 2 shift
 	private double fitV[7];
 	private String fitCls;
+	// [GUNMESHFIT] THE SHARED KEY FOR THIS GUN'S MESH, and whether the stick is writing it.
+	//
+	// Fifteen of the seventy-eight guns draw a mesh another gun already draws, so the engine
+	// reads a gun's own pose first and falls back to its mesh's -- which turns seventy-eight
+	// poses into sixty-three and seats guns he never happens to pick up at all. The engine
+	// composes the key, because a model file name is not something script can see; GunMeshKey
+	// hands it over, so a pose is written to the key the renderer will read it back from.
+	//
+	// WHICH OF THE TWO IS BEING WRITTEN IS NEVER A PREFERENCE. The engine reads the class
+	// first, so if a gun already has its own pose then that is the one the stick has to move:
+	// writing the shared key instead would turn every OTHER gun with that mesh and leave this
+	// one exactly where it was, which looks precisely like the stick being broken.
+	private String fitMesh;
+	private bool   fitShared;
+
+	// [GUNFIT] WHICH HAND FIT MODE IS WORKING ON, and it is not always the main one.
+	//
+	// `rigs` is hand-indexed -- 0 main, 1 off -- and TWENTY of the seventy-eight cards are
+	// `hand = off` weapons: WM_Pistolet, WM_M16, WM_PlasmaRifleBlue, SW_DL44Off and the
+	// rest. Reading rigs[0] alone made a fifth of the guns impossible to pose, and the
+	// failure was a bare `return`: no message, nothing to tell him the command was not
+	// simply broken. He would have found it a long way into a job he wants to do once.
+	//
+	// IT ALSO DECIDES THE KEY. The engine derives the hand as
+	// `(followHand == VR_MAINHAND) == rightHanded`, so the off hand is the OPPOSITE of
+	// `vr_control_scheme < 10` rather than the same as it. Hardcoding that constant wrote
+	// an off-hand gun's pose to the key its right hand reads, where nothing would ever
+	// look for it.
+	private int    fitHand;          // 0 main, 1 off
+
+	// ---- [BODYSOCKET] POSING THE BODY INSTEAD OF THE GUN ------------------------------
+	//
+	// A body's GRIP SOCKET is the point in its hand that a held handle's axis passes
+	// through. It is normally measured from the knuckles and the palm width, and a rig
+	// with no finger joints has neither -- doomslayer_lowpoly carries 27 bones and its
+	// arm chain ends at the wrist, so no amount of re-measuring will ever produce one.
+	//
+	// IT IS ALSO THE ONLY THING THAT BODY LACKS. The hand's orientation on the gun comes
+	// from one global quaternion rather than from the body, and the joints the placement
+	// needs are present. So these three numbers are the whole difference between a body
+	// that holds a gun properly and one that cannot hold one at all, which is why they
+	// are worth a command rather than a measurement that cannot succeed.
+	//
+	// THIS FORCES vr_gun_anchor_hand ON WHILE IT RUNS, and that is not a side effect --
+	// it is the point. The socket is read ONLY on that path, so without it he would be
+	// pushing a stick and watching a hand that cannot move: a calibration whose effect
+	// is invisible, which is the one failure mode worth more than all the others put
+	// together. Saved and restored, so it goes back off the moment he is done.
+	private bool   fitBody;
+	private double fitB[3];
+	private int    fitBAxis;         // 0 along the fingers and out of the palm, 1 sideways
+	private String fitBKey;
+	private String fitBBody;
+	private int    fitBAnchorWas;    // vr_gun_anchor_hand before this turned it on
+	private bool   fitBMoved;        // the stick actually wrote something
 
 	private String FitPack()
 	{
@@ -1290,13 +1346,63 @@ class WM_System : EventHandler
 	private void FitLoad(String cls, bool rightHand)
 	{
 		fitCls = cls;
+		fitMesh = VRAvatarTable.GunMeshKey(cls, rightHand);
 		fitV[0] = 1.0; for (int i = 1; i < 7; i++) fitV[i] = 0.0;
-		String s = VRAvatarTable.GetWeaponFit(cls, rightHand);
+
+		// AN EMPTY MESH KEY IS A REAL ANSWER: that gun has not been drawn in that hand yet, so
+		// there is nothing to share and this poses the class on its own. Better that than
+		// inventing a key the renderer will never read -- a calibration that silently does
+		// nothing is the worst outcome available here.
+		String own = VRAvatarTable.GetWeaponFit(cls, rightHand);
+		fitShared = (own == "") && (fitMesh != "");
+
+		String s = fitShared ? VRAvatarTable.GetGunData(fitMesh) : own;
 		if (s == "") return;
 		Array<String> n; s.Split(n, " ", TOK_SKIPEMPTY);
 		for (int i = 0; i < 7 && i < n.Size(); i++) fitV[i] = n[i].ToDouble();
 		if (fitV[0] <= 0.0001) fitV[0] = 1.0;
 	}
+
+	// ONE WRITER, so a gun can never have both keys live at once.
+	private void FitWrite(bool rightHand)
+	{
+		if (fitShared) VRAvatarTable.SetGunData(fitMesh, FitPack());
+		else           VRAvatarTable.SetWeaponFit(fitCls, rightHand, FitPack());
+	}
+
+	// What a shared pose is shared WITH, for the MidPrint. The key is "fit_<file>_<R|L>" and
+	// he wants to read the file name, not the plumbing around it.
+	private String FitMeshName()
+	{
+		if (fitMesh == "") return "";
+		String s = fitMesh;
+		if (s.IndexOf("fit_") == 0) s = s.Mid(4);
+		if (s.Length() > 2) s = s.Left(s.Length() - 2);
+		return s;
+	}
+
+	// The hand a fit should act on: the one named, if it is holding something, else
+	// whichever other hand is. -1 when neither hand has a gun at all.
+	private static int FitHandWith(WM_PlayerHands ph, int prefer)
+	{
+		if (!ph) return -1;
+		if (prefer >= 0 && prefer <= 1 && ph.rigs[prefer] && ph.rigs[prefer].prop) return prefer;
+		for (int h = 0; h < 2; h++)
+			if (ph.rigs[h] && ph.rigs[h].prop) return h;
+		return -1;
+	}
+
+	// TRUE WHEN THAT HAND IS THE PLAYER'S RIGHT ONE. The same derivation the renderer
+	// uses, so a pose is written to the key the renderer reads it back from -- and the
+	// off hand is the opposite of the control scheme, not the same as it.
+	private static bool FitHandIsRight(int h)
+	{
+		bool rightHanded = (CVar.FindCVar("vr_control_scheme") == null)
+			|| CVar.FindCVar("vr_control_scheme").GetInt() < 10;
+		return (h == 0) == rightHanded;
+	}
+
+	private static String FitHandName(int h) { return h == 1 ? "off hand" : "main hand"; }
 
 	private static String FitAxisName(int a)
 	{
@@ -1311,12 +1417,11 @@ class WM_System : EventHandler
 	private void FitTick(WM_PlayerHands ph, PlayerPawn pmo)
 	{
 		if (!fitOn || !pmo || !pmo.player) return;
-		let rig = ph.rigs[0];
+		let rig = (fitHand >= 0 && fitHand <= 1) ? ph.rigs[fitHand] : null;
 		if (!rig || !rig.prop) { FitStop(pmo, "the gun went away"); return; }
 
 		String cls = rig.prop.GetClassName();
-		bool rightHand = (CVar.FindCVar("vr_control_scheme") == null)
-			|| CVar.FindCVar("vr_control_scheme").GetInt() < 10;
+		bool rightHand = FitHandIsRight(fitHand);
 		if (cls != fitCls) FitLoad(cls, rightHand);
 
 		level.SuppressVRInput(true);
@@ -1335,7 +1440,7 @@ class WM_System : EventHandler
 
 		// Written every tic rather than on save, so the gun turns AS he pushes the stick. The
 		// engine reads this string per frame; there is nothing to apply or commit.
-		VRAvatarTable.SetWeaponFit(fitCls, rightHand, FitPack());
+		FitWrite(rightHand);
 	}
 
 	private void FitStop(PlayerPawn pmo, String why)
@@ -1344,6 +1449,67 @@ class WM_System : EventHandler
 		level.SuppressVRInput(false);
 		if (pmo && pmo.player && pmo.player == players[consoleplayer])
 			Console.Printf("\cjWM fit: off%s.", why == "" ? "" : " -- " .. why);
+	}
+
+	private static String FitBodyAxisName(int a)
+	{
+		if (a == 0) return "along the fingers and out of the palm";
+		return "sideways across the palm";
+	}
+
+	// Every tic while posing a body. Writes as he pushes, like the gun fit, because the
+	// renderer reads the string per frame: the hand moves with the stick and there is
+	// nothing to commit and nothing to lose by letting go.
+	private void FitBodyTick(WM_PlayerHands ph, PlayerPawn pmo)
+	{
+		if (!fitBody || !pmo || !pmo.player) return;
+		let rig = (fitHand >= 0 && fitHand <= 1) ? ph.rigs[fitHand] : null;
+		if (!rig || !rig.prop) { FitBodyStop(pmo, "the gun went away"); return; }
+
+		level.SuppressVRInput(true);
+		Vector2 st = level.GetRawStickMove();
+		// The same dead zone as the gun fit, for the same reason: this writes a value he is
+		// meant to walk away from and find unchanged.
+		if (abs(st.X) < 0.15) st.X = 0; else st.X = (st.X - (st.X > 0 ? 0.15 : -0.15)) / 0.85;
+		if (abs(st.Y) < 0.15) st.Y = 0; else st.Y = (st.Y - (st.Y > 0 ? 0.15 : -0.15)) / 0.85;
+		if (st.X == 0 && st.Y == 0) return;
+
+		// Model units per tic at full deflection. Slower than the gun fit on purpose: a
+		// socket is a point a few units across a palm, not a reach down a barrel, and this
+		// is the number he least wants to overshoot.
+		double ups = 2.0 / 35.0;
+		if (fitBAxis == 0) { fitB[0] += st.X * ups; fitB[1] += st.Y * ups; }
+		else               { fitB[2] += st.X * ups; }
+
+		fitBMoved = true;
+		VRAvatarTable.SetBodyData(fitBKey,
+			String.Format("%.4f %.4f %.4f", fitB[0], fitB[1], fitB[2]));
+	}
+
+	private void FitBodyStop(PlayerPawn pmo, String why)
+	{
+		fitBody = false;
+		level.SuppressVRInput(false);
+		// PUT IT BACK. This turned vr_gun_anchor_hand on so the hand would visibly move, and
+		// leaving it on pins his hand to every gun -- exactly the state he could not get out
+		// of the first time this was tried.
+		//
+		// CLAMPED TO 0 OR 1 FROM A FIELD THAT MAY HAVE BEEN LOST. An EventHandler's fields are
+		// not serialised, so a savegame load part way through a fit comes back with this at
+		// zero -- which is the safe direction, and the reason the engine no longer archives
+		// that cvar: a restore that never runs can then cost at most the rest of the session
+		// instead of being written into the config and greeting him every launch.
+		let ah = CVar.FindCVar("vr_gun_anchor_hand");
+		if (ah) ah.SetInt(fitBAnchorWas == 1 ? 1 : 0);
+		if (pmo && pmo.player && pmo.player == players[consoleplayer])
+		{
+			// Only a stick push writes anything, so leaving without touching it saved nothing --
+			// and "Socket saved" in that case is a message that invents a result.
+			String bdone = fitBMoved ? "Socket saved" : "Nothing changed";
+			Console.MidPrint(null, String.Format("\cd%s\n\cj%s", bdone, fitBBody));
+			Console.Printf("\cjWM body fit: off%s. %s -- %s socket %.4f %.4f %.4f.",
+				why == "" ? "" : " -- " .. why, bdone, fitBBody, fitB[0], fitB[1], fitB[2]);
+		}
 	}
 
 	private void Buttons(WM_PlayerHands ph, PlayerPawn pmo)
@@ -4326,23 +4492,66 @@ class WM_System : EventHandler
 		}
 		// [GUNFIT] Three commands rather than three hard-wired buttons, so he binds them to
 		// whatever his controller has spare instead of me guessing which shoulder is free.
-		//   bind <key> wm_fit        turn posing on and off
-		//   bind <key> wm_fit_axis   cycle what the stick does
-		//   bind <key> wm_fit_reset  put this gun back to untouched
+		//   bind <key> wm_fit            turn posing on and off
+		//   bind <key> wm_fit_axis       cycle what the stick does
+		//   bind <key> wm_fit_hand       pose the gun in the OTHER hand
+		//   bind <key> wm_fit_only_this  stop sharing: this gun keeps its own pose
+		//   bind <key> wm_fit_reset      clear what this gun has recorded
+		//   bind <key> wm_fit_to_body    record the WORN BODY's grip socket
+		//   bind <key> wm_fit_body_axis  cycle what the stick does while doing that
 		if (e.Name ~== "wm_fit")
 		{
 			if (e.Player != consoleplayer || !pmo) return;
 			let ph = HandsIfAny(e.Player);
 			if (fitOn) { FitStop(pmo, ""); return; }
-			if (!ph || !ph.rigs[0] || !ph.rigs[0].prop)
+			// Whichever hand is holding something, main for preference. A fifth of his guns are
+			// off-hand weapons and reading rigs[0] alone made them unposeable in silence.
+			int fh = FitHandWith(ph, 0);
+			if (fh < 0)
 			{
-				Console.Printf("\cgWM fit: nothing in your main hand to pose.");
+				Console.MidPrint(null, "\cgNothing in either hand to pose.");
+				Console.Printf("\cgWM fit: nothing in either hand to pose.");
 				return;
 			}
-			fitOn = true; fitAxis = 0; fitCls = "";
-			Console.MidPrint(null, String.Format("\cdPosing \cj%s", ph.rigs[0].prop.GetClassName()));
-			Console.Printf("\cjWM fit: ON for %s. Stick: %s. wm_fit_axis to change, wm_fit to stop.",
-				ph.rigs[0].prop.GetClassName(), FitAxisName(fitAxis));
+			fitOn = true; fitAxis = 0; fitCls = ""; fitHand = fh;
+			// Loaded HERE rather than on the first tic, so the message below can name the key the
+			// stick is about to move. An inheritance he is not told about is one he cannot undo.
+			bool fitRH = FitHandIsRight(fitHand);
+			String fitWhoCls = ph.rigs[fitHand].prop.GetClassName();
+			FitLoad(fitWhoCls, fitRH);
+			Console.MidPrint(null, fitShared
+				? String.Format("\cdPosing \cj%s\n\cu%s -- and every gun using \cj%s",
+					fitWhoCls, FitHandName(fitHand), FitMeshName())
+				: String.Format("\cdPosing \cj%s\n\cu%s -- this gun only",
+					fitWhoCls, FitHandName(fitHand)));
+			Console.Printf("\cjWM fit: ON for %s, writing %s. Stick: %s. wm_fit_axis to change, "
+				"wm_fit_only_this to give this gun its own, wm_fit to stop.",
+				fitWhoCls, fitShared ? ("the shared mesh " .. FitMeshName()) : "its own pose",
+				FitAxisName(fitAxis));
+			return;
+		}
+		// [GUNFIT] SWITCH HANDS WITHOUT HOLSTERING ANYTHING.
+		//
+		// He dual-wields -- SW_DL44 in one hand and SW_DL44Off in the other, from the same
+		// mesh and needing two separate poses because they are two separate keys. Making him
+		// put one away to pose the other would be a pointless step in a job he does once.
+		if (e.Name ~== "wm_fit_hand")
+		{
+			if (e.Player != consoleplayer || !pmo) return;
+			if (!fitOn) { Console.MidPrint(null, "\cgNot posing -- wm_fit first."); return; }
+			let hph = HandsIfAny(e.Player);
+			int other = FitHandWith(hph, 1 - fitHand);
+			if (other < 0 || other == fitHand)
+			{
+				Console.MidPrint(null, String.Format("\cgNothing in your %s.", FitHandName(1 - fitHand)));
+				return;
+			}
+			fitHand = other;
+			fitCls = "";          // forces FitLoad for the new hand on the next tic
+			String hcls = hph.rigs[fitHand].prop.GetClassName();
+			FitLoad(hcls, FitHandIsRight(fitHand));
+			Console.MidPrint(null, String.Format("\cdPosing \cj%s\n\cu%s", hcls, FitHandName(fitHand)));
+			Console.Printf("\cjWM fit: now posing %s in your %s.", hcls, FitHandName(fitHand));
 			return;
 		}
 		if (e.Name ~== "wm_fit_axis")
@@ -4370,13 +4579,16 @@ class WM_System : EventHandler
 		{
 			if (e.Player != consoleplayer || !pmo) return;
 			let phs = HandsIfAny(e.Player);
-			if (!phs || !phs.rigs[0] || !phs.rigs[0].prop)
+			// The gun can be in either hand, and the bracing hand is then the other one. With an
+			// off-hand weapon the main hand is what comes across to support it.
+			int sh = FitHandWith(phs, fitOn ? fitHand : 0);
+			if (sh < 0)
 			{
-				Console.MidPrint(null, "\cgNothing in your main hand to brace.");
+				Console.MidPrint(null, "\cgNothing in either hand to brace.");
 				return;
 			}
-			let bprop = phs.rigs[0].prop;
-			Vector3 hw = level.HandPos(1);          // the OFF hand -- the one that braces
+			let bprop = phs.rigs[sh].prop;
+			Vector3 hw = level.HandPos(1 - sh);     // the hand that is NOT holding the gun
 			if (hw == (0, 0, 0))
 			{
 				Console.MidPrint(null, "\cgNo off-hand controller -- nothing to record.");
@@ -4399,23 +4611,156 @@ class WM_System : EventHandler
 			String bcls = bprop.GetClassName();
 			VRAvatarTable.SetGunData("sup_" .. bcls,
 				String.Format("%.3f %.3f %.3f", mesh.x, mesh.y, mesh.z));
-			Console.MidPrint(null, String.Format("\cdBrace recorded\n\cj%s", bcls));
-			Console.Printf("\cjWM fit: %s support at %.3f %.3f %.3f (mesh units).",
-				bcls, mesh.x, mesh.y, mesh.z);
+			// SAYS WHAT IT ACTUALLY DID. Nothing reads this value yet -- not the engine, not the
+			// card's own `supportat` -- because the off-hand placement is not built. It is a
+			// measurement taken for when it is, and a message that let him think his off hand
+			// was about to move would have him chasing a feature that is not there.
+			Console.MidPrint(null, String.Format("\cdBrace measured\n\cj%s\n\cusaved for the card", bcls));
+			Console.Printf("\cjWM fit: %s support at %.3f %.3f %.3f (mesh units), written to "
+				"vr_gundata_sup_%s. NOTHING READS IT YET -- it goes into the card as `supportat`; "
+				"the off hand is not placed on the gun by anything today.",
+				bcls, mesh.x, mesh.y, mesh.z, bcls);
+			return;
+		}
+		// [GUNMESHFIT] THIS GUN ONLY, FROM NOW ON.
+		//
+		// A shared pose is right for thirteen of the fifteen guns that share a mesh and wrong
+		// for two: BD22 ships its own chainsaw and its own grenade under the same file names as
+		// vanilla's, and they are different models. Nothing tries to DETECT that, because
+		// everything that looked like a way to -- file size, vertex count -- turns out to
+		// disagree with itself on pairs that genuinely are identical. So it is one press
+		// instead: hold the odd one out, press this, and it keeps its own pose for good while
+		// its namesake goes on using the shared one.
+		//
+		// WHAT IS ON SCREEN IS CARRIED ACROSS, so pressing this mid-pose keeps whatever he has
+		// already dialled instead of snapping the gun back to where the shared pose had it.
+		if (e.Name ~== "wm_fit_only_this")
+		{
+			if (e.Player != consoleplayer || !pmo) return;
+			if (!fitOn) { Console.MidPrint(null, "\cgNot posing -- wm_fit first."); return; }
+			if (!fitShared)
+			{
+				Console.MidPrint(null, String.Format("\cu%s\n\calready has its own pose", fitCls));
+				return;
+			}
+			bool onlyRH = (CVar.FindCVar("vr_control_scheme") == null)
+				|| CVar.FindCVar("vr_control_scheme").GetInt() < 10;
+			String sharedWas = FitMeshName();
+			fitShared = false;
+			FitWrite(onlyRH);
+			Console.MidPrint(null, String.Format("\cd%s\n\cuits own pose from now on", fitCls));
+			Console.Printf("\cjWM fit: %s now has its own pose; %s keeps the shared one.",
+				fitCls, sharedWas);
+			return;
+		}
+		// [BODYSOCKET] RECORD THE WORN BODY'S GRIP SOCKET.
+		//
+		// Wear the body, hold a gun that is already posed, and push the stick until the gun
+		// sits in that hand properly. Recorded against the BODY, so every gun benefits and
+		// it is done once per body rather than once per gun.
+		//
+		// IT REFUSES UNLESS THE GUN IS ALREADY POSED, and the order is forced rather than
+		// advised. Posing a body against a mis-seated gun bakes that gun's error into the
+		// body, and the gun is the cheap thing to redo while the body is the thing he said
+		// he only ever wants to do once.
+		if (e.Name ~== "wm_fit_to_body")
+		{
+			if (e.Player != consoleplayer || !pmo) return;
+			if (fitBody) { FitBodyStop(pmo, ""); return; }
+
+			let bav = CVar.FindCVar("vr_avatar");
+			String bbody = bav ? bav.GetString() : "";
+			if (bbody == "" || !VRAvatarTable.Measured(bbody))
+			{
+				Console.MidPrint(null, "\cgNo body worn -- nothing to fit a socket to.");
+				return;
+			}
+
+			let bph = HandsIfAny(e.Player);
+			int bh = FitHandWith(bph, fitOn ? fitHand : 0);
+			if (bh < 0)
+			{
+				Console.MidPrint(null, "\cgHold a gun first -- the socket is set against one.");
+				return;
+			}
+			// The socket is per HAND, so posing with an off-hand gun records the off hand's.
+			fitHand = bh;
+			String bgun = bph.rigs[bh].prop.GetClassName();
+			bool bodyRH = FitHandIsRight(bh);
+
+			// The gun must have a pose of its own or its mesh's. Either is a pose somebody set.
+			String bgmesh = VRAvatarTable.GunMeshKey(bgun, bodyRH);
+			bool bposed = (VRAvatarTable.GetWeaponFit(bgun, bodyRH) != "")
+				|| (bgmesh != "" && VRAvatarTable.GetGunData(bgmesh) != "");
+			if (!bposed)
+			{
+				Console.MidPrint(null, String.Format(
+					"\cgPose \cj%s\cg first\n\cuwm_fit -- or the gun's error goes into the body", bgun));
+				Console.Printf("\cgWM body fit: %s has no recorded pose. Pose it with wm_fit first, "
+					"or this records the gun's own error against the body.", bgun);
+				return;
+			}
+
+			fitBKey = VRAvatarTable.BodySocketKey(bbody, bodyRH);
+			if (fitBKey == "") { Console.MidPrint(null, "\cgThat body has no usable name."); return; }
+
+			// START FROM WHAT THE RENDERER IS USING, measured or recorded. Starting from zero
+			// would throw a measured socket away on the first push and send the hand across
+			// the room, and the engine hands over the same value it places with so the two
+			// cannot disagree about where this began.
+			Vector3 bsock; int bfrom;
+			[bsock, bfrom] = VRAvatarTable.SocketInForce(bbody, bodyRH);
+			fitB[0] = bsock.x; fitB[1] = bsock.y; fitB[2] = bsock.z;
+
+			// Force the anchored path on, or none of this is visible. Saved first.
+			let bah = CVar.FindCVar("vr_gun_anchor_hand");
+			fitBAnchorWas = bah ? bah.GetInt() : 0;
+			if (bah) bah.SetInt(1);
+
+			fitBody = true; fitBAxis = 0; fitBBody = bbody; fitBMoved = false;
+			String bwhat = (bfrom == 2) ? "correcting what you recorded"
+				: (bfrom == 1) ? "correcting its measured socket" : "setting its first socket";
+			Console.MidPrint(null, String.Format("\cdFitting \cj%s\n\cu%s", bbody, bwhat));
+			Console.Printf("\cjWM body fit: ON for %s (%s), holding %s. Stick: %s. "
+				"wm_fit_body_axis to change, wm_fit_to_body to stop.",
+				bbody, bwhat, bgun, FitBodyAxisName(fitBAxis));
+			return;
+		}
+		if (e.Name ~== "wm_fit_body_axis")
+		{
+			if (e.Player != consoleplayer) return;
+			if (!fitBody) { Console.MidPrint(null, "\cgNot fitting a body -- wm_fit_to_body first."); return; }
+			fitBAxis = (fitBAxis + 1) % 2;
+			Console.MidPrint(null, String.Format("\cd%s", FitBodyAxisName(fitBAxis)));
+			Console.Printf("\cjWM body fit: stick now %s.", FitBodyAxisName(fitBAxis));
 			return;
 		}
 		if (e.Name ~== "wm_fit_reset")
 		{
 			if (e.Player != consoleplayer || !pmo) return;
 			let ph = HandsIfAny(e.Player);
-			if (!ph || !ph.rigs[0] || !ph.rigs[0].prop) return;
-			bool rightHand = (CVar.FindCVar("vr_control_scheme") == null)
-				|| CVar.FindCVar("vr_control_scheme").GetInt() < 10;
-			String cls = ph.rigs[0].prop.GetClassName();
-			VRAvatarTable.SetWeaponFit(cls, rightHand, "1 0 0 0 0 0 0");
+			int rh2 = FitHandWith(ph, fitOn ? fitHand : 0);
+			if (rh2 < 0) { Console.MidPrint(null, "\cgNothing in either hand to reset."); return; }
+			bool rightHand = FitHandIsRight(rh2);
+			String cls = ph.rigs[rh2].prop.GetClassName();
+			// EMPTY, NOT "1 0 0 0 0 0 0". With the mesh fallback in place those two stopped being
+			// the same thing: a recorded identity IS a recorded pose and blocks the shared one, so
+			// resetting by writing identity would pin the gun to untouched and look exactly like
+			// the fallback having broken. Empty means nothing recorded, which is what reset means.
+			String resetMesh = VRAvatarTable.GunMeshKey(cls, rightHand);
+			bool hadOwn = (VRAvatarTable.GetWeaponFit(cls, rightHand) != "");
+			if (hadOwn) VRAvatarTable.SetWeaponFit(cls, rightHand, "");
+			else if (resetMesh != "") VRAvatarTable.SetGunData(resetMesh, "");
 			fitCls = "";
-			Console.MidPrint(null, String.Format("\cdReset \cj%s", cls));
-			Console.Printf("\cjWM fit: %s back to untouched.", cls);
+
+			// Say what it reads NOW. After clearing its own pose a gun does not become untouched --
+			// it falls back to its mesh's, which may well be set, and silently landing somewhere
+			// other than where "reset" implies is how he would stop trusting the button.
+			String readsNow = "untouched";
+			if (hadOwn && resetMesh != "" && VRAvatarTable.GetGunData(resetMesh) != "")
+				readsNow = "the shared pose";
+			Console.MidPrint(null, String.Format("\cdReset \cj%s\n\cu%s", cls, readsNow));
+			Console.Printf("\cjWM fit: %s cleared -- it now uses %s.", cls, readsNow);
 			return;
 		}
 		if (e.Name ~== "wm_sets")
