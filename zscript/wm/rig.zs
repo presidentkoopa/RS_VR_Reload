@@ -1318,8 +1318,24 @@ class WM_Rig play
 		// off, so nothing changes for anyone not using this.
 		if (prop && card && card.gripPalmStated && Cvb("vr_gun_anchor", false))
 		{
+			// [PALMFIT] A RECORDED PALM OVERRIDES THE CARD, and it is read HERE, every tic,
+			// which is what makes wm_fit_palm live: the stick moves this point and the gun
+			// moves with it on the next tic, with nothing to apply and nothing to commit.
+			//
+			// THE PALM IS THE PIVOT, not merely a position. Every rotation the fit makes turns
+			// the gun about this point, so a palm in the wrong place sends the gun round an
+			// arc instead of turning it in place -- and shifting it afterwards only moves the
+			// arc elsewhere. That is why this is adjustable rather than something to be
+			// compensated for with the whole-gun offset.
+			Vector3 pp = card.gripPalm;
+			String rp = VRAvatarTable.GetGunData("palm_" .. prop.GetClassName());
+			if (rp != "")
+			{
+				Array<String> pn; rp.Split(pn, " ", TOK_SKIPEMPTY);
+				if (pn.Size() >= 3) pp = (pn[0].ToDouble(), pn[1].ToDouble(), pn[2].ToDouble());
+			}
 			prop.FollowHandGripSet = true;
-			prop.FollowHandGrip    = card.gripPalm;
+			prop.FollowHandGrip    = pp;
 		}
 
 		// WHEN THE ANCHOR IS OFF:

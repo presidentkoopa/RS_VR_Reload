@@ -1096,9 +1096,12 @@ class WM_System : EventHandler
 		// anchored to it for a frame. Runs for both rigs including the ones with no card, so
 		// a hand that has just lost its gun is cleared rather than left pointing at it.
 		for (int r = 0; r < 2; r++) ph.rigs[r].Anchor(pmo);
+		// [BRACE] And LAST, so it only fills in a hand the pass above left empty.
+		AnchorBrace(ph, pmo);
 		// [GUNFIT] After the anchor, so the gun it is posing is the one just placed.
 		FitTick(ph, pmo);
 		FitBodyTick(ph, pmo);
+		FitPtTick(ph, pmo);
 		// WHAT THIS MACHINE CAN SEE OF THE HANDS, TOLD TO THE OTHERS. After the hands
 		// have been worked and the rigs posed, so it publishes this tic's answer rather
 		// than last tic's. Sends only when the answer CHANGES.
@@ -1311,6 +1314,26 @@ class WM_System : EventHandler
 	// look for it.
 	private int    fitHand;          // 0 main, 1 off
 
+	// ---- [POINTFIT] MOVING THE PALM AND THE BRACE POINT THEMSELVES -------------------
+	//
+	// Separate from the pose, because they are a different quantity. The pose turns the
+	// gun; these say WHICH POINT OF THE MESH is in each hand. Both are mesh-space points,
+	// the same space the card states them in, so a recorded value can be read straight
+	// out of the ini and written into the card when it is right.
+	//
+	// THE PALM IS THE PIVOT the pose rotates about, which is why it has to be adjustable
+	// rather than something to work around: with it in the wrong place every rotation
+	// swings the gun through an arc, and shifting the gun afterwards only moves the arc.
+	//
+	// Both are live. rig.Anchor reads the palm override every tic and AnchorBrace reads
+	// the brace override every tic, so the stick moves the real thing and there is
+	// nothing to save.
+	private int     fitPt;           // 0 off, 1 palm, 2 brace
+	private int     fitPtAxis;       // 0 along the barrel, 1 across, 2 up and down
+	private Vector3 fitPtV;
+	private String  fitPtKey;
+	private String  fitPtCls;
+
 	// ---- [BODYSOCKET] POSING THE BODY INSTEAD OF THE GUN ------------------------------
 	//
 	// A body's GRIP SOCKET is the point in its hand that a held handle's axis passes
@@ -1403,6 +1426,82 @@ class WM_System : EventHandler
 	}
 
 	private static String FitHandName(int h) { return h == 1 ? "off hand" : "main hand"; }
+
+	private static String FitPtAxisName(int a)
+	{
+		if (a == 0) return "along the barrel";
+		if (a == 1) return "across the gun";
+		return "up and down";
+	}
+
+	private static String FitPtWhat(int p) { return p == 2 ? "brace point" : "palm point"; }
+
+	// Load whichever point we are about to move, from the recording if there is one and
+	// from the card otherwise -- so the stick CORRECTS the owner's placed value rather
+	// than starting from zero and throwing it away.
+	private bool FitPtLoad(WM_Rig rig)
+	{
+		if (!rig || !rig.prop || !rig.card) return false;
+		fitPtCls = rig.prop.GetClassName();
+		fitPtKey = (fitPt == 2 ? "sup_" : "palm_") .. fitPtCls;
+		if (fitPt == 2) fitPtV = rig.card.gripSupportAt;
+		else            fitPtV = rig.card.gripPalm;
+		String s = VRAvatarTable.GetGunData(fitPtKey);
+		if (s != "")
+		{
+			Array<String> n; s.Split(n, " ", TOK_SKIPEMPTY);
+			if (n.Size() >= 3) fitPtV = (n[0].ToDouble(), n[1].ToDouble(), n[2].ToDouble());
+		}
+		return true;
+	}
+
+	// Every tic while moving a point. Mesh units, because that is the space the card
+	// states these in and the space the value has to be readable back out in.
+	private void FitPtTick(WM_PlayerHands ph, PlayerPawn pmo)
+	{
+		if (fitPt == 0 || !pmo || !pmo.player) return;
+		let rig = (fitHand >= 0 && fitHand <= 1) ? ph.rigs[fitHand] : null;
+		if (!rig || !rig.prop) { FitPtStop(pmo, "the gun went away"); return; }
+		if (rig.prop.GetClassName() != fitPtCls && !FitPtLoad(rig)) { FitPtStop(pmo, ""); return; }
+
+		level.SuppressVRInput(true);
+		Vector2 st = level.GetRawStickMove();
+		if (abs(st.X) < 0.15) st.X = 0; else st.X = (st.X - (st.X > 0 ? 0.15 : -0.15)) / 0.85;
+		if (abs(st.Y) < 0.15) st.Y = 0; else st.Y = (st.Y - (st.Y > 0 ? 0.15 : -0.15)) / 0.85;
+		if (st.X == 0 && st.Y == 0) return;
+
+		// Mesh units per tic at full deflection. These meshes run tens of units end to end,
+		// and a palm point is wrong by millimetres rather than inches, so this is slow on
+		// purpose -- it is the number he least wants to overshoot and then hunt back.
+		double ups = 2.0 / 35.0;
+		double d = st.X * ups;
+		if      (fitPtAxis == 0) fitPtV.x += d;
+		else if (fitPtAxis == 1) fitPtV.y += d;
+		else                     fitPtV.z += d;
+
+		VRAvatarTable.SetGunData(fitPtKey,
+			String.Format("%.4f %.4f %.4f", fitPtV.x, fitPtV.y, fitPtV.z));
+	}
+
+	private void FitPtStop(PlayerPawn pmo, String why)
+	{
+		// The class is captured BEFORE it is cleared -- the message below names it, and
+		// clearing first printed an empty gun name in the one line he would paste from.
+		int was = fitPt;
+		String wasCls = fitPtCls;
+		fitPt = 0;
+		fitPtCls = "";
+		level.SuppressVRInput(false);
+		if (pmo && pmo.player && pmo.player == players[consoleplayer])
+		{
+			Console.MidPrint(null, String.Format("\cd%s set\n\cj%.3f %.3f %.3f",
+				FitPtWhat(was), fitPtV.x, fitPtV.y, fitPtV.z));
+			Console.Printf("\cjWM fit: %s off%s. %s = %.4f, %.4f, %.4f (mesh units) -- paste "
+				"into the card as `%s`.",
+				FitPtWhat(was), why == "" ? "" : " -- " .. why, wasCls,
+				fitPtV.x, fitPtV.y, fitPtV.z, was == 2 ? "supportat" : "palm");
+		}
+	}
 
 	private static String FitAxisName(int a)
 	{
@@ -1509,6 +1608,85 @@ class WM_System : EventHandler
 			Console.MidPrint(null, String.Format("\cd%s\n\cj%s", bdone, fitBBody));
 			Console.Printf("\cjWM body fit: off%s. %s -- %s socket %.4f %.4f %.4f.",
 				why == "" ? "" : " -- " .. why, bdone, fitBBody, fitB[0], fitB[1], fitB[2]);
+		}
+	}
+
+	// ---- [BRACE] THE EMPTY HAND ON THE OTHER HAND'S GUN -----------------------------
+	//
+	// The per-hand anchor already existed and already worked; what it meant was "the gun
+	// THIS hand holds". Nothing had ever put TWO hands on ONE gun, which is why
+	// `supportat` has sat unread in seventy-eight cards and why wm_fit_support could
+	// only ever measure.
+	//
+	// RUNS AFTER BOTH Anchor CALLS AND ONLY FILLS IN AN EMPTY HAND, so it cannot fight
+	// them: a hand holding its own weapon is left exactly as Anchor left it, and a hand
+	// that has just lost its gun has already been cleared before this looks at it.
+	//
+	// THE SUPPORT HAND WRAPS THE HANDGUARD, NOT A GRIP, and that decides the frame:
+	//   barrel -- the card's own measured bore, the same axis the firing hand uses, since
+	//     a handguard runs along the bore.
+	//   handle -- STRAIGHT DOWN, and deliberately NOT the card's raked handle. `rake` is
+	//     the angle a pistol GRIP leans back under the wrist; a handguard has no rake, so
+	//     carrying the firing hand's lean onto the support hand would roll it by however
+	//     much the grip happens to lean. (0, 0, -1) is what the card's own convention
+	//     calls down -- it is `handle` at rake zero.
+	// The two must not be parallel or the engine's H cross B is degenerate and the frame
+	// comes out as noise, which is the other reason handle is not simply the bore.
+	//
+	// INERT UNTIL vr_gun_anchor_hand IS ON, like every other anchored-hand path. Writing
+	// these fields costs nothing while that is off; it is what the hand placement reads
+	// when it is on. Bracing against a mis-seated gun would put the off hand somewhere
+	// wrong, so the order is: pose the guns, then turn that on.
+	private void AnchorBrace(WM_PlayerHands ph, PlayerPawn pmo)
+	{
+		if (!ph || !pmo) return;
+		for (int h = 0; h < 2; h++)
+		{
+			let mine  = ph.rigs[h];
+			let other = ph.rigs[1 - h];
+
+			// This hand is working a gun of its own -- Anchor has already spoken for it.
+			if (mine && mine.prop && !mine.stowed) continue;
+
+			// The other hand must actually be holding a resolved gun that says where to brace.
+			if (!other || !other.prop || !other.card || !other.resolved) continue;
+			if (other.stowed || other.prop.HasHandHold()) continue;
+
+			// WHERE, in the gun's own mesh space. The card's `supportat` is the placed value;
+			// a recording from wm_fit_support overrides it, which is what makes that command
+			// take effect the moment he presses it instead of waiting for a card edit.
+			Vector3 at;
+			bool have = other.card.gripSupportAtStated;
+			if (have) at = other.card.gripSupportAt;
+			String rec = VRAvatarTable.GetGunData("sup_" .. other.prop.GetClassName());
+			if (rec != "")
+			{
+				Array<String> n; rec.Split(n, " ", TOK_SKIPEMPTY);
+				if (n.Size() >= 3)
+				{
+					at = (n[0].ToDouble(), n[1].ToDouble(), n[2].ToDouble());
+					have = true;
+				}
+			}
+			if (!have) continue;        // nothing says where this gun is braced
+
+			Vector3 bore = other.card.barrel;
+			if (bore.Length() < 0.0001) bore = (1, 0, 0);
+
+			if (h == 0)
+			{
+				pmo.HandAnchorPropMain   = other.prop;
+				pmo.HandAnchorPalmMain   = at;
+				pmo.HandAnchorBarrelMain = bore.Unit();
+				pmo.HandAnchorHandleMain = (0, 0, -1);
+			}
+			else
+			{
+				pmo.HandAnchorPropOff   = other.prop;
+				pmo.HandAnchorPalmOff   = at;
+				pmo.HandAnchorBarrelOff = bore.Unit();
+				pmo.HandAnchorHandleOff = (0, 0, -1);
+			}
 		}
 	}
 
@@ -4497,6 +4675,9 @@ class WM_System : EventHandler
 		//   bind <key> wm_fit_hand       pose the gun in the OTHER hand
 		//   bind <key> wm_fit_only_this  stop sharing: this gun keeps its own pose
 		//   bind <key> wm_fit_reset      clear what this gun has recorded
+		//   bind <key> wm_fit_palm       move the PALM POINT -- where the gun sits in the hand
+		//   bind <key> wm_fit_brace      move the BRACE POINT -- where the off hand grips
+		//   bind <key> wm_fit_point_axis cycle what the stick does for those two
 		//   bind <key> wm_fit_to_body    record the WORN BODY's grip socket
 		//   bind <key> wm_fit_body_axis  cycle what the stick does while doing that
 		if (e.Name ~== "wm_fit")
@@ -4611,15 +4792,18 @@ class WM_System : EventHandler
 			String bcls = bprop.GetClassName();
 			VRAvatarTable.SetGunData("sup_" .. bcls,
 				String.Format("%.3f %.3f %.3f", mesh.x, mesh.y, mesh.z));
-			// SAYS WHAT IT ACTUALLY DID. Nothing reads this value yet -- not the engine, not the
-			// card's own `supportat` -- because the off-hand placement is not built. It is a
-			// measurement taken for when it is, and a message that let him think his off hand
-			// was about to move would have him chasing a feature that is not there.
-			Console.MidPrint(null, String.Format("\cdBrace measured\n\cj%s\n\cusaved for the card", bcls));
-			Console.Printf("\cjWM fit: %s support at %.3f %.3f %.3f (mesh units), written to "
-				"vr_gundata_sup_%s. NOTHING READS IT YET -- it goes into the card as `supportat`; "
-				"the off hand is not placed on the gun by anything today.",
-				bcls, mesh.x, mesh.y, mesh.z, bcls);
+			// AnchorBrace reads this value now, overriding the card, so it takes effect on the
+			// next tic -- but only moves a hand while vr_gun_anchor_hand is on, which is the
+			// gate every anchored-hand path shares. Say which of those two is true rather than
+			// claiming the hand moved, because he cannot see a console to find out.
+			bool braceLive = (CVar.FindCVar("vr_gun_anchor_hand") != null)
+				&& CVar.FindCVar("vr_gun_anchor_hand").GetInt() != 0;
+			Console.MidPrint(null, String.Format("\cdBrace recorded\n\cj%s\n\cu%s", bcls,
+				braceLive ? "in use now" : "saved -- needs vr_gun_anchor_hand"));
+			Console.Printf("\cjWM fit: %s support at %.3f %.3f %.3f (mesh units) -> "
+				"vr_gundata_sup_%s. AnchorBrace reads it over the card's `supportat`; the off hand "
+				"moves to it only while vr_gun_anchor_hand is on (currently %s).",
+				bcls, mesh.x, mesh.y, mesh.z, bcls, braceLive ? "on" : "off");
 			return;
 		}
 		// [GUNMESHFIT] THIS GUN ONLY, FROM NOW ON.
@@ -4733,6 +4917,54 @@ class WM_System : EventHandler
 			fitBAxis = (fitBAxis + 1) % 2;
 			Console.MidPrint(null, String.Format("\cd%s", FitBodyAxisName(fitBAxis)));
 			Console.Printf("\cjWM body fit: stick now %s.", FitBodyAxisName(fitBAxis));
+			return;
+		}
+		// [POINTFIT] MOVE THE PALM POINT, or the BRACE POINT, with the stick.
+		//
+		// wm_fit turns the gun; these move WHICH POINT OF THE MESH is in the hand. The palm
+		// is also the pivot the pose turns about, so it is the one to get right first --
+		// rotating about the wrong point swings the gun round an arc and no amount of
+		// shifting afterwards straightens that out.
+		if (e.Name ~== "wm_fit_palm" || e.Name ~== "wm_fit_brace")
+		{
+			if (e.Player != consoleplayer || !pmo) return;
+			int want = (e.Name ~== "wm_fit_brace") ? 2 : 1;
+			if (fitPt == want) { FitPtStop(pmo, ""); return; }
+
+			let pph = HandsIfAny(e.Player);
+			int pHand = FitHandWith(pph, fitOn ? fitHand : 0);
+			if (pHand < 0)
+			{
+				Console.MidPrint(null, "\cgNothing in either hand to adjust.");
+				return;
+			}
+			fitHand = pHand;
+			fitPt = want; fitPtAxis = 0; fitPtCls = "";
+			if (!FitPtLoad(pph.rigs[pHand])) { fitPt = 0; Console.MidPrint(null, "\cgThat gun has no card."); return; }
+
+			// The brace point only MOVES a hand while vr_gun_anchor_hand is on, because that is
+			// the gate every anchored-hand path shares. The value is still recorded either way,
+			// so say which it is rather than letting him wonder why nothing moved.
+			String pnote = "";
+			if (want == 2)
+			{
+				let pah = CVar.FindCVar("vr_gun_anchor_hand");
+				if (!pah || pah.GetInt() == 0) pnote = "\n\cgneeds vr_gun_anchor_hand";
+			}
+			Console.MidPrint(null, String.Format("\cdMoving the \cj%s\n\cu%s -- %s%s",
+				FitPtWhat(want), FitHandName(fitHand), FitPtAxisName(fitPtAxis), pnote));
+			Console.Printf("\cjWM fit: moving %s's %s (%s). Stick: %s. wm_fit_point_axis to "
+				"change, the same key again to stop.",
+				fitPtCls, FitPtWhat(want), FitHandName(fitHand), FitPtAxisName(fitPtAxis));
+			return;
+		}
+		if (e.Name ~== "wm_fit_point_axis")
+		{
+			if (e.Player != consoleplayer) return;
+			if (fitPt == 0) { Console.MidPrint(null, "\cgNot moving a point -- wm_fit_palm first."); return; }
+			fitPtAxis = (fitPtAxis + 1) % 3;
+			Console.MidPrint(null, String.Format("\cd%s", FitPtAxisName(fitPtAxis)));
+			Console.Printf("\cjWM fit: stick now %s.", FitPtAxisName(fitPtAxis));
 			return;
 		}
 		if (e.Name ~== "wm_fit_reset")
