@@ -3901,6 +3901,24 @@ class WM_System : EventHandler
 	// a part's volume -- before anything is grabbed -- and comes back the tic it
 	// leaves. Proximity only: palm and trigger decide a TAKE, not whether the
 	// laser should keep out of the way.
+	//
+	// THE POUCH AND THE WELL WERE NOT IN THIS, AND THEY ARE THE TWO SPHERES YOU
+	// REACH INTO MOST (owner, 2026-10-04: the distance grab should be off "when my
+	// hands are in reload/grab spheres").
+	//
+	// It counted a hand as at a part only for the GUN's parts -- a slide, a crane,
+	// a magazine already in the well. Reaching to your belt for a fresh magazine,
+	// or bringing one up to the well, left the cone wide awake: the laser went on
+	// picking something across the room, and the pull toward yourself that feeds a
+	// magazine is the same motion the flick gesture watches for, so the reload
+	// ended with a barrel in the air.
+	//
+	// HandInPouch and NearWell already existed and were used for deciding a take.
+	// They are the same spheres the markers draw (wm_belt_radius, wm_well_radius),
+	// so what stands the laser down is what you can see, and tuning one tunes both.
+	//
+	// Not folded into the arbiter claim instead: a claim means a hand is COMMITTED,
+	// and the whole point here is the moment before that -- hovering, deciding.
 	private void PublishNear(WM_PlayerHands ph, PlayerPawn pmo)
 	{
 		if (!arbiter) return;
@@ -3909,6 +3927,11 @@ class WM_System : EventHandler
 			let rig = ph.rigs[1 - h];
 			bool near = ph.hstate[h].HeldPart() >= 0 || ph.hstate[h].mode == WM_HandState.GUIDE
 				|| (rig && rig.card && NearestPart(ph, pmo, h, rig, false, false) >= 0);
+			// The reload spheres, for the hand itself: the pouch on your belt (and
+			// the hips, when they are on) and the mouth of the gun's magazine well.
+			if (!near && Cvb("wm_near_spheres", true))
+				near = HandInPouch(pmo, h) >= 0
+					|| (rig && rig.card && NearWell(pmo, h, rig));
 			arbiter.GetInt("grip.near", "", h, near ? 1 : 0, pmo, 'RS_WeaponMech');
 		}
 	}

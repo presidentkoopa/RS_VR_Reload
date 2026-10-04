@@ -1980,6 +1980,20 @@ user float wm_snapload_dist  = 0.15;
 user int   wm_snapload_calm_tics = 8;
 user float wm_snapload_calm_frac = 0.333;
 
+// THE RELOAD SPHERES STAND THE DISTANCE-GRAB LASER DOWN (owner, 2026-10-04).
+//
+// WM_System tells the hands package every tic which hands are at a part, and the
+// cone reads it (RS_Grab, grip.nearq) so the laser keeps out of the way. It only
+// ever counted the GUN's parts. Reaching to your belt for a magazine, or bringing
+// one up to the well, left the cone awake and locking something across the room --
+// and feeding a magazine is a hard pull toward yourself, which is the motion the
+// flick gesture watches for, so a reload could throw a barrel at you.
+//
+// The spheres are the ones the markers draw, wm_belt_radius and wm_well_radius, so
+// what the laser keeps out of is what you can see. Off: only the gun's own parts
+// stand it down, which is how it behaved before.
+user bool wm_near_spheres = true;
+
 // [STOCKRELOAD] HOW LONG THE BUTTON RELOAD TAKES, tics (wm_reload_mode 4; 35 a second).
 // The gun cannot fire for this long, then it is filled.
 user int   wm_stockreload_tics = 35;

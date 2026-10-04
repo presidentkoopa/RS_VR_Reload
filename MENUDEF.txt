@@ -2790,6 +2790,11 @@ OptionMenu "WM_PouchMenu"
 	Slider "Hip: height",          "wm_hip_up",   -40.0, 10.0, 0.5, 1
 	Slider "Hip: forward / back",  "wm_hip_fwd",  -20.0, 20.0, 0.5, 1
 	StaticText ""
+	Option "A hand in these spheres turns off the grab laser", "wm_near_spheres", "OnOff"
+	StaticText "The pouch and the well, as well as the gun's own parts.", "DarkGray"
+	StaticText "Off, the laser stays awake while you reach for a magazine --", "DarkGray"
+	StaticText "and feeding one is the same pull the flick gesture watches for.", "DarkGray"
+	StaticText ""
 	StaticText "SEATING A MAGAZINE", "Gold"
 	Slider "The well catches it within",   "wm_well_radius", 0.5, 12.0, 0.25, 2
 	Slider "Wander off the line and it is yours at", "wm_well_letgo", 1.0, 20.0, 0.25, 2
