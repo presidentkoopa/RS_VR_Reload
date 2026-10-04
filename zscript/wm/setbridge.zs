@@ -28,6 +28,14 @@
 //   Marker()     one class name only the parent mod has
 //   Configure()  the swaps, reading `parentLoaded`
 //   MAPINFO      AddEventHandlers = "<its bridge>"
+//
+// THIS BASE IS NEVER REGISTERED ITSELF -- the SUBCLASS is, from the set's own package
+// (BD22_Bridge, in RS_VR_Weapons/bd22). menu_lint's E8 fails a build on a handler MAPINFO
+// never registers, because one that nothing registers is never constructed and prints
+// nothing at all; the marker below is how a base class declares itself exempt. It is
+// needed here only because the subclass lives in a LATER package, which this one cannot
+// see. Nothing about this class changes -- the line is for the lint.
+// LINT-BASE-HANDLER: WM_SetBridge
 // ============================================================================
 
 class WM_SetBridge : EventHandler
