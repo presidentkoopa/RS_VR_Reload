@@ -16,3 +16,39 @@ alias wm_sets    "netevent wm_sets"
 // Generalised from RS_VR_Weapons' bd22_why, which named Brutal Doom's own ammo classes and
 // blocking tokens and so could only ever answer for one set.
 alias wm_why "netevent wm_why"
+
+// MOVING THE AMMO POUCH BY HAND (owner, 2026-10-04: "I need a way to reposition the
+// ammopouch, there is no current controls").
+//
+// WM_System has had the whole placement mode since it was written -- reach at a pouch,
+// squeeze to pick it up, squeeze again to drop it where your hand is, and the drop writes
+// wm_belt_fwd / _side / _up (or the wm_hip_ trio) from your hand's place in your body's
+// frame. It listens for three events and NOTHING IN THE LOAD ORDER HAS EVER SENT ONE.
+//
+// They are named rs_body_* because RS_VRBody owned the controls, and RS_VRBody is not
+// loaded any more -- RS_Avatar replaced it and did not carry these over. So the receiver
+// sat there complete, with no sender, for as long as that has been true. The event names
+// are left exactly as they are: they are the existing contract, and renaming them would
+// silently break the mode again for anyone who does load RS_VRBody.
+//
+// netevent, not event: WM_System reads them in NetworkProcess.
+alias wm_pouch_move     "netevent rs_body_edit"
+alias wm_pouch_grab     "netevent rs_body_grab_main"
+alias wm_pouch_grab_off "netevent rs_body_grab_off"
+
+// BINDABLE, BECAUSE A CONSOLE COMMAND IS NOT A CONTROL IN A HEADSET.
+//
+// This is the lesson RS_Avatar's KEYCONF already wrote down: addmenukey needs a section
+// opened first, and without one the keys never reach the Controls menu at all. Everything
+// else in this file is a console command on purpose -- you type wm_card with the headset
+// off. Moving a pouch is the opposite: it is done standing up, in VR, with your hands,
+// and it is the one thing here that cannot be typed.
+//
+// Safe to bind, unlike RS_Avatar's fit commands: the mode takes no stick, alters no rig,
+// says on screen when it is on and off, and moves nothing until you reach at a pouch and
+// squeeze. Worst case is a pouch somewhere you did not want it, which the next drop fixes
+// and the menu sliders fix exactly.
+addkeysection "DoomXR Ammo Pouch" wm_pouch_keys
+addmenukey "Pouch: move mode on / off"      wm_pouch_move
+addmenukey "Pouch: pick up / drop -- main hand" wm_pouch_grab
+addmenukey "Pouch: pick up / drop -- off hand"  wm_pouch_grab_off
