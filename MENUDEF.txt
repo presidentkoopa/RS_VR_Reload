@@ -1813,6 +1813,10 @@ OptionMenu "WM_MagMenu"
 	StaticText "Raise it if the gun reloads while you are just moving;", "DarkGray"
 	StaticText "lower it if the flick is work.", "DarkGray"
 	Slider "  Flick must travel (metres)", "wm_snapload_dist", 0.05, 0.5, 0.01, 2
+	StaticText "The gun must go STILL before a flick counts at all -- these two", "DarkGray"
+	StaticText "decide how still, and they are what refuses a flick while you move.", "DarkGray"
+	Slider "  Hold still first (tics, 0 = not at all)", "wm_snapload_calm_tics", 0, 20, 1, 0
+	Slider "  Still means under this much of the effort", "wm_snapload_calm_frac", 0.05, 1.0, 0.05, 2
 	Slider "  Button reload takes (tics, 35 = 1 second)", "wm_stockreload_tics", 1, 140, 1, 0
 	StaticText ""
 	StaticText "ON THE FLOOR", "Gold"

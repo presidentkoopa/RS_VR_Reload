@@ -1959,6 +1959,26 @@ user float wm_snapload_speed = 2.8;
 user int   wm_snapload_tics  = 3;
 // And the gun must travel this far down, METRES, in that run: a stroke, not a jolt.
 user float wm_snapload_dist  = 0.15;
+// THE SETTLE GATE, which was two literals in rig.zs and the hardest gate of the five
+// (owner, 2026-10-04: the flick "does not work, or if it did it is too strict").
+//
+// Before the detector will look at a flick at all, the gun must first be CALM: this many
+// tics IN A ROW under _calm_frac of the trigger speed. One tic over it puts the count
+// back to zero. Standing still that arms in a quarter second; while you are moving,
+// turning, or walking it can sit disarmed indefinitely and the flick does nothing, with
+// nothing on screen to say why.
+//
+// It is not noise-free input either. The speed it measures includes the wrist term
+// (the gun sits away from the hand, so rotation moves it), which scales ordinary tracking
+// jitter by how far out the gun is drawn -- a long gun is held to the same threshold as a
+// pistol while its number is inherently larger.
+//
+// Defaults are the 8 and the 1/3 that were hardcoded, so this changes nothing by itself.
+// LOWER BOTH if the flick is being ignored. _calm_tics 0 means no settle at all, which
+// is what it was before 2026-09-29 -- and that reloaded on recoil recovery and crouching,
+// which is why the gate exists. The honest range is somewhere between.
+user int   wm_snapload_calm_tics = 8;
+user float wm_snapload_calm_frac = 0.333;
 
 // [STOCKRELOAD] HOW LONG THE BUTTON RELOAD TAKES, tics (wm_reload_mode 4; 35 a second).
 // The gun cannot fire for this long, then it is filled.

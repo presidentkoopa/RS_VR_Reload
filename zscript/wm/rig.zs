@@ -3343,12 +3343,20 @@ class WM_Rig play
 		snapLast = along;
 
 		if (snapQuiet > 0) { snapQuiet--; snapRun = 0; snapTravel = 0; return; }
-		// SETTLE FIRST, AND PROPERLY. Eight tics in a row well below the speed, so the follow-through
+		// SETTLE FIRST, AND PROPERLY. Tics in a row well below the speed, so the follow-through
 		// of the flick that just reloaded -- or a wave of the arm -- cannot fire it again.
+		//
+		// THE EIGHT AND THE THIRD ARE CVARS NOW (2026-10-04). They were literals, and of the five
+		// gates this is the one that actually refuses: the other four are reached only once this
+		// one has armed, and one tic over the line puts the count back to zero. Every other term
+		// had a slider and the hardest did not, so "the flick is too strict" had no knob that
+		// answered it. Defaults are the old numbers; 0 tics disables the settle entirely.
 		if (!snapCalm)
 		{
-			snapCalmTics = (along < need / 3.0) ? snapCalmTics + 1 : 0;
-			if (snapCalmTics >= 8) { snapCalm = true; snapCalmTics = 0; }
+			double calmAt   = need * clamp(Cvf("wm_snapload_calm_frac", 0.333), 0.05, 1.0);
+			int    calmNeed = clamp(int(Cvf("wm_snapload_calm_tics", 8)), 0, 35);
+			snapCalmTics = (along < calmAt) ? snapCalmTics + 1 : 0;
+			if (snapCalmTics >= calmNeed) { snapCalm = true; snapCalmTics = 0; }
 			return;
 		}
 		// THE TRIGGER DOWN IS SHOOTING, NOT RELOADING: recoil and the recovery from it are fast and down.
