@@ -1973,12 +1973,26 @@ user float wm_snapload_dist  = 0.15;
 // jitter by how far out the gun is drawn -- a long gun is held to the same threshold as a
 // pistol while its number is inherently larger.
 //
-// Defaults are the 8 and the 1/3 that were hardcoded, so this changes nothing by itself.
-// LOWER BOTH if the flick is being ignored. _calm_tics 0 means no settle at all, which
-// is what it was before 2026-09-29 -- and that reloaded on recoil recovery and crouching,
-// which is why the gate exists. The honest range is somewhere between.
-user int   wm_snapload_calm_tics = 8;
-user float wm_snapload_calm_frac = 0.333;
+// LOOSENED 2026-10-10, because shipping the old numbers as the default meant the
+// sliders changed nothing for the one person using them. He reported the flick
+// "doesn't work 90% of the time", and his ini held all six of these at the
+// defaults -- so the gate was at its strictest and the knobs had never moved.
+//
+// Was 8 tics under 1/3 of the trigger speed: 229 ms in a row under 0.93 m/s,
+// with any single tic over it resetting the count. Standing still that arms;
+// while moving or turning it can sit disarmed indefinitely and the flick is
+// silently ignored, which is exactly what he described.
+//
+// Now 3 tics under 0.6: 86 ms under 1.68 m/s. Still a settle -- the follow-
+// through of the flick that just reloaded cannot re-fire it, which is why the
+// gate exists at all (before 2026-09-29 there was none and it reloaded on
+// recoil recovery and crouching). 0 tics disables it entirely.
+//
+// ONLY THIS GATE MOVED. speed, tics, dist and scale are untouched on purpose:
+// if the flick now works, it was the settle; if it still does not, the binding
+// term is elsewhere and we have not spent the evidence finding out.
+user int   wm_snapload_calm_tics = 3;
+user float wm_snapload_calm_frac = 0.6;
 
 // THE RELOAD SPHERES STAND THE DISTANCE-GRAB LASER DOWN (owner, 2026-10-04).
 //
