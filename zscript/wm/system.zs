@@ -3292,6 +3292,26 @@ class WM_System : EventHandler
 	// stands a hand down entirely when its subject reads as a reload, so a
 	// subject published for a hand that is merely NEAR a part is a hand that
 	// can no longer catch, pull or pass anything.
+	// WHICH RUNG A HAND'S CLAIM BOOKS AT (CODER_PLAN step 56).
+	//
+	// Mirrors RS_GripArbiterService's ladder. The numbers are INLINED rather than
+	// referenced, for the reason that file states itself: naming its constants would be a
+	// compile-time dependency on it, which is fatal AND GLOBAL if it is absent, and the
+	// whole point of reaching it by string is that neither side names the other. Its own
+	// note allows this -- "the ladder is a convention, not an enum".
+	const WM_PRIO_MECHANISM = 80;   // a hand working the gun: racking, inserting
+	const WM_PRIO_HELD      = 70;   // a hand merely carrying a magazine or a round
+
+	private static int ClaimPrioFor(int mode)
+	{
+		// GUIDE is a magazine being pushed into the well and ONPART is a hand on a slide,
+		// pump or crane: both are the gun being WORKED, and both must outrank a brace.
+		if (mode == WM_HandState.GUIDE || mode == WM_HandState.ONPART)
+			return WM_PRIO_MECHANISM;
+		// CARRY, and anything added later, is something in the hand.
+		return WM_PRIO_HELD;
+	}
+
 	private void PoseHand(WM_PlayerHands ph, PlayerPawn pmo, int h)
 	{
 		let st = ph.hstate[h];
@@ -3338,8 +3358,22 @@ class WM_System : EventHandler
 			bool free    = arbiter.GetInt("grip.held", "", h, 0, pmo, 'RS_WeaponMech') == 0;
 			if (subj != GRIPSUBJ_None)
 			{
+				// CLASSED, NOT PRIO_LEGACY (CODER_PLAN step 56).
+				//
+				// Step 35 fixed WHO this asks -- the arbiter, rather than a value test on a
+				// shared int. What it did not fix is the CLASS of the claim: it books through
+				// grip.claim, the PROTOCOL 2 form, which sits at the bottom of the ladder. So
+				// a hand mid-rack on a slide ranked below a brace and below a distance pull --
+				// and the ladder's very first line is written for this case: "a gun part
+				// mid-rack 80 beats a held object 70".
+				//
+				// A hand working the gun is PRIO_MECHANISM and NOT preemptable: a rack
+				// interrupted half way is a gun in an undefined state. A hand merely carrying
+				// a magazine is PRIO_HELD, the same rung RS_Held uses, because that is exactly
+				// what it is -- something in the hand.
 				if (free || mineNow)
-					arbiter.GetInt("grip.claim", "", h, subj, pmo, 'RS_WeaponMech');
+					arbiter.GetInt("grip.claimex", ClaimPrioFor(st.mode) .. " 0 wm",
+						h, subj, pmo, 'RS_WeaponMech');
 			}
 			else if (mineNow)
 			{
