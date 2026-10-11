@@ -3619,11 +3619,41 @@ class WM_System : EventHandler
 				// field over the top and leaving the ledger naming the old owner.
 				// Everything that then asked the arbiter who held the hand got a
 				// confident wrong answer, which is worse than no arbiter at all.
-				// grip.take is the same outcome, recorded: it always grants, it
-				// files the displaced owner where grip.lost can find them, and it
-				// publishes the field itself. Phase C is where this stops being
-				// needed, because by then a loser can actually be made to let go.
-				arbiter.GetInt("grip.take", "", h, subject, pmo, 'RS_WeaponMech');
+				// grip.take is the same outcome, recorded: it files the displaced
+				// owner where grip.lost can find them, and it publishes the field
+				// itself.
+				//
+				// IT CARRIES ITS RANK NOW, AND IT HAD NONE (2026-10-11, arbiter
+				// phase C). An empty spec means PRIO_LEGACY 0 -- the bottom rung --
+				// so the fallback take was WEAKER than the claim it falls back
+				// from, `ClaimPrioFor` having mapped this same hand to MECHANISM 80
+				// one step earlier. A take at 0 is refused by any live owner above
+				// 0, because the arbiter keeps a strictly stronger incumbent, and
+				// the comment this replaces said grip.take "always grants" -- true
+				// when it was written, untrue since that rule was added. So the
+				// refusal was both invisible and ignored: the mechanism carried on
+				// believing it held a hand the ledger still named for someone else,
+				// which is the confident wrong answer above, arriving from the
+				// other side.
+				//
+				// 80 non-preemptable is the ladder's own rung for this and the one
+				// the claim already used, so the fallback now agrees with the
+				// attempt: a rack interrupted half way is a gun in an undefined
+				// state. It beats a held object at 70, a pull at 50, and the
+				// forearm shield at 75 -- the owner's rule, in his words
+				// (2026-10-11): "i want to reload when i want to reload ... i'd
+				// want my other hand to be able to grab a mag from the ammopouch,
+				// shiled in hand or not". The shield yields the hand and stays
+				// deployed on the arm; see RS_ShieldSaw's claimOffHand.
+				//
+				// THE RETURN IS STILL NOT READ, deliberately and narrowly: at 80
+				// the only thing that can refuse this is another non-preemptable
+				// holder at 80 or above, and the sole claimant up there is a second
+				// gun mechanism on the same hand, which cannot happen. Reading it
+				// would mean deciding what a gun does when it cannot have its own
+				// part mid-cycle, and that is a question for the owner, not a
+				// default.
+				arbiter.GetInt("grip.take", "80 0", h, subject, pmo, 'RS_WeaponMech');
 			}
 
 			// THE ARBITER WROTE THE FIELD (PROTOCOL 3) -- on the grant, on the
