@@ -1098,6 +1098,9 @@ class WM_System : EventHandler
 		for (int r = 0; r < 2; r++) ph.rigs[r].Anchor(pmo);
 		// [BRACE] And LAST, so it only fills in a hand the pass above left empty.
 		AnchorBrace(ph, pmo);
+		// [PARTANCHOR] After the brace: a hand working a part is placed on that part, and
+		// nothing written above for it may survive into the frame.
+		AnchorHeldParts(ph, pmo);
 		// [GUNFIT] After the anchor, so the gun it is posing is the one just placed.
 		FitTick(ph, pmo);
 		FitBodyTick(ph, pmo);
@@ -1648,6 +1651,16 @@ class WM_System : EventHandler
 			// This hand is working a gun of its own -- Anchor has already spoken for it.
 			if (mine && mine.prop && !mine.stowed) continue;
 
+			// [PARTANCHOR] NOR A HAND THAT IS HOLDING SOMETHING. This used to brace any hand that
+			// had no gun of its own, so with vr_gun_anchor_hand on the off hand was pinned to the
+			// forend for as long as the other hand held a gun -- through a magazine change, a
+			// slide rack, a reach for the belt. A hand on a part, carrying a magazine or round, or
+			// claimed by anything but a support hold is doing something else.
+			let hst = ph.hstate[h];
+			if (hst.mode != WM_HandState.FREE && hst.mode != WM_HandState.BRACE) continue;
+			int hclaim = GetClaim(pmo, h);
+			if (hclaim != GRIPSUBJ_None && hclaim != GRIPSUBJ_Support) continue;
+
 			// The other hand must actually be holding a resolved gun that says where to brace.
 			if (!other || !other.prop || !other.card || !other.resolved) continue;
 			if (other.stowed || other.prop.HasHandHold()) continue;
@@ -1670,6 +1683,12 @@ class WM_System : EventHandler
 			}
 			if (!have) continue;        // nothing says where this gun is braced
 
+			// [PARTANCHOR] ONLY A HAND THAT IS THERE. The brace is a snap, not a leash: the hand
+			// goes onto the support point when the controller is within wm_brace_snap of it, and
+			// comes off when it leaves. Without this a free off hand was drawn on the forend
+			// wherever the controller actually was.
+			if ((HandPos(pmo, h) - other.World(at)).Length() > Cvf("wm_brace_snap", 5.0)) continue;
+
 			Vector3 bore = other.card.barrel;
 			if (bore.Length() < 0.0001) bore = (1, 0, 0);
 
@@ -1687,6 +1706,126 @@ class WM_System : EventHandler
 				pmo.HandAnchorBarrelOff = bore.Unit();
 				pmo.HandAnchorHandleOff = (0, 0, -1);
 			}
+		}
+	}
+
+	// ---- [PARTANCHOR] THE HAND ON THE PART IT IS WORKING ------------------------------
+	//
+	// A hand racking a slide, pulling a charging handle or a bolt, pressing a barrel open or
+	// pumping a forend holds a part that runs along its own rail -- and the controller does not.
+	// Left on the controller, the avatar's hand hangs beside a slide that is visibly being pulled
+	// by nothing, and stops short of it at the end of the stroke. This puts the hand ON the part,
+	// through the same HandAnchor* fields as the gun grip. The engine places it while the hand's
+	// GripSubject is a slide, a forend or a foregrip (vr_part_anchor_hand, on by default), whether
+	// or not vr_gun_anchor_hand is on (vr_avatar_pose.cpp [PARTANCHOR]).
+	//
+	// WHERE: the part's `handseat` -- the middle of what the hand closes on -- or, on a card that
+	// states none, its `grab` point. CARRIED BY THE PART (CarriedBy), so the hand rides the slide
+	// back and turns with a break-open barrel.
+	//
+	// HOW, by the part's subject -- which is the gun type's own word for it:
+	//   slide (a slide, a charging handle, a bolt): over the top, the back of the hand up, the
+	//     fingers across the part and down its far side, the thumb toward the shooter.
+	//   forend or foregrip (a pump, a break-open barrel, a launcher tube, a crane): round it,
+	//     under it, palm up, the fingers round its far side, the thumb forward.
+	//   A part held some other way says so with `handaxis` -- the line the hand closes round,
+	//   index finger to little finger. An upright one (a bullpup's pump grip) is then held like
+	//   the gun's own grip, knuckles forward.
+	// The far side is MEASURED, not assumed: the fingers go across to the side of the part away
+	// from wherever the hand is, so a hand reaching over to a bolt on the far side of a rifle is
+	// drawn reaching over rather than inside out.
+	//
+	// The engine's frame (vr_rig.cpp VRRig_GripFrame): `barrel` is the way the hand's knuckles
+	// point -- the bore, on a gun's own grip -- and `handle` the way from the index finger to the
+	// little finger -- down the grip. Both in the gun's own mesh axes, like the card.
+	private void AnchorHeldParts(WM_PlayerHands ph, PlayerPawn pmo)
+	{
+		if (!ph || !pmo) return;
+		for (int h = 0; h < 2; h++)
+		{
+			let st = ph.hstate[h];
+			if (st.mode != WM_HandState.ONPART) continue;
+
+			let rig = ph.rigs[1 - h];
+			bool ok = rig && rig.prop && rig.card && rig.resolved && !rig.stowed
+				&& !rig.prop.HasHandHold() && st.part >= 0 && st.part < rig.card.parts.Size();
+			int subj = ok ? SubjectFor(rig.card.parts[st.part]) : GRIPSUBJ_None;
+			if (subj != GRIPSUBJ_Slide && subj != GRIPSUBJ_Forend && subj != GRIPSUBJ_Foregrip)
+			{
+				// Not a part a hand closes round (a magazine being drawn out, a hammer): the hand
+				// stays on the controller, and nothing written for it earlier this tic stays.
+				SetHandAnchor(pmo, h, null, (0, 0, 0), (1, 0, 0), (0, 0, -1));
+				continue;
+			}
+			let part = rig.card.parts[st.part];
+			Vector3 seat = part.handSeatStated ? part.handSeat : part.grabAt;
+
+			// The gun's bore and up, carried with the part -- a barrel pressed open turns both.
+			Vector3 bore = rig.card.barrel;
+			if (bore.Length() < 0.0001) bore = (1, 0, 0);
+			bore = bore.Unit();
+			Vector3 up = (0, 0, 1) - bore * bore.Z;
+			if (up.Length() < 0.0001) up = (0, 1, 0);
+			up = up.Unit();
+			Vector3 at     = rig.CarriedBy(st.part, seat);
+			Vector3 boreAt = rig.CarriedBy(st.part, seat + bore) - at;
+			Vector3 upAt   = rig.CarriedBy(st.part, seat + up) - at;
+			if (boreAt.Length() < 0.0001 || upAt.Length() < 0.0001)
+			{
+				SetHandAnchor(pmo, h, null, (0, 0, 0), (1, 0, 0), (0, 0, -1));
+				continue;
+			}
+			boreAt = boreAt.Unit();
+			upAt   = upAt.Unit();
+
+			// WHICH SIDE OF THE PART THE HAND IS ON, square to the bore and to up, in the gun's
+			// own axes (ModelDelta carries the gun's scale and mirror). The fingers go the other
+			// way. Straight above or below it, the hand's own side of the body decides.
+			Vector3 toHand = rig.ModelDelta(HandPos(pmo, h) - rig.World(at));
+			Vector3 side = toHand - boreAt * (toHand dot boreAt) - upAt * (toHand dot upAt);
+			Vector3 across;
+			if (side.Length() > 0.05) across = -side.Unit();
+			else across = (boreAt cross upAt).Unit() * ((h == 0) ? -1 : 1);
+
+			Vector3 knuckles, toPinky;
+			if (part.handAxisStated)
+			{
+				// THE CARD SAYS WHICH LINE THE HAND CLOSES ROUND (`handaxis`). The knuckles go
+				// across the part when that line runs along the bore, and forward along the bore
+				// when it stands up or runs across -- an upright grip held like a pistol grip.
+				Vector3 ax = rig.CarriedBy(st.part, seat + part.handAxis.Unit()) - at;
+				if (ax.Length() < 0.0001)
+				{
+					SetHandAnchor(pmo, h, null, (0, 0, 0), (1, 0, 0), (0, 0, -1));
+					continue;
+				}
+				ax = ax.Unit();
+				Vector3 k = boreAt;
+				if (abs(ax dot boreAt) > 0.7) k = across;
+				knuckles = (k - ax * (k dot ax)).Unit();
+				toPinky  = ax;
+			}
+			else if (subj == GRIPSUBJ_Slide) { knuckles = across; toPinky = boreAt; }
+			else                             { knuckles = across; toPinky = -boreAt; }
+			SetHandAnchor(pmo, h, rig.prop, at, knuckles, toPinky);
+		}
+	}
+
+	private void SetHandAnchor(PlayerPawn pmo, int h, Actor prop, Vector3 palm, Vector3 knuckles, Vector3 toPinky)
+	{
+		if (h == 0)
+		{
+			pmo.HandAnchorPropMain   = prop;
+			pmo.HandAnchorPalmMain   = palm;
+			pmo.HandAnchorBarrelMain = knuckles;
+			pmo.HandAnchorHandleMain = toPinky;
+		}
+		else
+		{
+			pmo.HandAnchorPropOff   = prop;
+			pmo.HandAnchorPalmOff   = palm;
+			pmo.HandAnchorBarrelOff = knuckles;
+			pmo.HandAnchorHandleOff = toPinky;
 		}
 	}
 

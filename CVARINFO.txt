@@ -1926,6 +1926,10 @@ nosave float wm_hip_side     = 9.0;
 nosave float wm_hip_up       = -22.0;
 nosave float wm_hip_fwd      = 1.0;
 user float wm_well_radius  = 3.0;     // the well catches a magazine within this
+// [PARTANCHOR] The free off hand goes onto the other gun's support point (`supportat`) only
+// while the controller is within this many map units of it, and comes off when it leaves --
+// with vr_gun_anchor_hand on it was otherwise pinned there through every reload.
+nosave float wm_brace_snap = 5.0;
 user float wm_well_letgo   = 5.0;     // wander this far off the line and it is yours again
 user float wm_seat_at      = 0.25;    // this far in, the catch takes it
 

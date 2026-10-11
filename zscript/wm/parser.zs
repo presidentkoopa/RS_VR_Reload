@@ -74,7 +74,9 @@
 // mesh's own shell line. Its `subject` is shell or round.
 //
 // A part's `handseat = x, y, z` is where a hand gripping it sits, model space
-// (card.zs WM_Part.handSeat).
+// (card.zs WM_Part.handSeat). Its `handaxis = x, y, z` is the line that hand closes round,
+// index finger to little finger (WM_Part.handAxis) -- stated only where it is not the one the
+// part's subject implies.
 //
 // A card's `type = <word>` says what kind of gun it is -- pistol, shotgun, breakaction,
 // revolver, rifle, smg, ... -- and so which hand seats its hands read (handprofile.zs).
@@ -1714,6 +1716,8 @@ class WM_Parser
 		p.grabSize   = (0, 0, 0);   // no oval stated: a ball of grabRadius
 		p.handSeat       = (0, 0, 0);
 		p.handSeatStated = false;   // no seat stated: the hand is seated as it always was
+		p.handAxis       = (0, 0, 0);
+		p.handAxisStated = false;   // [PARTANCHOR] unstated: the part's subject decides
 		p.present    = true;
 		p.handTake   = true;
 		p.cockByTrigger = false;    // a hammer is cocked by its action unless the card says trigger
@@ -1893,6 +1897,14 @@ class WM_Parser
 			if (!IsTriple(Unquote(val))) return false;
 			p.handSeat       = ReadTriple(val);
 			p.handSeatStated = true;
+		}
+		else if (key == "handaxis")
+		{
+			// [PARTANCHOR] The line a hand closes round on this part, from its index finger to its
+			// little finger, model space (card.zs WM_Part.handAxis).
+			if (!IsTriple(Unquote(val))) return false;
+			p.handAxis       = ReadTriple(val);
+			p.handAxisStated = p.handAxis.Length() > 0.0001;
 		}
 		else if (key == "take")
 		{

@@ -169,6 +169,15 @@ class WM_Part
 	Vector3 handSeat;
 	bool    handSeatStated;
 
+	// [PARTANCHOR] THE LINE THE HAND CLOSES ROUND: `handaxis = x, y, z`, model space, from the
+	// index finger to the little finger. The avatar's hand on a part it is working
+	// (WM_System.AnchorHeldParts) takes it from the part's subject unless this says otherwise:
+	// over the top for a slide or a charging handle, round the bore for a pump or a barrel. A
+	// part that is not held that way states it -- a bullpup's pump is an upright grip
+	// (0, 0, -1, like a pistol grip), a minigun's side bar runs across the gun.
+	Vector3 handAxis;
+	bool    handAxisStated;
+
 	// WHETHER A HAND TAKES IT. "take = no" in the card. A pistol magazine is
 	// dropped by its button and seated by the hand carrying one -- a grab point
 	// on it only sits where the other hand steadies the gun or takes it over, and
