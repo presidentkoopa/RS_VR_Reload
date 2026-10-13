@@ -1304,7 +1304,9 @@ class WM_Rig play
 		{
 			prop.VRRigRole = 2;
 			prop.VRRigHand = hand;
-			if (card && card.gripClass != "") prop.VRGripPose = Name(card.gripClass);
+			// [HANDFIT] a generated per-body fit outranks the per-type table
+			if (card && card.gripFitPose != "") prop.VRGripPose = Name(card.gripFitPose);
+			else if (card && card.gripClass != "") prop.VRGripPose = Name(card.gripClass);
 			else                              prop.VRGripPose = 'None';
 		}
 

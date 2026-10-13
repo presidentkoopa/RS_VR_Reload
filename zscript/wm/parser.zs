@@ -2319,6 +2319,14 @@ class WM_Parser
 			return "";
 		}
 		if (key == "supportpart") { c.gripSupportPart = v; return ""; }
+		// [HANDFIT] the name the generated per-body hand fits for this gun are filed under
+		if (key == "fitpose")
+		{
+			String w = v.MakeLower();
+			if (w.Length() == 0 || w.IndexOf(" ") >= 0) return "fitpose is one word -- the name this gun's hand fits are filed under in vrhandfit.txt";
+			c.gripFitPose = w;
+			return "";
+		}
 		// [HANDQ] x, y, z, w: grip frame -> hand frame. Normalised here, refused when it is no
 		// rotation at all, so a typo cannot reach the engine as a scaled hand.
 		if (key == "handq")

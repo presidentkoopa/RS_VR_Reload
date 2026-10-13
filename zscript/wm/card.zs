@@ -596,6 +596,9 @@ class WM_Card
 	// held rolled differently from a rifle. Unstated: the engine's global vr_gun_anchor_q*.
 	double  gripHandQ[4];
 	bool    gripHandQStated;
+	// [HANDFIT] The name this gun's generated hand fits are filed under (card `fitpose`): the
+	// engine looks for `grip_<fitpose>__<avatar>` in vrhandfit.txt, then `grip_<fitpose>`.
+	String  gripFitPose;
 
 	// The default grip class for a weapon type, from VR_BODY_CODER_HANDOFF.md's Step 4 table.
 	// A card's own `class` line wins over this; the table's exceptions are per-gun facts.
