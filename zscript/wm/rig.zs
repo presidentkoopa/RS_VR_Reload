@@ -1367,12 +1367,22 @@ class WM_Rig play
 		double rk = on ? card.gripRake : 0.0;
 		Vector3 handle = (-sin(rk), 0, -cos(rk));
 
+		// [TRIGGERFINGER] THE TRIGGER FACE, from the card's `triggerat`, same mesh space as the
+		// palm. The engine solves the index fingertip onto it every frame (vr_avatar_pose.cpp
+		// SolveTriggerFinger) and squeezes it with the analog trigger. No triggerat, or the
+		// anchor off: none, and the finger keeps its grip pose. Render only -- nothing here is
+		// read by the playsim, so it is netplay-neutral like the rest of the anchor.
+		bool trigOn = on && card.gripTriggerAtStated;
+		Vector3 trig = trigOn ? card.gripTriggerAt : (0, 0, 0);
+
 		if (hand == 0)
 		{
 			pmo.HandAnchorPropMain   = ap;
 			pmo.HandAnchorPalmMain   = palm;
 			pmo.HandAnchorBarrelMain = bore.Unit();
 			pmo.HandAnchorHandleMain = handle;
+			pmo.HandAnchorTriggerMain    = trig;
+			pmo.HandAnchorTriggerSetMain = trigOn;
 		}
 		else
 		{
@@ -1380,6 +1390,8 @@ class WM_Rig play
 			pmo.HandAnchorPalmOff   = palm;
 			pmo.HandAnchorBarrelOff = bore.Unit();
 			pmo.HandAnchorHandleOff = handle;
+			pmo.HandAnchorTriggerOff    = trig;
+			pmo.HandAnchorTriggerSetOff = trigOn;
 		}
 	}
 
