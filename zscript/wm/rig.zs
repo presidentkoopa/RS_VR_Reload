@@ -1374,6 +1374,8 @@ class WM_Rig play
 		// read by the playsim, so it is netplay-neutral like the rest of the anchor.
 		bool trigOn = on && card.gripTriggerAtStated;
 		Vector3 trig = trigOn ? card.gripTriggerAt : (0, 0, 0);
+		// [HANDQ] the card's own turn of the hand on this grip, when it states one
+		bool qOn = on && card.gripHandQStated;
 
 		if (hand == 0)
 		{
@@ -1383,6 +1385,8 @@ class WM_Rig play
 			pmo.HandAnchorHandleMain = handle;
 			pmo.HandAnchorTriggerMain    = trig;
 			pmo.HandAnchorTriggerSetMain = trigOn;
+			pmo.HandAnchorQuatSetMain = qOn;
+			if (qOn) { pmo.HandAnchorQuatMain = (card.gripHandQ[0], card.gripHandQ[1], card.gripHandQ[2]); pmo.HandAnchorQuatWMain = card.gripHandQ[3]; }
 		}
 		else
 		{
@@ -1392,6 +1396,8 @@ class WM_Rig play
 			pmo.HandAnchorHandleOff = handle;
 			pmo.HandAnchorTriggerOff    = trig;
 			pmo.HandAnchorTriggerSetOff = trigOn;
+			pmo.HandAnchorQuatSetOff = qOn;
+			if (qOn) { pmo.HandAnchorQuatOff = (card.gripHandQ[0], card.gripHandQ[1], card.gripHandQ[2]); pmo.HandAnchorQuatWOff = card.gripHandQ[3]; }
 		}
 	}
 

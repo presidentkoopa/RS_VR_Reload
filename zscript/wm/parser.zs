@@ -2319,6 +2319,27 @@ class WM_Parser
 			return "";
 		}
 		if (key == "supportpart") { c.gripSupportPart = v; return ""; }
+		// [HANDQ] x, y, z, w: grip frame -> hand frame. Normalised here, refused when it is no
+		// rotation at all, so a typo cannot reach the engine as a scaled hand.
+		if (key == "handq")
+		{
+			Array<String> n;
+			v.Split(n, ",", TOK_SKIPEMPTY);
+			if (n.Size() != 4) return "handq is x, y, z, w -- the hand's turn on the grip, as a quaternion";
+			Array<double> q;   // a dynamic array: no local fixed-size arrays in ZScript
+			for (int i = 0; i < 4; i++)
+			{
+				String t = n[i];
+				t.StripLeftRight();
+				if (!IsNumber(t)) return "handq is four numbers: x, y, z, w";
+				q.Push(t.ToDouble());
+			}
+			double len = sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+			if (len < 0.5 || len > 1.5) return String.Format("handq = %s -- not a unit quaternion (length %.3f)", v, len);
+			for (int i = 0; i < 4; i++) c.gripHandQ[i] = q[i] / len;
+			c.gripHandQStated = true;
+			return "";
+		}
 		// `triggerat`, not `trigger`: a barrel block already takes `trigger` for its input,
 		// and `part trigger` is the moving part. This is the POINT the finger reaches for,
 		// named the way `supportat` is.

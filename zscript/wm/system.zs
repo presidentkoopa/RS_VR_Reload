@@ -1699,6 +1699,7 @@ class WM_System : EventHandler
 				pmo.HandAnchorBarrelMain = bore.Unit();
 				pmo.HandAnchorHandleMain = (0, 0, -1);
 				pmo.HandAnchorTriggerSetMain = false;   // [TRIGGERFINGER] a bracing hand has no trigger
+				pmo.HandAnchorQuatSetMain = false;
 			}
 			else
 			{
@@ -1707,6 +1708,8 @@ class WM_System : EventHandler
 				pmo.HandAnchorBarrelOff = bore.Unit();
 				pmo.HandAnchorHandleOff = (0, 0, -1);
 				pmo.HandAnchorTriggerSetOff = false;
+				pmo.HandAnchorQuatSetOff = false;
+			pmo.HandAnchorQuatSetOff = false;
 			}
 		}
 	}
@@ -1822,6 +1825,7 @@ class WM_System : EventHandler
 			pmo.HandAnchorBarrelMain = knuckles;
 			pmo.HandAnchorHandleMain = toPinky;
 			pmo.HandAnchorTriggerSetMain = false;   // [TRIGGERFINGER] a hand on a part has no trigger
+			pmo.HandAnchorQuatSetMain = false;
 		}
 		else
 		{

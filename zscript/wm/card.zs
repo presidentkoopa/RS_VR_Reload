@@ -591,6 +591,11 @@ class WM_Card
 	// block already takes `trigger` for its input and `part trigger` is the moving part.
 	Vector3 gripTriggerAt;
 	bool    gripTriggerAtStated;
+	// [HANDQ] The hand's turn on this grip, grip frame -> hand frame, as a unit quaternion
+	// x, y, z, w (card `handq`). Measured from an approved hold, one per gun: a pistol is
+	// held rolled differently from a rifle. Unstated: the engine's global vr_gun_anchor_q*.
+	double  gripHandQ[4];
+	bool    gripHandQStated;
 
 	// The default grip class for a weapon type, from VR_BODY_CODER_HANDOFF.md's Step 4 table.
 	// A card's own `class` line wins over this; the table's exceptions are per-gun facts.
